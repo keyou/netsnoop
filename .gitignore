@@ -1,0 +1,9 @@
+*.exe
+*.o
+*.stackdump
+.vscode/
+tags
+GTAGS
+*.log
+*.swp
+
