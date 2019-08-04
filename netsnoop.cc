@@ -67,6 +67,39 @@ struct option
     int buffer_size;
 } g_option;
 
+
+inline ssize_t udp_recv(int sockfd,char* buf,size_t length)
+{
+    ssize_t result = 0;
+    if ((result = recv(sockfd, buf, length, 0)) == -1)
+    {
+        if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
+        {
+            LOGE("recv error.\n");
+            close(sockfd);
+            return -1;
+        }
+        LOGE("recv timeout.\n");
+        close(sockfd);
+        return -1;
+    }
+    LOGV("recv: %s\n",buf);
+    return result;
+}
+
+inline ssize_t udp_send(int sockfd,char* buf,size_t length)
+{
+    ssize_t result;
+    if ((result = send(sockfd, buf, length, 0)) < 0)
+    {
+        LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
+        close(sockfd);
+        return -1;
+    }
+    LOGV("send: %s\n", data);
+    return result;
+}
+
 extern "C" EXPORT int init_server()
 {
     int sockfd;
@@ -117,8 +150,7 @@ extern "C" EXPORT int init_server()
     int i;
     char buf[1024 * 64] = {0};
     int data_length = g_option.buffer_size;
-    const std::string tmp(data_length, 'a');
-    const char *data = tmp.c_str();
+    std::string data(data_length, 'a');
     char remote_ip[20] = {0};
     ssize_t rlength = 0;
     ssize_t count = 0;
@@ -126,10 +158,11 @@ extern "C" EXPORT int init_server()
     ssize_t total_count = 0;
     int current_remote_count = 0;
     double delay = 0;
+    bool delay_test_begin = false;
     socklen_t remote_addr_length = sizeof(struct sockaddr_in);
     high_resolution_clock::time_point start, end;
     high_resolution_clock::time_point begin = high_resolution_clock::now();
-    while (rlength < sizeof(buf) - 1)
+    while (true)
     {
         FD_ZERO(&read_fds);
         FD_ZERO(&write_fds);
@@ -206,7 +239,7 @@ extern "C" EXPORT int init_server()
                     continue;
                 }
                 LOGV("send to [%s:%d]: %ldx%ld\n", remote_ip, ntohs(p_remoteaddr->sin_port), data_length, remote_lengths[i] + 1);
-                if ((rlength = sendto(sockfd, data, data_length, 0, (struct sockaddr *)p_remoteaddr, remote_addr_length)) < 0)
+                if ((rlength = sendto(sockfd, data.c_str(), data.length(), 0, (struct sockaddr *)p_remoteaddr, remote_addr_length)) < 0)
                 {
                     LOGE("sendto error.\n");
                     break;
@@ -216,8 +249,8 @@ extern "C" EXPORT int init_server()
                     remote_lengths[i]++;
                     total_count++;
                 }
-                if (rlength != data_length)
-                    LOGE("real send length: %ld/%ld\n", rlength, data_length);
+                if (rlength != data.length())
+                    LOGE("real send length: %ld/%ld\n", rlength, data.length());
             }
             end = high_resolution_clock::now();
             delay = duration<double>(end - start).count();
@@ -232,9 +265,30 @@ extern "C" EXPORT int init_server()
     return 0;
 }
 
+
+int connect_server(int sockfd)
+{
+    char buf[1024*64] = {0};
+    ssize_t rlength = 0;
+    int result;
+    srand(high_resolution_clock::now().time_since_epoch().count());
+    std::string cookie = "cookie:" + std::to_string(rand());
+    if (send(sockfd,cookie.c_str(),cookie.length(), 0) < 0)
+    {
+        LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
+        close(sockfd);
+        return -1;
+    }
+    if((result = udp_recv(sockfd,buf,sizeof(buf))) < 0)
+    {
+        return -1;
+    }
+    return result;
+}
+
 extern "C" EXPORT int init_client()
 {
-
+    int result;
     int sockfd;
     struct sockaddr_in remoteaddr, localaddr;
 
@@ -288,19 +342,9 @@ extern "C" EXPORT int init_client()
         return -1;
     }
 
-    srand(high_resolution_clock::now().time_since_epoch().count());
-    std::string cookie = "cookie:" + std::to_string(rand());
-    // if (send(sockfd,cookie.c_str(),cookie.length(), 0) < 0)
-    // {
-    //     LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
-    //     close(sockfd);
-    //     return -1;
-    // }
+    if((result = connect_server(sockfd))<0) return result;
 
     char buf[1024 * 64] = {0};
-    std::string send_buff = cookie;
-    std::string tmp(g_option.buffer_size, 'x');
-    const char *data = send_buff.c_str();
     ssize_t slength = 0;
     ssize_t rlength = 0;
     ssize_t total_rlength = 0;
@@ -309,70 +353,37 @@ extern "C" EXPORT int init_client()
     bool begin_delay_test = false;
     double delay = 0;
     double total_delay = 0;
-    high_resolution_clock::time_point start, end;
-    high_resolution_clock::time_point begin = high_resolution_clock::now();
+    high_resolution_clock::time_point start,end;
+    
+    start = high_resolution_clock::now();
+    while ((rlength = udp_recv(sockfd, buf, sizeof(buf))) > 0)
+    {
+        total_rlength += rlength;
+        count++;
+    }
+    end = high_resolution_clock::now();
+    if(rlength < 0) 
+    {
+        close(sockfd);
+        return -1;
+    }
+    delay = duration<double>(end - start).count();
+    LOGW("Total Rate: %ld/%fms = %f MB/s ; %ld/* = %f pps\n", total_rlength, 1000 * delay, 1.0 * total_rlength / delay / 1024 / 1024, count, count / delay);
+    if(rlength != 0) return -1;
+    
     do
     {
-        if (count == 1 || begin_delay_test)
+        if((rlength = udp_recv(sockfd,buf,sizeof(buf))) < 0 )
         {
-            start = high_resolution_clock::now();
+            close(sockfd);
+            return -1;
         }
-        if (index == 0 || begin_delay_test)
+        if ((rlength = udp_send(sockfd, buf, rlength)) < 0)
         {
-            LOGV("send: %s(%ld)\n", data, index + 1);
-            if (index == 0)
-                slength = strlen(data);
-            else
-                slength = g_option.buffer_size;
-            if (send(sockfd, data, slength, 0) < 0)
-            {
-                LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
-                close(sockfd);
-                return -1;
-            }
-            index++;
-            data = tmp.c_str();
-            //send_buff = tmp;//"index:" + std::to_string(++index) + ":" + std::string(g_option.buffer_size,'a');
+            close(sockfd);
+            return -1;
         }
-        if ((rlength = recv(sockfd, buf, sizeof(buf), 0)) == -1)
-        {
-            if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
-            {
-                LOGE("recv error.\n");
-                close(sockfd);
-                return -1;
-            }
-            else
-            {
-                count--;
-                LOGE("recv timeout.\n");
-                close(sockfd);
-                return -1;
-            }
-        }
-        end = high_resolution_clock::now();
-        delay = duration<double>(end - start).count();
-        if (begin_delay_test)
-        {
-            total_delay += delay;
-            LOGV("RTT: %f ms", delay * 1000);
-        }
-        if (rlength == 0)
-        {
-            begin_delay_test = true;
-            LOGW("Total Rate: %ld/%fms = %f MB/s ; %ld/* = %f pps\n", total_rlength, 1000 * delay, 1.0 * total_rlength / delay / 1024 / 1024, count - 1, (count - 1) / delay);
-        }
-        count++;
-        if (count == 1)
-            continue;
-        total_rlength += rlength;
-        LOGV("receive: %ldx%ld = %ld (%f pps)\n", rlength, count - 1, total_rlength, (count - 1) / delay);
-        LOGV("Rate: %ld/%fms = %f MB/s\n", total_rlength, 1000 * delay, 1.0 * total_rlength / delay / 1024 / 1024);
-        memset(buf, 0, sizeof(buf));
-    } while ((rlength > 0 && !begin_delay_test) || index <= 1000);
-    LOGW("Average RTT: %f ms", 1000 * total_delay / 1000);
-    LOGV("close socket.\n");
-    close(sockfd);
+    } while (rlength > 0);
     return 0;
 }
 
