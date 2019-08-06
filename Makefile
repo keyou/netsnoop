@@ -1,12 +1,12 @@
 
-CC=g++
-CFLAGS=-I.
+CXX=g++
+CXXFLAGS= -g -std=c++11 -I. 
 DEPS = netsnoop.h
 OBJ = netsnoop.o
 
 netsnoop: $(OBJ)
-	$(CC) -g -o $@ $^ $(CFLAGS)
+	$(CXX) -o $@ $^ $(CXXFLAGS)
 
-%.o: %.c $(DEPS)
-	$(CC) -c -o $@ $< $(CFLAGS)
+%.o: %.cc $(DEPS)
+	$(CXX) -c -o $@ $< $(CXXFLAGS)
 

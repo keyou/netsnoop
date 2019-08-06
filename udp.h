@@ -2,10 +2,10 @@
 
 #include <string>
 
-class Peer
+class Peer2
 {
 public:
-    Peer(const std::string ip,int port);
+    Peer2(const std::string ip,int port);
     std::string GetIp();
     int GetPort();
 };
