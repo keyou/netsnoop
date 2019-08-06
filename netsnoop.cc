@@ -96,12 +96,11 @@ inline ssize_t udp_send(int sockfd,const char* buf,size_t size)
     if ((result = send(sockfd, buf, size, 0)) < 0 || result != size)
     {
         LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
-        close(sockfd);
         return -1;
     }
     
     LOGV("send: %s\n", buf);
-    return 0;
+    return result;
 }
 
 int udp_listen()
@@ -206,15 +205,63 @@ enum CommandType : char
     CMD_ECHO = 3
 };
 
-struct Peer
+typedef int (*udp_echo_send)();
+class Peer
 {
-    Peer(int fd,int cmd)
+public:
+    Peer(int fd,int cmd):
+        fd_(fd),cmd_(cmd)
     {
-        Peer::fd = fd;
-        Peer::cmd = cmd;
+        if(cmd_ == CMD_ECHO) {need_write = true;}
     }
-    int fd;
-    int cmd;
+    Peer(const Peer& peer)
+    {
+        fd_ = peer.fd_;
+        cmd_ = peer.cmd_;
+        need_read = peer.need_read;
+        need_write = peer.need_write;
+        LOGV("copying\n");
+    }
+
+    int send()
+    {
+        if(cmd_ == CMD_ECHO) return echo_send();
+        if(cmd_ == CMD_RECV) return echo_send();
+        if(cmd_ == CMD_SEND) return echo_send();
+        LOGE("Peer send error: cmd = %d\n",cmd_);
+        #define ERR_OTHER -99
+        return ERR_OTHER;
+    }
+    int recv()
+    {        
+        if(cmd_ == CMD_ECHO) return echo_recv();
+        if(cmd_ == CMD_RECV) return echo_recv();
+        if(cmd_ == CMD_SEND) return echo_recv();
+        LOGE("Peer recv error: cmd = %d\n",cmd_);
+        #define ERR_OTHER -99
+        return ERR_OTHER;
+    }
+    int echo_send()
+    {
+        need_write = false;
+        need_read = true;
+        const std::string tmp(10,'a');
+        return udp_send(fd_,tmp.c_str(),tmp.length());
+    }
+    int echo_recv()
+    {
+        need_write = true;
+        need_read = false;
+        return udp_recv(fd_,buf_,sizeof(buf_));
+    }
+    int GetFd(){return fd_;}
+    int GetCmd(){return cmd_;}
+    bool need_read;
+    bool need_write;
+private:
+    int fd_;
+    int cmd_;
+    char buf_[1024*64];
 };
 
 extern "C" EXPORT int init_server()
@@ -262,28 +309,16 @@ extern "C" EXPORT int init_server()
 
     high_resolution_clock::time_point start, end;
     high_resolution_clock::time_point begin = high_resolution_clock::now();
-    while (true)
+    while (count++ < 10)
     {
         FD_ZERO(&read_fdsets);
         FD_ZERO(&write_fdsets);
         FD_SET(sockfd, &read_fdsets);
         for(auto peer:peers)
         {
-            switch (peer.cmd)
-            {
-            case CMD_RECV:
-                FD_SET(peer.fd,&write_fdsets);
-                break;
-            case CMD_SEND:
-                FD_SET(peer.fd,&read_fdsets);
-                break;
-            case CMD_ECHO:
-                FD_SET(peer.fd,&write_fdsets);
-                FD_SET(peer.fd,&read_fdsets);
-                break;
-            default:
-                break;
-            }
+            LOGV("peer: w = %d; r = %d;\n",peer.need_write,peer.need_read);
+            if (peer.need_write) FD_SET(peer.GetFd(),&write_fdsets);
+            if (peer.need_read) FD_SET(peer.GetFd(),&read_fdsets);
         }
         
         LOGV("selecting\n");
@@ -305,58 +340,26 @@ extern "C" EXPORT int init_server()
             else
             {
                 peers.push_back(Peer(sockfd,CMD_ECHO));
-                max_fd = std::max(sockfd,listenfd);
+                max_fd = std::max(max_fd,listenfd);
             }
             sockfd = listenfd;
+            continue;
         }
-        for(auto peerfd : peerfds)
+        for(auto peer : peers)
         {
-            if (FD_ISSET(peerfd, &write_fdsets))
+            if (FD_ISSET(peer.GetFd(), &write_fdsets))
             {
-                if(udp_send())
-                for (i = 0; i < remote_count; i++)
+                if(peer.send() == -1)
                 {
-                    if (remote_lengths[i] == -1)
-                        continue;
-                    p_remoteaddr = &remoteaddrs[i];
-                    memset(remote_ip, 0, sizeof(remote_ip));
-                    inet_ntop(AF_INET, &p_remoteaddr->sin_addr, remote_ip, remote_addr_length);
-                    if (remote_lengths[i] >= 40000)
-                    {
-                        LOGW("stop send: %s:%d\n", remote_ip, ntohs(p_remoteaddr->sin_port));
-                        LOGW("Total Rate: %ld/%fms = %f MB/s ; %ld/* = %f pps\n", total_rlength, 1000 * delay, 1.0 * total_rlength / delay / 1024 / 1024, total_count, (total_count) / delay);
-                        current_remote_count--;
-                        remote_lengths[i] = -1;
-                        if (current_remote_count == 0)
-                        {
-                            total_rlength = 0;
-                            total_count = 0;
-                        }
-                        if ((rlength = sendto(sockfd, "", 0, 0, (struct sockaddr *)p_remoteaddr, remote_addr_length)) < 0)
-                        {
-                            LOGE("sendto(stop) error.\n");
-                        }
-                        continue;
-                    }
-                    LOGV("send to [%s:%d]: %dx%ld\n", remote_ip, ntohs(p_remoteaddr->sin_port), data_length, remote_lengths[i] + 1);
-                    if ((rlength = sendto(sockfd, data.c_str(), data.size(), 0, (struct sockaddr *)p_remoteaddr, remote_addr_length)) < 0)
-                    {
-                        LOGE("sendto error.\n");
-                        break;
-                    }
-                    else
-                    {
-                        remote_lengths[i]++;
-                        total_count++;
-                    }
-                    if (rlength != data.size())
-                        LOGE("real send size: %ld/%ld\n", rlength, data.size());
+                    LOGE("echo send error.\n");
                 }
-                end = high_resolution_clock::now();
-                delay = duration<double>(end - start).count();
-                total_rlength += rlength > 0 ? rlength : 0;
-                LOGV("send: %ldx%ld = %ld (%f pps)\n", rlength, total_count, total_rlength, total_count / delay);
-                LOGV("Rate: %ld/%fms = %f MB/s\n", total_rlength, 1000 * delay, 1.0 * total_rlength / delay / 1024 / 1024);
+            }
+            if (FD_ISSET(peer.GetFd(), &read_fdsets))
+            {
+                if(peer.recv() == -1)
+                {
+                    LOGE("echo recv error.\n");
+                }
             }
         }
     }
@@ -411,7 +414,7 @@ int udp_parse_cmd(int sockfd,char* buf,int size)
     int result;
     char data[100] = {0};
     char cmd[100] = {0};
-
+    LOGV("client parse cmd.\n");
     while((result = udp_recv(sockfd,data,sizeof(data))) != -1)
     {
         if(result == -2) continue;
