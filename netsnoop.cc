@@ -203,7 +203,7 @@ public:
             context_->SetWriteFd(data_fd_);
             context_->ClrReadFd(data_fd_);    
             cmd_=CMD_ECHO;
-            context_->timeout.tv_sec = 1;
+            context_->timeout.tv_nsec = 1000*1000*1000; //100ms
             context_->timeout_callback =[&](){
                 context_->SetWriteFd(data_fd_);
             };
@@ -215,6 +215,18 @@ public:
     }
     int RecvCommand()
     {
+        int result;
+        char buf[1024*64];
+        if((result = sock_recv(control_fd_,buf,sizeof(buf)))<=0)
+        {
+            LOGE("Disconnect.\n");
+            context_->ClrReadFd(control_fd_);
+            context_->ClrReadFd(data_fd_);
+            context_->ClrWriteFd(control_fd_);
+            context_->ClrWriteFd(data_fd_);
+            context_->timeout.tv_nsec = 0;
+            //context_->peers.erase(std::remove(context_->peers.begin(),context_->peers.end(),[](){return true;}),context_->peers.end());
+        }
         return 0;
     }
 
