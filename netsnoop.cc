@@ -91,6 +91,7 @@ inline ssize_t sock_recv(int sockfd,char* buf,size_t size)
         #define ERR_TIMEOUT -2
         return ERR_TIMEOUT;
     }
+    // TODO: distinguish tcp and udp
     if(result == 0) return -1;
     LOGV("recv: %s\n",buf);
     return result;
@@ -169,7 +170,8 @@ struct Context
     fd_set read_fds;
     fd_set write_fds;
     int max_fd;
-    timeval timeout;
+    timespec timeout;
+    std::function<void()> timeout_callback;
     std::vector<std::shared_ptr<Peer>> peers;
 };
 
@@ -180,7 +182,7 @@ const std::string send_cmd("SEND 1024 10");
 class Peer
 {
 public:
-    Peer(int control_fd,const std::string cookie,std::weak_ptr<Context> context):
+    Peer(int control_fd,const std::string cookie,std::shared_ptr<Context> context):
         control_fd_(control_fd),data_fd_(-1),cookie_(cookie),context_(context),cmd_(CMD_NULL)
     {
     }
@@ -190,9 +192,6 @@ public:
     
     int SendCommand()
     {
-        auto context = context_.lock();
-        if(context == NULL || data_fd_ == -1) return -1;
-
         if(cmd_ == CMD_NULL)
         {
             if(sock_send(control_fd_,echo_cmd.c_str(),echo_cmd.length()) == -1)
@@ -201,13 +200,17 @@ public:
                 close(control_fd_);
                 return -1;
             }
-            context->SetWriteFd(data_fd_);
-            context->ClrReadFd(data_fd_);    
+            context_->SetWriteFd(data_fd_);
+            context_->ClrReadFd(data_fd_);    
             cmd_=CMD_ECHO;
+            context_->timeout.tv_sec = 1;
+            context_->timeout_callback =[&](){
+                context_->SetWriteFd(data_fd_);
+            };
         }
         // Stop send control cmd and Start recv control cmd.
-        context->ClrWriteFd(control_fd_);
-        context->SetReadFd(control_fd_);
+        context_->ClrWriteFd(control_fd_);
+        context_->SetReadFd(control_fd_);
         return 0;
     }
     int RecvCommand()
@@ -235,26 +238,15 @@ public:
     }
     int echo_send()
     {
-        auto context = context_.lock();
-        if(context == NULL)
-        {
-            return ERR_OTHER;
-        }
-        context->SetReadFd(data_fd_);
-        context->ClrWriteFd(data_fd_);
+        context_->SetReadFd(data_fd_);
+        context_->ClrWriteFd(data_fd_);
         const std::string tmp(10,'a');
-        sleep(2);
         return sock_send(data_fd_,tmp.c_str(),tmp.length());
     }
     int echo_recv()
     {
-        auto context = context_.lock();
-        if(context == NULL)
-        {
-            return ERR_OTHER;
-        }
-        context->SetWriteFd(data_fd_);
-        context->ClrReadFd(data_fd_);
+        //context_->SetWriteFd(data_fd_);
+        context_->ClrReadFd(data_fd_);
         return sock_recv(data_fd_,buf_,sizeof(buf_));
     }
     int GetControlFd(){return control_fd_;}
@@ -268,7 +260,7 @@ private:
     std::string cookie_;
     int cmd_;
     char buf_[1024*64];
-    std::weak_ptr<Context> context_;
+    std::shared_ptr<Context> context_;
 };
 
 
@@ -537,6 +529,8 @@ extern "C" EXPORT int init_server()
     context->data_fd = result;
     context->SetReadFd(result);
 
+    timespec timeout;
+    timespec* timeout_ptr = NULL;
     fd_set read_fdsets, write_fdsets;
     FD_ZERO(&read_fdsets);
     FD_ZERO(&write_fdsets);
@@ -547,16 +541,32 @@ extern "C" EXPORT int init_server()
     {
         memcpy(&read_fdsets,&context->read_fds,sizeof(read_fdsets));
         memcpy(&write_fdsets,&context->write_fds,sizeof(write_fdsets));
+        if(context->timeout.tv_sec!=0||context->timeout.tv_nsec!=0)
+        {
+            timeout = context->timeout;
+            timeout_ptr = &timeout;
+        }
+        else
+        {
+            timeout_ptr = NULL;
+        }
         
         LOGV("selecting\n");
-        result = select(context->max_fd+1, &read_fdsets, &write_fdsets, NULL,NULL);
+        result = pselect(context->max_fd+1, &read_fdsets, &write_fdsets, NULL,timeout_ptr,NULL);
         LOGV("selected\n");
         
-        if (result <= 0)
+        if (result < 0)
         {
             // Todo: close socket
             LOGE("select error: %s(errno: %d)\n", strerror(errno), errno);
             return -1;
+        }
+
+        if(result == 0 && context->timeout_callback)
+        {
+            LOGW("select timeout.\n");
+            context->timeout_callback();
+            continue;
         }
         if (FD_ISSET(context->control_fd, &read_fdsets))
         {
@@ -592,6 +602,7 @@ extern "C" EXPORT int init_server()
                 LOGV("Recving Command.\n");
                 peer->RecvCommand();
             }
+            if(peer->GetDataFd()<0) continue;
             if (FD_ISSET(peer->GetDataFd(), &write_fdsets))
             {
                 LOGV("Sending Data.\n");
@@ -909,12 +920,13 @@ extern "C" EXPORT int init_client()
         }
         if(FD_ISSET(context->control_fd,&read_fds))
         {
-            if((result = tcp_parse_cmd(context,command) > 0))
+            if((result = tcp_parse_cmd(context,command)) > 0)
             {
                 command->Start();
             }
-            else if(result == -1)
+            else
             {
+                LOGE("Parsing cmd error.\n");
                 break;
             }
         }
