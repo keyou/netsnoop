@@ -1,5 +1,6 @@
 #include <iostream>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 
@@ -22,11 +23,14 @@
 #include <map>
 #include <sstream>
 #include <algorithm>
+#include <cassert>
 
 #include "netsnoop.h"
 #include "udp.h"
 
 using namespace std::chrono;
+
+#define ASSERT(x) assert(x)
 
 class Logger
 {
@@ -73,7 +77,7 @@ struct option
 } g_option;
 
 
-inline ssize_t udp_recv(int sockfd,char* buf,size_t size)
+inline ssize_t sock_recv(int sockfd,char* buf,size_t size)
 {
     ssize_t result = 0;
     if ((result = recv(sockfd, buf, size, 0)) == -1)
@@ -84,13 +88,15 @@ inline ssize_t udp_recv(int sockfd,char* buf,size_t size)
             return -1;
         }
         LOGE("recv timeout.\n");
-        return -2;
+        #define ERR_TIMEOUT -2
+        return ERR_TIMEOUT;
     }
+    if(result == 0) return -1;
     LOGV("recv: %s\n",buf);
     return result;
 }
 
-inline ssize_t udp_send(int sockfd,const char* buf,size_t size)
+inline ssize_t sock_send(int sockfd,const char* buf,size_t size)
 {
     ssize_t result;
     if ((result = send(sockfd, buf, size, 0)) < 0 || result != size)
@@ -102,6 +108,169 @@ inline ssize_t udp_send(int sockfd,const char* buf,size_t size)
     LOGV("send: %s\n", buf);
     return result;
 }
+
+
+enum CommandType : char
+{
+    CMD_NULL = 0,
+    CMD_RECV = 1,
+    CMD_SEND = 2,
+    CMD_ECHO = 3
+};
+
+class Peer;
+
+struct Context
+{
+    Context():max_fd(-1),control_fd(-1),data_fd(-1)
+    {
+        FD_ZERO(&read_fds);
+        FD_ZERO(&write_fds);
+    }
+
+    inline void SetReadFd(int fd)
+    {
+        FD_SET(fd,&read_fds);
+        max_fd = std::max(max_fd,fd);
+    }
+
+    inline void SetWriteFd(int fd)
+    {
+        FD_SET(fd,&write_fds);
+        max_fd = std::max(max_fd,fd);
+    }
+
+    inline void ClrReadFd(int fd)
+    {
+        FD_CLR(fd,&read_fds);
+    }
+
+    inline void ClrWriteFd(int fd)
+    {
+        FD_CLR(fd,&write_fds);
+    }
+
+    ~Context()
+    {
+        if(control_fd>0) 
+        {
+            close(control_fd);
+            control_fd = -1;
+        }
+        if(data_fd>0) 
+        {
+            close(data_fd);
+            data_fd = -1;
+        }
+    }
+
+    int control_fd;
+    int data_fd;
+    fd_set read_fds;
+    fd_set write_fds;
+    int max_fd;
+    timeval timeout;
+    std::vector<std::shared_ptr<Peer>> peers;
+};
+
+const std::string echo_cmd("ECHO");
+const std::string recv_cmd("RECV");
+const std::string send_cmd("SEND 1024 10");
+
+class Peer
+{
+public:
+    Peer(int control_fd,const std::string cookie,std::weak_ptr<Context> context):
+        control_fd_(control_fd),data_fd_(-1),cookie_(cookie),context_(context),cmd_(CMD_NULL)
+    {
+    }
+    
+    inline void SetDataFd(int data_fd){data_fd_ = data_fd;}
+    inline int GetDataFd(){return data_fd_;}
+    
+    int SendCommand()
+    {
+        auto context = context_.lock();
+        if(context == NULL || data_fd_ == -1) return -1;
+
+        if(cmd_ == CMD_NULL)
+        {
+            if(sock_send(control_fd_,echo_cmd.c_str(),echo_cmd.length()) == -1)
+            {
+                LOGE("change mode error.\n");
+                close(control_fd_);
+                return -1;
+            }
+            context->SetWriteFd(data_fd_);
+            context->ClrReadFd(data_fd_);    
+            cmd_=CMD_ECHO;
+        }
+        // Stop send control cmd and Start recv control cmd.
+        context->ClrWriteFd(control_fd_);
+        context->SetReadFd(control_fd_);
+        return 0;
+    }
+    int RecvCommand()
+    {
+        return 0;
+    }
+
+    int SendData()
+    {
+        if(cmd_ == CMD_ECHO) return echo_send();
+        if(cmd_ == CMD_RECV) return echo_send();
+        if(cmd_ == CMD_SEND) return echo_send();
+        LOGE("Peer send error: cmd = %d\n",cmd_);
+        #define ERR_OTHER -99
+        return ERR_OTHER;
+    }
+    int RecvData()
+    {        
+        if(cmd_ == CMD_ECHO) return echo_recv();
+        if(cmd_ == CMD_RECV) return echo_recv();
+        if(cmd_ == CMD_SEND) return echo_recv();
+        LOGE("Peer recv error: cmd = %d\n",cmd_);
+        #define ERR_OTHER -99
+        return ERR_OTHER;
+    }
+    int echo_send()
+    {
+        auto context = context_.lock();
+        if(context == NULL)
+        {
+            return ERR_OTHER;
+        }
+        context->SetReadFd(data_fd_);
+        context->ClrWriteFd(data_fd_);
+        const std::string tmp(10,'a');
+        sleep(2);
+        return sock_send(data_fd_,tmp.c_str(),tmp.length());
+    }
+    int echo_recv()
+    {
+        auto context = context_.lock();
+        if(context == NULL)
+        {
+            return ERR_OTHER;
+        }
+        context->SetWriteFd(data_fd_);
+        context->ClrReadFd(data_fd_);
+        return sock_recv(data_fd_,buf_,sizeof(buf_));
+    }
+    int GetControlFd(){return control_fd_;}
+    int GetCmd(){return cmd_;}
+    const std::string& GetCookie(){return cookie_;}
+private:
+    Peer(const Peer& peer){}
+    void operator= (const Peer& p){}
+    int control_fd_;
+    int data_fd_;
+    std::string cookie_;
+    int cmd_;
+    char buf_[1024*64];
+    std::weak_ptr<Context> context_;
+};
+
 
 int udp_listen()
 {
@@ -117,7 +286,7 @@ int udp_listen()
         return -1;
     }
 
-    LOGV("create new listen socket.\n");
+    LOGV("create udp listen socket.\n");
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
     {
         LOGE("create socket error: %s(errno: %d)\n", strerror(errno), errno);
@@ -132,7 +301,7 @@ int udp_listen()
         return -1;
     }
 
-    LOGV("bind %s:%d\n", g_option.ip_local, g_option.port);
+    LOGV("bind udp %s:%d\n", g_option.ip_local, g_option.port);
     if (bind(sockfd, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
     {
         LOGE("bind error: %s(errno: %d)\n", strerror(errno), errno);
@@ -142,12 +311,139 @@ int udp_listen()
     return sockfd;
 }
 
+int tcp_create()
+{
+    int sockfd;
+
+    LOGV("create tcp socket.\n");
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)
+    {
+        LOGE("create socket error: %s(errno: %d)\n", strerror(errno), errno);
+        return -1;
+    }
+
+    int opt = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
+    {
+        LOGE("setsockopt SO_REUSEADDR error: %s(errno: %d)\n", strerror(errno), errno);
+        close(sockfd);
+        return -1;
+    }
+
+    opt = 1;
+    if (setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (char *)&opt, sizeof(opt)) < 0)
+    {
+        LOGE("setsockopt TCP_NODELAY error: %s(errno: %d)\n", strerror(errno), errno);
+        close(sockfd);
+        return -1;
+    }
+    return sockfd;
+}
+
+int tcp_listen()
+{
+    int sockfd;
+    struct sockaddr_in localaddr;
+    memset(&localaddr, 0, sizeof(localaddr));
+    localaddr.sin_family = AF_INET;
+    localaddr.sin_port = htons(g_option.port);
+
+    if (inet_pton(AF_INET, g_option.ip_local, &localaddr.sin_addr) <= 0)
+    {
+        LOGE("inet_pton local error for %s\n", g_option.ip_local);
+        return -1;
+    }
+
+    if((sockfd = tcp_create())<0)
+    {
+        return -1;
+    }
+
+    LOGV("bind %s:%d\n", g_option.ip_local, g_option.port);
+    if (bind(sockfd, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
+    {
+        LOGE("bind error: %s(errno: %d)\n", strerror(errno), errno);
+        close(sockfd);
+        return -1;
+    }
+
+    #define MAX_CLINETS 500
+    if(listen(sockfd,MAX_CLINETS) < 0)
+    {
+        LOGE("listen error: %s(errno: %d)\n", strerror(errno), errno);
+        close(sockfd);
+        return -1;
+    }
+
+    return sockfd;
+}
+
+
+int tcp_accept(const std::shared_ptr<Context>& context,std::shared_ptr<Peer>& peer)
+{
+    int result,fd;
+    char buf[1024 * 64] = {0};
+    char remote_ip[20] = {0};
+    fd_set fds;
+    FD_ZERO(&fds);
+
+    struct sockaddr_in peeraddr;
+    socklen_t peeraddr_size = sizeof(peeraddr);
+    memset(&peeraddr,0,sizeof(peeraddr));
+
+    if ((fd = accept(context->control_fd,(struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
+    {
+        LOGE("accept error.\n");
+        return -1;
+    }
+
+
+    #define SOCKET_READ_TIMEOUT_SEC 1
+    struct timeval timeout;
+    timeout.tv_sec = SOCKET_READ_TIMEOUT_SEC;
+    timeout.tv_usec = 0;
+    FD_SET(fd,&fds);
+    result = select(fd + 1, &fds, NULL, NULL, &timeout);
+    if(result <= 0)
+    {
+        LOGE("Read cookie error: %s(errno: %d)\n", strerror(errno), errno);
+        close(fd);
+        return -1;
+    }
+    
+    if((result = sock_recv(fd,buf,sizeof(buf))) == -1) 
+    {
+        LOGE("tcp recv error");
+        close(fd);
+        return -1;
+    }
+    if (strncmp(buf, "cookie:", 7))
+    {
+        LOGE("Cookie format error.\n");
+        #define ERR_ILLEGAL_COOKIE -3
+        return ERR_ILLEGAL_COOKIE;
+    }
+
+    inet_ntop(AF_INET, &peeraddr.sin_addr, remote_ip, peeraddr_size);
+    LOGV("accept tcp from [%s:%d]: %s\n", remote_ip, ntohs(peeraddr.sin_port), buf);
+
+    if ((result = sock_send(fd, buf, result)) < 0)
+    {
+        close(fd);
+        return -1;
+    }
+    
+    peer = std::make_shared<Peer>(fd,buf,context);
+
+    return fd;
+}
+
 int udp_server_parse()
 {
     return 0;
 }
 
-int udp_accept(int sockfd)
+int udp_accept(std::shared_ptr<Context> context,std::shared_ptr<Peer>& peer)
 {
     int result;
     char buf[1024 * 64] = {0};
@@ -159,7 +455,7 @@ int udp_accept(int sockfd)
 
     memset(remote_ip, 0, sizeof(remote_ip));
 
-    if ((result = recvfrom(sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
+    if ((result = recvfrom(context->data_fd, buf, sizeof(buf), 0, (struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
     {
         LOGE("recvfrom error.\n");
         return -1;
@@ -171,231 +467,257 @@ int udp_accept(int sockfd)
         LOGE("Cookie format error.\n");
         return ERR_ILLEGAL_COOKIE;
     }
-
-    inet_ntop(AF_INET, &peeraddr.sin_addr, remote_ip, peeraddr_size);
-    LOGV("accept from [%s:%d]: %s\n", remote_ip, ntohs(peeraddr.sin_port), buf);
     
-    if (connect(sockfd, (struct sockaddr *)&peeraddr, peeraddr_size) < 0)
+    inet_ntop(AF_INET, &peeraddr.sin_addr, remote_ip, peeraddr_size);
+    LOGV("accept udp from [%s:%d]: %s\n", remote_ip, ntohs(peeraddr.sin_port), buf);
+    
+    if (connect(context->data_fd, (struct sockaddr *)&peeraddr, peeraddr_size) < 0)
     {
         LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
-        close(sockfd);
         return -1;
     }
 
-    if ((result = udp_send(sockfd, buf, result)) < 0)
+    if ((result = sock_send(context->data_fd, buf, result)) < 0)
     {
-        close(sockfd);
         return -1;
+    }
+
+    for(auto& p:context->peers)
+    {
+        if(p->GetCookie() == buf)
+        {
+            peer = p;
+            break;
+        }
     }
 
     if ((result = udp_listen()) < 0)
     {
-        LOGE("create socket error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("create data socket error: %s(errno: %d)\n", strerror(errno), errno);
+        exit(-1);
         return -1;
     }
     
     return result;
 }
 
-enum CommandType : char
-{
-    CMD_NULL = 0,
-    CMD_RECV = 1,
-    CMD_SEND = 2,
-    CMD_ECHO = 3
-};
 
-typedef int (*udp_echo_send)();
-class Peer
-{
-public:
-    Peer(int fd,int cmd):
-        fd_(fd),cmd_(cmd)
-    {
-        if(cmd_ == CMD_ECHO) {need_write = true;}
-    }
-    Peer(const Peer& peer)
-    {
-        fd_ = peer.fd_;
-        cmd_ = peer.cmd_;
-        need_read = peer.need_read;
-        need_write = peer.need_write;
-        LOGV("copying\n");
-    }
-
-    int send()
-    {
-        if(cmd_ == CMD_ECHO) return echo_send();
-        if(cmd_ == CMD_RECV) return echo_send();
-        if(cmd_ == CMD_SEND) return echo_send();
-        LOGE("Peer send error: cmd = %d\n",cmd_);
-        #define ERR_OTHER -99
-        return ERR_OTHER;
-    }
-    int recv()
-    {        
-        if(cmd_ == CMD_ECHO) return echo_recv();
-        if(cmd_ == CMD_RECV) return echo_recv();
-        if(cmd_ == CMD_SEND) return echo_recv();
-        LOGE("Peer recv error: cmd = %d\n",cmd_);
-        #define ERR_OTHER -99
-        return ERR_OTHER;
-    }
-    int echo_send()
-    {
-        need_write = false;
-        need_read = true;
-        const std::string tmp(10,'a');
-        return udp_send(fd_,tmp.c_str(),tmp.length());
-    }
-    int echo_recv()
-    {
-        need_write = true;
-        need_read = false;
-        return udp_recv(fd_,buf_,sizeof(buf_));
-    }
-    int GetFd(){return fd_;}
-    int GetCmd(){return cmd_;}
-    bool need_read;
-    bool need_write;
-private:
-    int fd_;
-    int cmd_;
-    char buf_[1024*64];
-};
-
-extern "C" EXPORT int init_server()
+int StartListen()
 {
     int sockfd;
     struct sockaddr_in localaddr;
-    struct sockaddr_in *p_remoteaddr;
-    struct sockaddr_in remoteaddrs[100];
-    ssize_t remote_lengths[100] = {0};
-    int remote_count = 0;
-
     memset(&localaddr, 0, sizeof(localaddr));
     localaddr.sin_family = AF_INET;
     localaddr.sin_port = htons(g_option.port);
 
-    if ((sockfd = udp_listen()) == -1)
+    if ((sockfd = tcp_listen()) == -1)
     {
         LOGE("listen local error for %s\n", g_option.ip_local);
         return -1;
     }
+    return sockfd;
+}
 
-    int max_fd = sockfd;
+extern "C" EXPORT int init_server()
+{
     int result;
+    auto context = std::make_shared<Context>();
+    
+    if ((result = StartListen()) <= 0)
+    {
+        return -1;
+    }
+    context->control_fd = result;
+    context->SetReadFd(result);
+
+    if((result = udp_listen()) <=0 )
+    {
+        return -1;    
+    }
+    context->data_fd = result;
+    context->SetReadFd(result);
+
     fd_set read_fdsets, write_fdsets;
-
-    int i;
-    char buf[1024 * 64] = {0};
-    int data_length = g_option.buffer_size;
-    std::string data(data_length, 'a');
-    char remote_ip[20] = {0};
-    ssize_t rlength = 0;
-    ssize_t count = 0;
-    ssize_t total_rlength = 0;
-    ssize_t total_count = 0;
-    int current_remote_count = 0;
-    double delay = 0;
-    bool delay_test_begin = false;
-    socklen_t remote_addr_length = sizeof(struct sockaddr_in);
-
-    std::vector<Peer> peers;
-
-    const std::string echo_cmd("ECHO");
-    const std::string recv_cmd("RECV");
-    const std::string send_cmd("SEND 1024 10");
+    FD_ZERO(&read_fdsets);
+    FD_ZERO(&write_fdsets);
 
     high_resolution_clock::time_point start, end;
     high_resolution_clock::time_point begin = high_resolution_clock::now();
-    while (count++ < 10)
+    while (true)
     {
-        FD_ZERO(&read_fdsets);
-        FD_ZERO(&write_fdsets);
-        FD_SET(sockfd, &read_fdsets);
-        for(auto peer:peers)
-        {
-            LOGV("peer: w = %d; r = %d;\n",peer.need_write,peer.need_read);
-            if (peer.need_write) FD_SET(peer.GetFd(),&write_fdsets);
-            if (peer.need_read) FD_SET(peer.GetFd(),&read_fdsets);
-        }
+        memcpy(&read_fdsets,&context->read_fds,sizeof(read_fdsets));
+        memcpy(&write_fdsets,&context->write_fds,sizeof(write_fdsets));
         
         LOGV("selecting\n");
-        result = select(max_fd + 1, &read_fdsets, &write_fdsets, NULL, NULL);
+        result = select(context->max_fd+1, &read_fdsets, &write_fdsets, NULL,NULL);
         LOGV("selected\n");
+        
         if (result <= 0)
         {
             // Todo: close socket
+            LOGE("select error: %s(errno: %d)\n", strerror(errno), errno);
             return -1;
         }
-        if (FD_ISSET(sockfd, &read_fdsets))
+        if (FD_ISSET(context->control_fd, &read_fdsets))
         {
-            int listenfd = udp_accept(sockfd);
-            if(udp_send(sockfd,echo_cmd.c_str(),echo_cmd.length()) == -1)
+            std::shared_ptr<Peer> peer;
+            result = tcp_accept(context,peer);
+            if(result>0)
             {
-                close(sockfd);
-                max_fd = listenfd;
+                context->peers.push_back(peer);
             }
-            else
-            {
-                peers.push_back(Peer(sockfd,CMD_ECHO));
-                max_fd = std::max(max_fd,listenfd);
-            }
-            sockfd = listenfd;
-            continue;
         }
-        for(auto peer : peers)
+        if(FD_ISSET(context->data_fd,&read_fdsets))
         {
-            if (FD_ISSET(peer.GetFd(), &write_fdsets))
+            std::shared_ptr<Peer> peer;
+            if((result = udp_accept(context,peer)) >0)
             {
-                if(peer.send() == -1)
-                {
-                    LOGE("echo send error.\n");
-                }
+                LOGV("Accept success.\n");
+                FD_CLR(context->data_fd,&read_fdsets);
+                peer->SetDataFd(context->data_fd);
+                context->SetWriteFd(peer->GetControlFd());
+                context->data_fd = result;
+                context->SetReadFd(context->data_fd);
             }
-            if (FD_ISSET(peer.GetFd(), &read_fdsets))
+        }
+        for(auto& peer : context->peers)
+        {
+            if (FD_ISSET(peer->GetControlFd(), &write_fdsets))
             {
-                if(peer.recv() == -1)
-                {
-                    LOGE("echo recv error.\n");
-                }
+                LOGV("Sending Command.\n");
+                peer->SendCommand();
+            }
+            if (FD_ISSET(peer->GetControlFd(), &read_fdsets))
+            {
+                LOGV("Recving Command.\n");
+                peer->RecvCommand();
+            }
+            if (FD_ISSET(peer->GetDataFd(), &write_fdsets))
+            {
+                LOGV("Sending Data.\n");
+                peer->SendData();
+            }
+            if (FD_ISSET(peer->GetDataFd(), &read_fdsets))
+            {
+                LOGV("Recving Data.\n");
+                peer->RecvData();
             }
         }
     }
 
-    LOGV("close socket.\n");
-    close(sockfd);
     return 0;
 }
 
 
-int connect_server(int sockfd)
+int tcp_connect()
 {
+    int sockfd;
+    struct sockaddr_in remoteaddr;
+
+    memset(&remoteaddr, 0, sizeof(remoteaddr));
+    remoteaddr.sin_family = AF_INET;
+    remoteaddr.sin_port = htons(g_option.port);
+
+    if (inet_pton(AF_INET, g_option.ip_remote, &remoteaddr.sin_addr) <= 0)
+    {
+        LOGE("inet_pton remote error for %s\n", g_option.ip_remote);
+        return -1;
+    }
+
+    sockfd = tcp_create();
+    ASSERT(sockfd>0);
+
+    LOGV("tcp connect %s:%d\n", g_option.ip_remote, g_option.port);
+    if (connect(sockfd, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
+    {
+        LOGE("bind error: %s(errno: %d)\n", strerror(errno), errno);
+        close(sockfd);
+        return -1;
+    }
+    return sockfd;
+}
+
+int connect_server(std::shared_ptr<Context> context)
+{
+    int result;
+    int sockfd;
+    sockfd = tcp_connect();
+    ASSERT(sockfd>0);
+    
     char buf[1024*64] = {0};
     ssize_t rlength = 0;
-    int result;
     srand(high_resolution_clock::now().time_since_epoch().count());
     std::string cookie = "cookie:" + std::to_string(rand());
-    for(int retry_count=3;retry_count>0;retry_count--)
+    
+    context->control_fd = sockfd;
+    
+    result = sock_send(sockfd,cookie.c_str(),cookie.length());
+    ASSERT(result>=0);
+
+    result = sock_recv(sockfd,buf,sizeof(buf));
+    ASSERT(result>=0);
+    ASSERT(cookie == buf);
+    
+    struct sockaddr_in remoteaddr, localaddr;
+
+    memset(&remoteaddr, 0, sizeof(remoteaddr));
+    memset(&localaddr, 0, sizeof(localaddr));
+    remoteaddr.sin_family = AF_INET;
+    remoteaddr.sin_port = htons(g_option.port);
+
+    if (inet_pton(AF_INET, g_option.ip_remote, &remoteaddr.sin_addr) <= 0)
     {
-        if (send(sockfd,cookie.c_str(),cookie.size(), 0) == -1)
-        {
-            LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
-            close(sockfd);
-            return -1;
-        }
-        if((result = udp_recv(sockfd,buf,sizeof(buf))) == -1)
-        {
-            close(sockfd);
-            return -1;
-        }
-        if(result>=0) break; 
+        LOGE("inet_pton remote error for %s\n", g_option.ip_remote);
+        return -1;
     }
+    if (inet_pton(AF_INET, g_option.ip_local, &localaddr.sin_addr) <= 0)
+    {
+        LOGE("inet_pton local error for %s\n", g_option.ip_local);
+        return -1;
+    }
+
+    LOGV("create udp socket.\n");
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+    {
+        LOGE("create socket error: %s(errno: %d)\n", strerror(errno), errno);
+        return -1;
+    }
+
+    LOGV("udp connect %s:%d\n", g_option.ip_remote, g_option.port);
+    if (connect(sockfd, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
+    {
+        LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
+        close(sockfd);
+        return -1;
+    }
+
+    context->data_fd = sockfd;
+
+    result = sock_send(sockfd,cookie.c_str(),cookie.length());
+    ASSERT(result>=0);
+
+    result = sock_recv(sockfd,buf,sizeof(buf));
+    ASSERT(result>=0);
+    ASSERT(cookie == buf);
+
+    // socklen_t localaddr_length = sizeof(localaddr);
+    // if (getsockname(sockfd, (sockaddr *)&localaddr, &localaddr_length) < 0)
+    // {
+    //     LOGE("getsockname error: %s(errno: %d)\n", strerror(errno), errno);
+    //     close(sockfd);
+    //     return -1;
+    // }
+
+    // LOGV("local socket: %s:%d\n", inet_ntop(AF_INET, &localaddr.sin_addr, g_option.ip_local, sizeof(localaddr)), ntohs(localaddr.sin_port));
+    // if (udp_set_timeout(sockfd, SO_RCVTIMEO,2) < 0)
+    // {
+    //     LOGE("setsockopt error:SO_RCVTIMEO\n");
+    //     close(sockfd);
+    //     return -1;
+    // }
+
     return 0;
 }
-
-
 
 int udp_set_timeout(int sockfd,int type,int seconds)
 {
@@ -409,22 +731,97 @@ int udp_set_timeout(int sockfd,int type,int seconds)
     }
 }
 
-int udp_parse_cmd(int sockfd,char* buf,int size)
+class Command
+{
+public:
+    Command(std::shared_ptr<Context> context):context_(context){}
+    Command(std::string argv,std::shared_ptr<Context> context)
+        :argv_(argv),context_(context){}
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
+    virtual int Send() {return 0;};
+    virtual int Recv() {return 0;};
+protected:
+    std::string argv_;
+    std::shared_ptr<Context> context_;
+};
+
+class EchoCommand: public Command
+{
+public:
+    EchoCommand(std::shared_ptr<Context> context)
+        :length_(0),count_(0),running_(false),Command(context){}
+
+    void Start() override
+    {
+        running_ = true;
+        LOGV("Echo Start.\n");
+        context_->SetReadFd(context_->data_fd);
+    }
+    void Stop() override
+    {
+        running_ = false;
+        LOGV("Echo Stop.\n");
+        context_->ClrReadFd(context_->data_fd);
+    }
+    int Send() override
+    {
+        LOGV("Echo Send.\n");
+        int result;
+        if(count_<= 0) return 0;
+        if ((result = sock_send(context_->data_fd, buf_, length_)) < 0)
+        {
+            return -1;
+        }
+        count_--;
+        if(count_<=0) 
+        {
+            context_->ClrWriteFd(context_->data_fd);
+            if(running_) context_->SetReadFd(context_->data_fd);
+        }
+        return 0;
+    }
+    int Recv() override
+    {
+        LOGV("Echo Recv.\n");
+        int result;
+        if((result = sock_recv(context_->data_fd,buf_,sizeof(buf_))) < 0 )
+        {
+            return -1;
+        }
+        length_ = result;
+        context_->SetWriteFd(context_->data_fd);
+        context_->ClrReadFd(context_->data_fd);
+        count_++;
+        return 0;
+    }
+    
+private:
+    char buf_[1024*64];
+    int length_;
+    ssize_t count_;
+    bool running_;
+};
+
+int tcp_parse_cmd(std::shared_ptr<Context> context,std::shared_ptr<Command>& command)
 {
     int result;
     char data[100] = {0};
     char cmd[100] = {0};
-    LOGV("client parse cmd.\n");
-    while((result = udp_recv(sockfd,data,sizeof(data))) != -1)
+    LOGV("Client parsing cmd.\n");
+    if((result = sock_recv(context->control_fd,data,sizeof(data))) > 0)
     {
-        if(result == -2) continue;
-        if(result < 4 || result >= 100) continue;
+        #define ERR_ILLEGAL_DATA -5
+        if(result < 4 || result >= 100) return ERR_ILLEGAL_DATA;
         sscanf(data,"%s",cmd);
-        strncpy(buf,data+strlen(cmd),size);
         if(!strcmp("RECV",cmd)) return CMD_RECV;
         if(!strcmp("SEND",cmd)) return CMD_SEND;
-        if(!strcmp("ECHO",cmd)) return CMD_ECHO;
-        memset(data,0,sizeof(data));
+        if(!strcmp("ECHO",cmd)) 
+        {
+            command = std::make_shared<EchoCommand>(context);
+            return CMD_ECHO;
+        }
+        return ERR_ILLEGAL_DATA;
     }
     return -1;
 }
@@ -441,7 +838,7 @@ int udp_cmd_recv(int sockfd)
     high_resolution_clock::time_point start,end;
     
     start = high_resolution_clock::now();
-    while ((rlength = udp_recv(sockfd, buf, sizeof(buf))) > 0)
+    while ((rlength = sock_recv(sockfd, buf, sizeof(buf))) > 0)
     {
         total_rlength += rlength;
         count++;
@@ -474,7 +871,7 @@ int udp_cmd_send(int sockfd,char* argv)
     ssize_t rlength = 0;
     do
     {
-        if ((rlength = udp_send(sockfd, buf, size)) < 0)
+        if ((rlength = sock_send(sockfd, buf, size)) < 0)
         {
             return -1;
         }
@@ -483,101 +880,59 @@ int udp_cmd_send(int sockfd,char* argv)
     return 0;
 }
 
-int udp_cmd_echo(int sockfd)
-{
-    char buf[1024*64] = {0};
-    ssize_t rlength = 0;
-    do
-    {
-        if((rlength = udp_recv(sockfd,buf,sizeof(buf))) < 0 )
-        {
-            close(sockfd);
-            return -1;
-        }
-        if ((rlength = udp_send(sockfd, buf, rlength)) < 0)
-        {
-            close(sockfd);
-            return -1;
-        }
-    } while (rlength > 0);
-    return 0; 
-}
 
 extern "C" EXPORT int init_client()
 {
     int result;
-    int sockfd;
-    struct sockaddr_in remoteaddr, localaddr;
-
-    memset(&remoteaddr, 0, sizeof(remoteaddr));
-    memset(&localaddr, 0, sizeof(localaddr));
-    remoteaddr.sin_family = AF_INET;
-    remoteaddr.sin_port = htons(g_option.port);
-
-    if (inet_pton(AF_INET, g_option.ip_remote, &remoteaddr.sin_addr) <= 0)
-    {
-        LOGE("inet_pton remote error for %s\n", g_option.ip_remote);
-        return -1;
-    }
-    if (inet_pton(AF_INET, g_option.ip_local, &localaddr.sin_addr) <= 0)
-    {
-        LOGE("inet_pton local error for %s\n", g_option.ip_local);
-        return -1;
-    }
-
-    LOGV("create socket.\n");
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-    {
-        LOGE("create socket error: %s(errno: %d)\n", strerror(errno), errno);
-        return -1;
-    }
-
-    LOGV("connect %s:%d\n", g_option.ip_remote, g_option.port);
-    if (connect(sockfd, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
-    {
-        LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
-        close(sockfd);
-        return -1;
-    }
-
-    socklen_t localaddr_length = sizeof(localaddr);
-    if (getsockname(sockfd, (sockaddr *)&localaddr, &localaddr_length) < 0)
-    {
-        LOGE("getsockname error: %s(errno: %d)\n", strerror(errno), errno);
-        close(sockfd);
-        return -1;
-    }
-
-    LOGV("local socket: %s:%d\n", inet_ntop(AF_INET, &localaddr.sin_addr, g_option.ip_local, sizeof(localaddr)), ntohs(localaddr.sin_port));
-    if (udp_set_timeout(sockfd, SO_RCVTIMEO,2) < 0)
-    {
-        LOGE("setsockopt error:SO_RCVTIMEO\n");
-        close(sockfd);
-        return -1;
-    }
-
-    if((result = connect_server(sockfd)) != 0) return result;
-
     char buf[100] = {0};
-    while((result = udp_parse_cmd(sockfd,buf,sizeof(buf)-1)) > 0)
+    fd_set read_fds,write_fds;
+    FD_ZERO(&read_fds);
+    FD_ZERO(&write_fds);
+
+    auto context = std::make_shared<Context>();
+    
+    if((result = connect_server(context)) != 0) return result;
+    context->SetReadFd(context->control_fd);
+
+    std::shared_ptr<Command> command;
+
+    while(true)
     {
-        switch (result)
+        memcpy(&read_fds,&context->read_fds,sizeof(read_fds));
+        memcpy(&write_fds,&context->write_fds,sizeof(write_fds));
+
+        result = select(context->max_fd+1,&read_fds,&write_fds,NULL,NULL);
+        if(result<=0)
         {
-        case CMD_RECV:
-            if( (result = udp_cmd_recv(sockfd)) == -1) return result;    
-            break;
-        case CMD_SEND:
-            if( (result = udp_cmd_send(sockfd,buf)) == -1) return result; 
-            break;
-        case CMD_ECHO:
-            if( (result = udp_cmd_echo(sockfd)) == -1) return result;
-            break;
-        default:
-            LOGW("NOT REACHABLE.\n");
-            exit(-1);
+            LOGE("select error: %d,%d\n",result,errno);
+            return -1;
         }
-        memset(buf,0,sizeof(buf));
+        if(FD_ISSET(context->control_fd,&read_fds))
+        {
+            if((result = tcp_parse_cmd(context,command) > 0))
+            {
+                command->Start();
+            }
+            else if(result == -1)
+            {
+                break;
+            }
+        }
+        if(FD_ISSET(context->control_fd,&write_fds))
+        {
+
+        }
+        if(FD_ISSET(context->data_fd,&read_fds))
+        {
+            command->Recv();
+        }
+        if(FD_ISSET(context->data_fd,&write_fds))
+        {
+            command->Send();
+        }
     }
+
+
     return -1;
 }
 
