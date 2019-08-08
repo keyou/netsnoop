@@ -24,6 +24,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cassert>
+#include <functional>
 
 #include "netsnoop.h"
 #include "udp.h"
@@ -84,7 +85,7 @@ inline ssize_t sock_recv(int sockfd,char* buf,size_t size)
     {
         if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
         {
-            LOGE("recv error.\n");
+            LOGE("recv error: %s(errno: %d)\n", strerror(errno), errno);
             return -1;
         }
         LOGE("recv timeout.\n");
@@ -92,7 +93,11 @@ inline ssize_t sock_recv(int sockfd,char* buf,size_t size)
         return ERR_TIMEOUT;
     }
     // TODO: distinguish tcp and udp
-    if(result == 0) return -1;
+    if(result == 0)
+    {
+        LOGE("recv empty: %s(errno: %d)\n", strerror(errno), errno);
+        return -1;
+    }
     LOGV("recv: %s\n",buf);
     return result;
 }
@@ -203,7 +208,7 @@ public:
             context_->SetWriteFd(data_fd_);
             context_->ClrReadFd(data_fd_);    
             cmd_=CMD_ECHO;
-            context_->timeout.tv_nsec = 1000*1000*1000; //100ms
+            context_->timeout.tv_nsec = 900*1000*1000; //100ms
             context_->timeout_callback =[&](){
                 context_->SetWriteFd(data_fd_);
             };
@@ -541,7 +546,7 @@ extern "C" EXPORT int init_server()
     context->data_fd = result;
     context->SetReadFd(result);
 
-    timespec timeout;
+    timespec timeout = {2,0};
     timespec* timeout_ptr = NULL;
     fd_set read_fdsets, write_fdsets;
     FD_ZERO(&read_fdsets);
@@ -557,10 +562,12 @@ extern "C" EXPORT int init_server()
         {
             timeout = context->timeout;
             timeout_ptr = &timeout;
+            LOGV("Set timeout: %ld,%ld\n",timeout.tv_sec,timeout.tv_nsec);
         }
         else
         {
             timeout_ptr = NULL;
+            LOGV("Clear timeout.\n");
         }
         
         LOGV("selecting\n");
