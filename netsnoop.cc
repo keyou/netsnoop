@@ -26,8 +26,8 @@
 #include <cassert>
 #include <functional>
 
-#include "netsnoop.h"
-#include "udp.h"
+//#include "netsnoop.h"
+//#include "udp.h"
 
 using namespace std::chrono;
 
@@ -64,9 +64,17 @@ private:
 
 #define EXPORT
 
+#define ERR_ILLEGAL_PARAM -7
+
+#define DISALLOW_COPY_AND_ASSIGN(clazz)       \
+    clazz(const clazz &) = delete;            \
+    clazz &operator=(const clazz &) = delete; \
+    clazz(clazz &&) = delete;                 \
+    clazz &operator=(clazz &&) = delete;
+
 void join_mcast(int fd, struct sockaddr_in *sin);
 
-struct option
+struct Option
 {
     char ip_local[20];
     char ip_remote[20];
@@ -77,8 +85,7 @@ struct option
     int buffer_size;
 } g_option;
 
-
-inline ssize_t sock_recv(int sockfd,char* buf,size_t size)
+inline ssize_t sock_recv(int sockfd, char *buf, size_t size)
 {
     ssize_t result = 0;
     if ((result = recv(sockfd, buf, size, 0)) == -1)
@@ -89,20 +96,20 @@ inline ssize_t sock_recv(int sockfd,char* buf,size_t size)
             return -1;
         }
         LOGE("recv timeout.\n");
-        #define ERR_TIMEOUT -2
+#define ERR_TIMEOUT -2
         return ERR_TIMEOUT;
     }
     // TODO: distinguish tcp and udp
-    if(result == 0)
+    if (result == 0)
     {
         LOGE("recv empty: %s(errno: %d)\n", strerror(errno), errno);
         return -1;
     }
-    LOGV("recv: %s\n",buf);
+    LOGV("recv: %s\n", buf);
     return result;
 }
 
-inline ssize_t sock_send(int sockfd,const char* buf,size_t size)
+inline ssize_t sock_send(int sockfd, const char *buf, size_t size)
 {
     ssize_t result;
     if ((result = send(sockfd, buf, size, 0)) < 0 || result != size)
@@ -110,11 +117,333 @@ inline ssize_t sock_send(int sockfd,const char* buf,size_t size)
         LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
         return -1;
     }
-    
+
     LOGV("send: %s\n", buf);
     return result;
 }
 
+class Sock
+{
+public:
+    int Initialize()
+    {
+        int sockfd;
+        int opt;
+
+        if (fd_ > 0)
+            return fd_;
+
+        sockfd = CreateSocket(type_, protocol_);
+        if (sockfd < 0)
+            return -1;
+
+        if (InitializeEx(sockfd) < 0)
+            return -1;
+        fd_ = sockfd;
+        return sockfd;
+    }
+    int Bind(std::string ip, int port)
+    {
+        local_ip_ = ip;
+        local_port_ = port;
+        return Bind(fd_, ip, port);
+    }
+    ssize_t Send(const char *buf, size_t size) const
+    {
+        return Send(fd_, buf, size);
+    }
+
+    ssize_t Recv(char *buf, size_t size) const
+    {
+        return Recv(fd_, buf, size);
+    }
+    virtual int Connect(std::string ip, int port) = 0;
+    virtual int Listen(int count) = 0;
+    virtual int Accept() = 0;
+
+    int GetFd(){return fd_;}
+
+protected:
+    Sock(int type, int protocol)
+        : fd_(0),type_(type), protocol_(protocol) {}
+    Sock(int type, int protocol, int fd)
+        : fd_(fd), type_(type), protocol_(protocol) {}
+    virtual int InitializeEx(int fd) const { return fd; };
+
+    static int CreateSocket(int type, int protocol)
+    {
+        int sockfd;
+        LOGV("create socket.\n");
+        if ((sockfd = socket(AF_INET, type, protocol)) < 0)
+        {
+            LOGE("create socket error: %s(errno: %d)\n", strerror(errno), errno);
+            return -1;
+        }
+
+        int opt = 1;
+        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
+        {
+            LOGE("setsockopt SO_REUSEADDR error: %s(errno: %d)\n", strerror(errno), errno);
+            close(sockfd);
+            return -1;
+        }
+        return sockfd;
+    }
+    static int Bind(int fd_, std::string ip, int port)
+    {
+        ASSERT(fd_ > 0);
+        struct sockaddr_in localaddr;
+        memset(&localaddr, 0, sizeof(localaddr));
+        localaddr.sin_family = AF_INET;
+        localaddr.sin_port = htons(port);
+
+        if (inet_pton(AF_INET, ip.c_str(), &localaddr.sin_addr) <= 0)
+        {
+            LOGE("inet_pton local error for %s\n", ip.c_str());
+            return ERR_ILLEGAL_PARAM;
+        }
+
+        LOGV("bind %s:%d\n", ip.c_str(), port);
+        if (bind(fd_, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
+        {
+            LOGE("bind error: %s(errno: %d)\n", strerror(errno), errno);
+            return -1;
+        }
+        return 0;
+    }
+    static ssize_t Send(int fd_, const char *buf, size_t size)
+    {
+        ASSERT(fd_ > 0);
+        ssize_t result;
+        if ((result = send(fd_, buf, size, 0)) < 0 || result != size)
+        {
+            LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
+            return -1;
+        }
+
+        LOGV("send: %s\n", buf);
+        return result;
+    }
+
+    static ssize_t Recv(int fd_, char *buf, size_t size)
+    {
+        ASSERT(fd_ > 0);
+        ssize_t result = 0;
+        if ((result = recv(fd_, buf, size, 0)) == -1)
+        {
+            if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
+            {
+                LOGE("recv error: %s(errno: %d)\n", strerror(errno), errno);
+                return -1;
+            }
+            LOGE("recv timeout.\n");
+#define ERR_TIMEOUT -2
+            return ERR_TIMEOUT;
+        }
+        LOGV("recv: %s\n", buf);
+        return result;
+    }
+
+    int fd_;
+    int type_;
+    int protocol_;
+    std::string local_ip_;
+    int local_port_;
+    std::string remote_ip_;
+    int remote_port_;
+
+    ~Sock()
+    {
+        if (fd_ > 0)
+        {
+            LOGV("close socket: fd = %d\n",fd_);
+            close(fd_);
+            fd_ = -1;
+        }
+    }
+
+    DISALLOW_COPY_AND_ASSIGN(Sock);
+};
+
+#define MAX_CLINETS 500
+class Tcp : public Sock
+{
+public:
+    Tcp() : Sock(SOCK_STREAM, IPPROTO_TCP) {}
+    Tcp(int fd) : Sock(SOCK_STREAM, IPPROTO_TCP, fd) {}
+    int Listen(int count) override
+    {
+        ASSERT(fd_ > 0);
+
+        if (listen(fd_, count) < 0)
+        {
+            LOGE("listen error: %s(errno: %d)\n", strerror(errno), errno);
+            return -1;
+        }
+
+        return 0;
+    }
+    int Connect(std::string ip, int port) override
+    {
+        ASSERT(fd_ > 0);
+        struct sockaddr_in remoteaddr;
+        memset(&remoteaddr, 0, sizeof(remoteaddr));
+        remoteaddr.sin_family = AF_INET;
+        remoteaddr.sin_port = htons(port);
+
+        if (inet_pton(AF_INET, ip.c_str(), &remoteaddr.sin_addr) <= 0)
+        {
+            LOGE("inet_pton remote error for %s\n", ip.c_str());
+            return ERR_ILLEGAL_PARAM;
+        }
+
+        LOGV("connect %s %s:%d\n", protocol_ == IPPROTO_TCP ? "tcp" : "udp", ip.c_str(), port);
+        if (connect(fd_, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
+        {
+            LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
+            return -1;
+        }
+        remote_ip_ = ip;
+        remote_port_ = port;
+        return 0;
+    }
+    int Accept() override
+    {
+        ASSERT(fd_ > 0);
+
+        int peerfd;
+        int result;
+        char remote_ip[20] = {0};
+        fd_set fds;
+        FD_ZERO(&fds);
+
+        struct sockaddr_in peeraddr;
+        socklen_t peeraddr_size = sizeof(peeraddr);
+        memset(&peeraddr, 0, sizeof(peeraddr));
+
+        if ((peerfd = accept(fd_, (struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
+        {
+            LOGE("accept error: %s(errno: %d)\n", strerror(errno), errno);
+            return -1;
+        }
+#ifdef DEBUG
+        inet_ntop(AF_INET, &peeraddr.sin_addr, remote_ip, peeraddr_size);
+        LOGV("accept tcp: %s:%d\n", remote_ip, ntohs(peeraddr.sin_port));
+#endif
+        return peerfd;
+    }
+
+private:
+    int InitializeEx(int fd) const override
+    {
+        int opt = 1;
+
+        if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&opt, sizeof(opt)) < 0)
+        {
+            LOGE("setsockopt TCP_NODELAY error: %s(errno: %d)\n", strerror(errno), errno);
+            close(fd);
+            return -1;
+        }
+        return fd;
+    }
+
+    DISALLOW_COPY_AND_ASSIGN(Tcp);
+};
+
+class Udp : public Sock
+{
+public:
+    Udp() : Sock(SOCK_DGRAM, IPPROTO_UDP) {}
+    Udp(int fd) : Sock(SOCK_DGRAM, IPPROTO_UDP, fd) {}
+    int Listen(int count) override
+    {
+        count_ = count;
+        return 0;
+    }
+
+    int Connect(std::string ip, int port) override
+    {
+        ASSERT(fd_ > 0);
+        struct sockaddr_in remoteaddr;
+        socklen_t size = sizeof(remoteaddr);
+        memset(&remoteaddr, 0, sizeof(remoteaddr));
+        remoteaddr.sin_family = AF_INET;
+        remoteaddr.sin_port = htons(port);
+
+        if (inet_pton(AF_INET, ip.c_str(), &remoteaddr.sin_addr) <= 0)
+        {
+            LOGE("inet_pton remote error for %s\n", ip.c_str());
+            return ERR_ILLEGAL_PARAM;
+        }
+
+        if(Connect(fd_,&remoteaddr,size)<0) return -1;
+
+        char buf;
+        int try_count = 0;
+        while(true)
+        {
+            if(Send(fd_,"",0) < 0 || Recv(fd_,&buf,1) <0)
+            {
+                if( (++try_count) < MAX_TRY_NUM) continue;
+                LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
+                return -1;
+            }
+            break;
+        }
+        
+        LOGV("Connect udp: %s:%d\n",ip.c_str(),port);
+        
+        remote_ip_ = ip;
+        remote_port_ = port;
+        return 0;
+    }
+
+    int Accept() override
+    {
+        ASSERT(fd_>0);
+        int result;
+        char buf[64] = {0};
+        char remote_ip[20] = {0};
+
+        struct sockaddr_in peeraddr;
+        socklen_t peeraddr_size = sizeof(peeraddr);
+        memset(&peeraddr, 0, sizeof(peeraddr));
+
+        memset(remote_ip, 0, sizeof(remote_ip));
+
+        if ((result = recvfrom(fd_, buf, sizeof(buf), 0, (struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
+        {
+            LOGE("accept error: %s(errno: %d)\n", strerror(errno), errno);
+            return -1;
+        }
+
+        inet_ntop(AF_INET, &peeraddr.sin_addr, remote_ip, peeraddr_size);
+        LOGV("accept udp from [%s:%d]: %s\n", remote_ip, ntohs(peeraddr.sin_port), buf);
+
+        int peerfd = CreateSocket(type_,protocol_);
+        if(Bind(peerfd,local_ip_,local_port_)<0) return -1;
+        if(Connect(peerfd,&peeraddr,peeraddr_size)<0) return -1;
+        if ((result = Send(peerfd,buf, result)) < 0) return -1;
+
+        return peerfd;
+    }
+
+    static const int MAX_TRY_NUM = 3;
+private:
+    static int Connect(int fd,sockaddr_in* remoteaddr,int size)
+    {
+        if (connect(fd, (struct sockaddr *)remoteaddr, size) < 0)
+        {
+            LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
+            return -1;
+        }
+        return 0;
+    }
+
+    int count_;
+
+    DISALLOW_COPY_AND_ASSIGN(Udp);
+};
 
 enum CommandType : char
 {
@@ -128,7 +457,7 @@ class Peer;
 
 struct Context
 {
-    Context():max_fd(-1),control_fd(-1),data_fd(-1)
+    Context() : max_fd(-1), control_fd(-1), data_fd(-1)
     {
         FD_ZERO(&read_fds);
         FD_ZERO(&write_fds);
@@ -136,34 +465,34 @@ struct Context
 
     inline void SetReadFd(int fd)
     {
-        FD_SET(fd,&read_fds);
-        max_fd = std::max(max_fd,fd);
+        FD_SET(fd, &read_fds);
+        max_fd = std::max(max_fd, fd);
     }
 
     inline void SetWriteFd(int fd)
     {
-        FD_SET(fd,&write_fds);
-        max_fd = std::max(max_fd,fd);
+        FD_SET(fd, &write_fds);
+        max_fd = std::max(max_fd, fd);
     }
 
     inline void ClrReadFd(int fd)
     {
-        FD_CLR(fd,&read_fds);
+        FD_CLR(fd, &read_fds);
     }
 
     inline void ClrWriteFd(int fd)
     {
-        FD_CLR(fd,&write_fds);
+        FD_CLR(fd, &write_fds);
     }
 
     ~Context()
     {
-        if(control_fd>0) 
+        if (control_fd > 0)
         {
             close(control_fd);
             control_fd = -1;
         }
-        if(data_fd>0) 
+        if (data_fd > 0)
         {
             close(data_fd);
             data_fd = -1;
@@ -187,29 +516,28 @@ const std::string send_cmd("SEND 1024 10");
 class Peer
 {
 public:
-    Peer(int control_fd,const std::string cookie,std::shared_ptr<Context> context):
-        control_fd_(control_fd),data_fd_(-1),cookie_(cookie),context_(context),cmd_(CMD_NULL)
+    Peer(int control_fd, const std::string cookie, std::shared_ptr<Context> context) : control_fd_(control_fd), data_fd_(-1), cookie_(cookie), context_(context), cmd_(CMD_NULL)
     {
     }
-    
-    inline void SetDataFd(int data_fd){data_fd_ = data_fd;}
-    inline int GetDataFd(){return data_fd_;}
-    
+
+    inline void SetDataFd(int data_fd) { data_fd_ = data_fd; }
+    inline int GetDataFd() { return data_fd_; }
+
     int SendCommand()
     {
-        if(cmd_ == CMD_NULL)
+        if (cmd_ == CMD_NULL)
         {
-            if(sock_send(control_fd_,echo_cmd.c_str(),echo_cmd.length()) == -1)
+            if (sock_send(control_fd_, echo_cmd.c_str(), echo_cmd.length()) == -1)
             {
                 LOGE("change mode error.\n");
                 close(control_fd_);
                 return -1;
             }
             context_->SetWriteFd(data_fd_);
-            context_->ClrReadFd(data_fd_);    
-            cmd_=CMD_ECHO;
-            context_->timeout.tv_nsec = 900*1000*1000; //100ms
-            context_->timeout_callback =[&](){
+            context_->ClrReadFd(data_fd_);
+            cmd_ = CMD_ECHO;
+            context_->timeout.tv_nsec = 900 * 1000 * 1000; //100ms
+            context_->timeout_callback = [&]() {
                 context_->SetWriteFd(data_fd_);
             };
         }
@@ -221,8 +549,8 @@ public:
     int RecvCommand()
     {
         int result;
-        char buf[1024*64];
-        if((result = sock_recv(control_fd_,buf,sizeof(buf)))<=0)
+        char buf[1024 * 64];
+        if ((result = sock_recv(control_fd_, buf, sizeof(buf))) <= 0)
         {
             LOGE("Disconnect.\n");
             context_->ClrReadFd(control_fd_);
@@ -237,49 +565,55 @@ public:
 
     int SendData()
     {
-        if(cmd_ == CMD_ECHO) return echo_send();
-        if(cmd_ == CMD_RECV) return echo_send();
-        if(cmd_ == CMD_SEND) return echo_send();
-        LOGE("Peer send error: cmd = %d\n",cmd_);
-        #define ERR_OTHER -99
+        if (cmd_ == CMD_ECHO)
+            return echo_send();
+        if (cmd_ == CMD_RECV)
+            return echo_send();
+        if (cmd_ == CMD_SEND)
+            return echo_send();
+        LOGE("Peer send error: cmd = %d\n", cmd_);
+#define ERR_OTHER -99
         return ERR_OTHER;
     }
     int RecvData()
-    {        
-        if(cmd_ == CMD_ECHO) return echo_recv();
-        if(cmd_ == CMD_RECV) return echo_recv();
-        if(cmd_ == CMD_SEND) return echo_recv();
-        LOGE("Peer recv error: cmd = %d\n",cmd_);
-        #define ERR_OTHER -99
+    {
+        if (cmd_ == CMD_ECHO)
+            return echo_recv();
+        if (cmd_ == CMD_RECV)
+            return echo_recv();
+        if (cmd_ == CMD_SEND)
+            return echo_recv();
+        LOGE("Peer recv error: cmd = %d\n", cmd_);
+#define ERR_OTHER -99
         return ERR_OTHER;
     }
     int echo_send()
     {
         context_->SetReadFd(data_fd_);
         context_->ClrWriteFd(data_fd_);
-        const std::string tmp(10,'a');
-        return sock_send(data_fd_,tmp.c_str(),tmp.length());
+        const std::string tmp(10, 'a');
+        return sock_send(data_fd_, tmp.c_str(), tmp.length());
     }
     int echo_recv()
     {
         //context_->SetWriteFd(data_fd_);
         context_->ClrReadFd(data_fd_);
-        return sock_recv(data_fd_,buf_,sizeof(buf_));
+        return sock_recv(data_fd_, buf_, sizeof(buf_));
     }
-    int GetControlFd(){return control_fd_;}
-    int GetCmd(){return cmd_;}
-    const std::string& GetCookie(){return cookie_;}
+    int GetControlFd() { return control_fd_; }
+    int GetCmd() { return cmd_; }
+    const std::string &GetCookie() { return cookie_; }
+
 private:
-    Peer(const Peer& peer){}
-    void operator= (const Peer& p){}
+    Peer(const Peer &peer) {}
+    void operator=(const Peer &p) {}
     int control_fd_;
     int data_fd_;
     std::string cookie_;
     int cmd_;
-    char buf_[1024*64];
+    char buf_[1024 * 64];
     std::shared_ptr<Context> context_;
 };
-
 
 int udp_listen()
 {
@@ -363,7 +697,7 @@ int tcp_listen()
         return -1;
     }
 
-    if((sockfd = tcp_create())<0)
+    if ((sockfd = tcp_create()) < 0)
     {
         return -1;
     }
@@ -376,8 +710,8 @@ int tcp_listen()
         return -1;
     }
 
-    #define MAX_CLINETS 500
-    if(listen(sockfd,MAX_CLINETS) < 0)
+#define MAX_CLINETS 500
+    if (listen(sockfd, MAX_CLINETS) < 0)
     {
         LOGE("listen error: %s(errno: %d)\n", strerror(errno), errno);
         close(sockfd);
@@ -387,10 +721,9 @@ int tcp_listen()
     return sockfd;
 }
 
-
-int tcp_accept(const std::shared_ptr<Context>& context,std::shared_ptr<Peer>& peer)
+int tcp_accept(const std::shared_ptr<Context> &context, std::shared_ptr<Peer> &peer)
 {
-    int result,fd;
+    int result, fd;
     char buf[1024 * 64] = {0};
     char remote_ip[20] = {0};
     fd_set fds;
@@ -398,29 +731,28 @@ int tcp_accept(const std::shared_ptr<Context>& context,std::shared_ptr<Peer>& pe
 
     struct sockaddr_in peeraddr;
     socklen_t peeraddr_size = sizeof(peeraddr);
-    memset(&peeraddr,0,sizeof(peeraddr));
+    memset(&peeraddr, 0, sizeof(peeraddr));
 
-    if ((fd = accept(context->control_fd,(struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
+    if ((fd = accept(context->control_fd, (struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
     {
         LOGE("accept error.\n");
         return -1;
     }
 
-
-    #define SOCKET_READ_TIMEOUT_SEC 1
+#define SOCKET_READ_TIMEOUT_SEC 1
     struct timeval timeout;
     timeout.tv_sec = SOCKET_READ_TIMEOUT_SEC;
     timeout.tv_usec = 0;
-    FD_SET(fd,&fds);
+    FD_SET(fd, &fds);
     result = select(fd + 1, &fds, NULL, NULL, &timeout);
-    if(result <= 0)
+    if (result <= 0)
     {
         LOGE("Read cookie error: %s(errno: %d)\n", strerror(errno), errno);
         close(fd);
         return -1;
     }
-    
-    if((result = sock_recv(fd,buf,sizeof(buf))) == -1) 
+
+    if ((result = sock_recv(fd, buf, sizeof(buf))) == -1)
     {
         LOGE("tcp recv error");
         close(fd);
@@ -429,7 +761,7 @@ int tcp_accept(const std::shared_ptr<Context>& context,std::shared_ptr<Peer>& pe
     if (strncmp(buf, "cookie:", 7))
     {
         LOGE("Cookie format error.\n");
-        #define ERR_ILLEGAL_COOKIE -3
+#define ERR_ILLEGAL_COOKIE -3
         return ERR_ILLEGAL_COOKIE;
     }
 
@@ -441,8 +773,8 @@ int tcp_accept(const std::shared_ptr<Context>& context,std::shared_ptr<Peer>& pe
         close(fd);
         return -1;
     }
-    
-    peer = std::make_shared<Peer>(fd,buf,context);
+
+    peer = std::make_shared<Peer>(fd, buf, context);
 
     return fd;
 }
@@ -452,7 +784,7 @@ int udp_server_parse()
     return 0;
 }
 
-int udp_accept(std::shared_ptr<Context> context,std::shared_ptr<Peer>& peer)
+int udp_accept(std::shared_ptr<Context> context, std::shared_ptr<Peer> &peer)
 {
     int result;
     char buf[1024 * 64] = {0};
@@ -460,7 +792,7 @@ int udp_accept(std::shared_ptr<Context> context,std::shared_ptr<Peer>& peer)
 
     struct sockaddr_in peeraddr;
     socklen_t peeraddr_size = sizeof(peeraddr);
-    memset(&peeraddr,0,sizeof(peeraddr));
+    memset(&peeraddr, 0, sizeof(peeraddr));
 
     memset(remote_ip, 0, sizeof(remote_ip));
 
@@ -476,10 +808,10 @@ int udp_accept(std::shared_ptr<Context> context,std::shared_ptr<Peer>& peer)
         LOGE("Cookie format error.\n");
         return ERR_ILLEGAL_COOKIE;
     }
-    
+
     inet_ntop(AF_INET, &peeraddr.sin_addr, remote_ip, peeraddr_size);
     LOGV("accept udp from [%s:%d]: %s\n", remote_ip, ntohs(peeraddr.sin_port), buf);
-    
+
     if (connect(context->data_fd, (struct sockaddr *)&peeraddr, peeraddr_size) < 0)
     {
         LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
@@ -491,9 +823,9 @@ int udp_accept(std::shared_ptr<Context> context,std::shared_ptr<Peer>& peer)
         return -1;
     }
 
-    for(auto& p:context->peers)
+    for (auto &p : context->peers)
     {
-        if(p->GetCookie() == buf)
+        if (p->GetCookie() == buf)
         {
             peer = p;
             break;
@@ -506,10 +838,9 @@ int udp_accept(std::shared_ptr<Context> context,std::shared_ptr<Peer>& peer)
         exit(-1);
         return -1;
     }
-    
+
     return result;
 }
-
 
 int StartListen()
 {
@@ -531,7 +862,7 @@ extern "C" EXPORT int init_server()
 {
     int result;
     auto context = std::make_shared<Context>();
-    
+
     if ((result = StartListen()) <= 0)
     {
         return -1;
@@ -539,15 +870,15 @@ extern "C" EXPORT int init_server()
     context->control_fd = result;
     context->SetReadFd(result);
 
-    if((result = udp_listen()) <=0 )
+    if ((result = udp_listen()) <= 0)
     {
-        return -1;    
+        return -1;
     }
     context->data_fd = result;
     context->SetReadFd(result);
 
-    timespec timeout = {2,0};
-    timespec* timeout_ptr = NULL;
+    timespec timeout = {2, 0};
+    timespec *timeout_ptr = NULL;
     fd_set read_fdsets, write_fdsets;
     FD_ZERO(&read_fdsets);
     FD_ZERO(&write_fdsets);
@@ -556,24 +887,24 @@ extern "C" EXPORT int init_server()
     high_resolution_clock::time_point begin = high_resolution_clock::now();
     while (true)
     {
-        memcpy(&read_fdsets,&context->read_fds,sizeof(read_fdsets));
-        memcpy(&write_fdsets,&context->write_fds,sizeof(write_fdsets));
-        if(context->timeout.tv_sec!=0||context->timeout.tv_nsec!=0)
+        memcpy(&read_fdsets, &context->read_fds, sizeof(read_fdsets));
+        memcpy(&write_fdsets, &context->write_fds, sizeof(write_fdsets));
+        if (context->timeout.tv_sec != 0 || context->timeout.tv_nsec != 0)
         {
             timeout = context->timeout;
             timeout_ptr = &timeout;
-            LOGV("Set timeout: %ld,%ld\n",timeout.tv_sec,timeout.tv_nsec);
+            LOGV("Set timeout: %ld,%ld\n", timeout.tv_sec, timeout.tv_nsec);
         }
         else
         {
             timeout_ptr = NULL;
             LOGV("Clear timeout.\n");
         }
-        
+
         LOGV("selecting\n");
-        result = pselect(context->max_fd+1, &read_fdsets, &write_fdsets, NULL,timeout_ptr,NULL);
+        result = pselect(context->max_fd + 1, &read_fdsets, &write_fdsets, NULL, timeout_ptr, NULL);
         LOGV("selected\n");
-        
+
         if (result < 0)
         {
             // Todo: close socket
@@ -581,7 +912,7 @@ extern "C" EXPORT int init_server()
             return -1;
         }
 
-        if(result == 0 && context->timeout_callback)
+        if (result == 0 && context->timeout_callback)
         {
             LOGW("select timeout.\n");
             context->timeout_callback();
@@ -590,26 +921,26 @@ extern "C" EXPORT int init_server()
         if (FD_ISSET(context->control_fd, &read_fdsets))
         {
             std::shared_ptr<Peer> peer;
-            result = tcp_accept(context,peer);
-            if(result>0)
+            result = tcp_accept(context, peer);
+            if (result > 0)
             {
                 context->peers.push_back(peer);
             }
         }
-        if(FD_ISSET(context->data_fd,&read_fdsets))
+        if (FD_ISSET(context->data_fd, &read_fdsets))
         {
             std::shared_ptr<Peer> peer;
-            if((result = udp_accept(context,peer)) >0)
+            if ((result = udp_accept(context, peer)) > 0)
             {
                 LOGV("Accept success.\n");
-                FD_CLR(context->data_fd,&read_fdsets);
+                FD_CLR(context->data_fd, &read_fdsets);
                 peer->SetDataFd(context->data_fd);
                 context->SetWriteFd(peer->GetControlFd());
                 context->data_fd = result;
                 context->SetReadFd(context->data_fd);
             }
         }
-        for(auto& peer : context->peers)
+        for (auto &peer : context->peers)
         {
             if (FD_ISSET(peer->GetControlFd(), &write_fdsets))
             {
@@ -621,7 +952,8 @@ extern "C" EXPORT int init_server()
                 LOGV("Recving Command.\n");
                 peer->RecvCommand();
             }
-            if(peer->GetDataFd()<0) continue;
+            if (peer->GetDataFd() < 0)
+                continue;
             if (FD_ISSET(peer->GetDataFd(), &write_fdsets))
             {
                 LOGV("Sending Data.\n");
@@ -637,7 +969,6 @@ extern "C" EXPORT int init_server()
 
     return 0;
 }
-
 
 int tcp_connect()
 {
@@ -655,7 +986,7 @@ int tcp_connect()
     }
 
     sockfd = tcp_create();
-    ASSERT(sockfd>0);
+    ASSERT(sockfd > 0);
 
     LOGV("tcp connect %s:%d\n", g_option.ip_remote, g_option.port);
     if (connect(sockfd, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
@@ -672,22 +1003,22 @@ int connect_server(std::shared_ptr<Context> context)
     int result;
     int sockfd;
     sockfd = tcp_connect();
-    ASSERT(sockfd>0);
-    
-    char buf[1024*64] = {0};
+    ASSERT(sockfd > 0);
+
+    char buf[1024 * 64] = {0};
     ssize_t rlength = 0;
     srand(high_resolution_clock::now().time_since_epoch().count());
     std::string cookie = "cookie:" + std::to_string(rand());
-    
-    context->control_fd = sockfd;
-    
-    result = sock_send(sockfd,cookie.c_str(),cookie.length());
-    ASSERT(result>=0);
 
-    result = sock_recv(sockfd,buf,sizeof(buf));
-    ASSERT(result>=0);
+    context->control_fd = sockfd;
+
+    result = sock_send(sockfd, cookie.c_str(), cookie.length());
+    ASSERT(result >= 0);
+
+    result = sock_recv(sockfd, buf, sizeof(buf));
+    ASSERT(result >= 0);
     ASSERT(cookie == buf);
-    
+
     struct sockaddr_in remoteaddr, localaddr;
 
     memset(&remoteaddr, 0, sizeof(remoteaddr));
@@ -723,11 +1054,11 @@ int connect_server(std::shared_ptr<Context> context)
 
     context->data_fd = sockfd;
 
-    result = sock_send(sockfd,cookie.c_str(),cookie.length());
-    ASSERT(result>=0);
+    result = sock_send(sockfd, cookie.c_str(), cookie.length());
+    ASSERT(result >= 0);
 
-    result = sock_recv(sockfd,buf,sizeof(buf));
-    ASSERT(result>=0);
+    result = sock_recv(sockfd, buf, sizeof(buf));
+    ASSERT(result >= 0);
     ASSERT(cookie == buf);
 
     // socklen_t localaddr_length = sizeof(localaddr);
@@ -749,14 +1080,14 @@ int connect_server(std::shared_ptr<Context> context)
     return 0;
 }
 
-int udp_set_timeout(int sockfd,int type,int seconds)
+int udp_set_timeout(int sockfd, int type, int seconds)
 {
     struct timeval timeout;
     timeout.tv_sec = seconds;
     timeout.tv_usec = 0;
     if (setsockopt(sockfd, SOL_SOCKET, type, &timeout, sizeof(timeout)) < 0)
     {
-        LOGE("setsockopt error:%d,%d\n",type,seconds);
+        LOGE("setsockopt error:%d,%d\n", type, seconds);
         return -1;
     }
 }
@@ -764,23 +1095,24 @@ int udp_set_timeout(int sockfd,int type,int seconds)
 class Command
 {
 public:
-    Command(std::shared_ptr<Context> context):context_(context){}
-    Command(std::string argv,std::shared_ptr<Context> context)
-        :argv_(argv),context_(context){}
+    Command(std::shared_ptr<Context> context) : context_(context) {}
+    Command(std::string argv, std::shared_ptr<Context> context)
+        : argv_(argv), context_(context) {}
     virtual void Start() = 0;
     virtual void Stop() = 0;
-    virtual int Send() {return 0;};
-    virtual int Recv() {return 0;};
+    virtual int Send() { return 0; };
+    virtual int Recv() { return 0; };
+
 protected:
     std::string argv_;
     std::shared_ptr<Context> context_;
 };
 
-class EchoCommand: public Command
+class EchoCommand : public Command
 {
 public:
     EchoCommand(std::shared_ptr<Context> context)
-        :length_(0),count_(0),running_(false),Command(context){}
+        : length_(0), count_(0), running_(false), Command(context) {}
 
     void Start() override
     {
@@ -798,16 +1130,18 @@ public:
     {
         LOGV("Echo Send.\n");
         int result;
-        if(count_<= 0) return 0;
+        if (count_ <= 0)
+            return 0;
         if ((result = sock_send(context_->data_fd, buf_, length_)) < 0)
         {
             return -1;
         }
         count_--;
-        if(count_<=0) 
+        if (count_ <= 0)
         {
             context_->ClrWriteFd(context_->data_fd);
-            if(running_) context_->SetReadFd(context_->data_fd);
+            if (running_)
+                context_->SetReadFd(context_->data_fd);
         }
         return 0;
     }
@@ -815,7 +1149,7 @@ public:
     {
         LOGV("Echo Recv.\n");
         int result;
-        if((result = sock_recv(context_->data_fd,buf_,sizeof(buf_))) < 0 )
+        if ((result = sock_recv(context_->data_fd, buf_, sizeof(buf_))) < 0)
         {
             return -1;
         }
@@ -825,28 +1159,31 @@ public:
         count_++;
         return 0;
     }
-    
+
 private:
-    char buf_[1024*64];
+    char buf_[1024 * 64];
     int length_;
     ssize_t count_;
     bool running_;
 };
 
-int tcp_parse_cmd(std::shared_ptr<Context> context,std::shared_ptr<Command>& command)
+int tcp_parse_cmd(std::shared_ptr<Context> context, std::shared_ptr<Command> &command)
 {
     int result;
     char data[100] = {0};
     char cmd[100] = {0};
     LOGV("Client parsing cmd.\n");
-    if((result = sock_recv(context->control_fd,data,sizeof(data))) > 0)
+    if ((result = sock_recv(context->control_fd, data, sizeof(data))) > 0)
     {
-        #define ERR_ILLEGAL_DATA -5
-        if(result < 4 || result >= 100) return ERR_ILLEGAL_DATA;
-        sscanf(data,"%s",cmd);
-        if(!strcmp("RECV",cmd)) return CMD_RECV;
-        if(!strcmp("SEND",cmd)) return CMD_SEND;
-        if(!strcmp("ECHO",cmd)) 
+#define ERR_ILLEGAL_DATA -5
+        if (result < 4 || result >= 100)
+            return ERR_ILLEGAL_DATA;
+        sscanf(data, "%s", cmd);
+        if (!strcmp("RECV", cmd))
+            return CMD_RECV;
+        if (!strcmp("SEND", cmd))
+            return CMD_SEND;
+        if (!strcmp("ECHO", cmd))
         {
             command = std::make_shared<EchoCommand>(context);
             return CMD_ECHO;
@@ -856,7 +1193,6 @@ int tcp_parse_cmd(std::shared_ptr<Context> context,std::shared_ptr<Command>& com
     return -1;
 }
 
-
 int udp_cmd_recv(int sockfd)
 {
     char buf[1024 * 64] = {0};
@@ -865,8 +1201,8 @@ int udp_cmd_recv(int sockfd)
     ssize_t count = 0;
     double delay = 0;
     double total_delay = 0;
-    high_resolution_clock::time_point start,end;
-    
+    high_resolution_clock::time_point start, end;
+
     start = high_resolution_clock::now();
     while ((rlength = sock_recv(sockfd, buf, sizeof(buf))) > 0)
     {
@@ -874,7 +1210,7 @@ int udp_cmd_recv(int sockfd)
         count++;
     }
     end = high_resolution_clock::now();
-    if(rlength < 0) 
+    if (rlength < 0)
     {
         return -1;
     }
@@ -883,20 +1219,20 @@ int udp_cmd_recv(int sockfd)
     return 0;
 }
 
-int udp_cmd_send(int sockfd,char* argv)
+int udp_cmd_send(int sockfd, char *argv)
 {
-    int size,count;
-    if(sscanf(argv,"%d %d",&size,&count) != 2)
+    int size, count;
+    if (sscanf(argv, "%d %d", &size, &count) != 2)
     {
         LOGE("Illegal args\n");
         return -2;
     }
-    if(size <= 0 || size > 64*1024 || count <= 0)
+    if (size <= 0 || size > 64 * 1024 || count <= 0)
     {
-        LOGE("Args out of range: %d %d\n",size,count);
+        LOGE("Args out of range: %d %d\n", size, count);
         return -2;
     }
-    std::string tmp(size,'\0');
+    std::string tmp(size, '\0');
     const char *buf = tmp.c_str();
     ssize_t rlength = 0;
     do
@@ -905,41 +1241,106 @@ int udp_cmd_send(int sockfd,char* argv)
         {
             return -1;
         }
-        count --;
-    } while (rlength == size && count>0);
+        count--;
+    } while (rlength == size && count > 0);
     return 0;
 }
 
+class SnoopClient
+{
+public:
+    SnoopClient(std::shared_ptr<Option> option)
+    {
+        
+    }
+    int Run()
+    {
+        int result;
+        char buf[100] = {0};
+        fd_set read_fds, write_fds;
+        FD_ZERO(&read_fds);
+        FD_ZERO(&write_fds);
+
+        auto context = std::make_shared<Context>();
+
+        if ((result = connect_server(context)) != 0)
+            return result;
+        context->SetReadFd(context->control_fd);
+
+        std::shared_ptr<Command> command;
+
+        while (true)
+        {
+            memcpy(&read_fds, &context->read_fds, sizeof(read_fds));
+            memcpy(&write_fds, &context->write_fds, sizeof(write_fds));
+
+            result = select(context->max_fd + 1, &read_fds, &write_fds, NULL, NULL);
+            if (result <= 0)
+            {
+                LOGE("select error: %d,%d\n", result, errno);
+                return -1;
+            }
+            if (FD_ISSET(context->control_fd, &read_fds))
+            {
+                if ((result = tcp_parse_cmd(context, command)) > 0)
+                {
+                    command->Start();
+                }
+                else
+                {
+                    LOGE("Parsing cmd error.\n");
+                    break;
+                }
+            }
+            if (FD_ISSET(context->control_fd, &write_fds))
+            {
+            }
+            if (FD_ISSET(context->data_fd, &read_fds))
+            {
+                command->Recv();
+            }
+            if (FD_ISSET(context->data_fd, &write_fds))
+            {
+                command->Send();
+            }
+        }
+
+        return -1;
+    }
+private:
+    std::shared_ptr<Option> option_;
+};
 
 extern "C" EXPORT int init_client()
 {
     int result;
     char buf[100] = {0};
-    fd_set read_fds,write_fds;
+    fd_set read_fds, write_fds;
     FD_ZERO(&read_fds);
     FD_ZERO(&write_fds);
 
     auto context = std::make_shared<Context>();
-    
-    if((result = connect_server(context)) != 0) return result;
+
+    if ((result = connect_server(context)) != 0)
+        return result;
     context->SetReadFd(context->control_fd);
 
     std::shared_ptr<Command> command;
 
-    while(true)
+    while (true)
     {
-        memcpy(&read_fds,&context->read_fds,sizeof(read_fds));
-        memcpy(&write_fds,&context->write_fds,sizeof(write_fds));
+        memcpy(&read_fds, &context->read_fds, sizeof(read_fds));
+        memcpy(&write_fds, &context->write_fds, sizeof(write_fds));
 
-        result = select(context->max_fd+1,&read_fds,&write_fds,NULL,NULL);
-        if(result<=0)
+        result = select(context->max_fd + 1, &read_fds, &write_fds, NULL, NULL);
+        if (result <= 0)
         {
-            LOGE("select error: %d,%d\n",result,errno);
+            LOGE("select error: %d,%d\n", result, errno);
             return -1;
         }
-        if(FD_ISSET(context->control_fd,&read_fds))
+        if (FD_ISSET(context->control_fd, &read_fds))
         {
-            if((result = tcp_parse_cmd(context,command)) > 0)
+            if ((result = tcp_parse_cmd(context, command)) > 0)
             {
                 command->Start();
             }
@@ -949,24 +1350,21 @@ extern "C" EXPORT int init_client()
                 break;
             }
         }
-        if(FD_ISSET(context->control_fd,&write_fds))
+        if (FD_ISSET(context->control_fd, &write_fds))
         {
-
         }
-        if(FD_ISSET(context->data_fd,&read_fds))
+        if (FD_ISSET(context->data_fd, &read_fds))
         {
             command->Recv();
         }
-        if(FD_ISSET(context->data_fd,&write_fds))
+        if (FD_ISSET(context->data_fd, &write_fds))
         {
             command->Send();
         }
     }
 
-
     return -1;
 }
-
 
 void join_mcast(int fd, struct sockaddr_in *sin)
 {
