@@ -1,6 +1,6 @@
 
 CXX=g++
-CXXFLAGS= -g -std=c++11 -I. -D DEBUG
+CXXFLAGS= -g -std=c++11 -I. -D _DEBUG
 DEPS = netsnoop.h
 OBJ = netsnoop.o
 
