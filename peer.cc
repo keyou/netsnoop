@@ -6,16 +6,6 @@
 #include "peer.h"
 #include "context2.h"
 
-Peer::Peer(std::shared_ptr<Sock> control_sock, std::shared_ptr<Context> context)
-    : Peer(control_sock, "", context)
-{
-}
-
-Peer::Peer(std::shared_ptr<Sock> control_sock, const std::string cookie, std::shared_ptr<Context> context)
-    : cookie_(cookie), context_(context), control_sock_(control_sock), timeout_(0)
-{
-}
-
 int Peer::SendCommand()
 {
     if (command_->id == CMD_ECHO)
@@ -86,7 +76,7 @@ int Peer::RecvCommand()
         port = atoi(buf.substr(index + 1).c_str());
         data_sock_->Connect(ip, port);
 
-        LOGW("connect new client: %s:%d (%s)\n", ip.c_str(),port,cookie_.c_str());
+        LOGW("connect new client: %s:%d (%s)\n", ip.c_str(), port, cookie_.c_str());
 
         return 0;
     }
@@ -130,6 +120,7 @@ int Peer::SendEcho()
     const std::string tmp(std::to_string(++i));
     return data_sock_->Send(tmp.c_str(), tmp.length());
 }
+
 int Peer::RecvEcho()
 {
     //context_->SetWriteFd(data_fd_);
@@ -147,8 +138,8 @@ int Peer::Timeout(int timeout)
     return 0;
 }
 
-    void Peer::SetCommand(std::shared_ptr<Command> command) 
-    {
-        command_ = command;
-        context_->SetWriteFd(control_sock_->GetFd());
-    }
+void Peer::SetCommand(std::shared_ptr<Command> command)
+{
+    command_ = command;
+    context_->SetWriteFd(control_sock_->GetFd());
+}

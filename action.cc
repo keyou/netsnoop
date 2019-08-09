@@ -47,3 +47,21 @@ int EchoAction::Recv()
     count_++;
     return 0;
 }
+
+    void RecvAction::Start()
+    {
+        context_->SetReadFd(context_->data_fd);
+    }
+    void RecvAction::Stop()
+    {
+        context_->ClrReadFd(context_->data_fd);
+    }
+    int RecvAction::Recv()
+    {
+        int result;
+        if ((result = Sock::Recv(context_->data_fd, buf_, sizeof(buf_))) < 0)
+        {
+            return -1;
+        }
+        return result;
+    }

@@ -39,7 +39,7 @@ int NetSnoopServer::Run()
     {
         if (timeout_ptr)
         {
-            for (auto &peer : context_->peers)
+            for (auto &peer : peers_)
             {
                 end = high_resolution_clock::now();
                 peer->Timeout(duration_cast<milliseconds>(end - start).count());
@@ -51,7 +51,7 @@ int NetSnoopServer::Run()
         timeout_ptr = NULL;
         time_millseconds = INT32_MAX;
 
-        for (auto &peer : context_->peers)
+        for (auto &peer : peers_)
         {
             if (peer->GetTimeout() > 0 && time_millseconds > peer->GetTimeout())
             {
@@ -115,7 +115,7 @@ int NetSnoopServer::Run()
             auto command = Command::CreateCommand(cmd);
             ASSERT(command);
 
-            for (auto &peer : context_->peers)
+            for (auto &peer : peers_)
             {
                 peer->SetCommand(command);
             }
@@ -126,7 +126,7 @@ int NetSnoopServer::Run()
             ASSERT(result >= 0);
         }
 
-        for (auto &peer : context_->peers)
+        for (auto &peer : peers_)
         {
             LOGV("peer: cfd= %d, dfd= %d\n", peer->GetControlFd(), peer->GetDataFd());
             if (FD_ISSET(peer->GetControlFd(), &write_fdsets))
@@ -197,7 +197,7 @@ int NetSnoopServer::AceeptNewPeer()
 
     auto tcp = std::make_shared<Tcp>(fd);
     auto peer = std::make_shared<Peer>(tcp, context_);
-    context_->peers.push_back(peer);
+    peers_.push_back(peer);
     context_->SetReadFd(fd);
 
     std::string ip;

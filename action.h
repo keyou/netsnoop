@@ -36,3 +36,21 @@ private:
     ssize_t count_;
     bool running_;
 };
+
+
+class RecvAction : public Action
+{
+public:
+    RecvAction(std::shared_ptr<Context> context)
+        : length_(0), count_(0), running_(false), Action(context) {}
+
+    void Start() override;
+    void Stop() override;
+    int Recv() override;
+    
+private:
+    char buf_[1024 * 64];
+    int length_;
+    ssize_t count_;
+    bool running_;
+};

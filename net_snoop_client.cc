@@ -73,18 +73,6 @@ int NetSnoopClient::Connect()
     result = tcp_client_->Connect(option_->ip_remote, option_->port);
     ASSERT(result >= 0);
 
-    // char buf[1024 * 64] = {0};
-    // ssize_t rlength = 0;
-    // srand(high_resolution_clock::now().time_since_epoch().count());
-    // std::string cookie = "cookie:" + std::to_string(rand());
-
-    // result = tcp_client_->Send(cookie.c_str(), cookie.length());
-    // ASSERT(result >= 0);
-
-    // result = tcp_client_->Recv(buf, sizeof(buf));
-    // ASSERT(result >= 0);
-    // ASSERT(cookie == buf);
-
     udp_client_ = std::make_shared<Udp>();
     udp_client_->Initialize();
     udp_client_->Connect(option_->ip_remote, option_->port);
@@ -122,6 +110,11 @@ int NetSnoopClient::ParseAction(std::shared_ptr<Action> &action)
         {
             action = std::make_shared<EchoAction>(context_);
             return CMD_ECHO;
+        }
+        if(command->id == CMD_RECV)
+        {
+            action = std::make_shared<RecvAction>(context_);
+            return CMD_RECV;
         }
         return ERR_ILLEGAL_DATA;
     }

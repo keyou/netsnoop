@@ -20,5 +20,5 @@ struct Context
     fd_set read_fds;
     fd_set write_fds;
     int max_fd;
-    std::vector<std::shared_ptr<Peer>> peers;
+    //std::vector<std::shared_ptr<Peer>> peers;
 };

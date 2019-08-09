@@ -24,6 +24,7 @@ private:
     std::shared_ptr<Context> context_;
     std::shared_ptr<Tcp> tcp_client_;
     std::shared_ptr<Udp> udp_client_;
+    std::shared_ptr<Action> action_;
 
     DISALLOW_COPY_AND_ASSIGN(NetSnoopClient);
 };

@@ -33,7 +33,6 @@ int main(int argc, char *argv[])
             {
                 std::cout<<"Input Action:";
                 std::getline(std::cin,data);
-                std::cout<<"get: "<<data<<std::endl;
                 server.SendCommand(data);
             }
         }
