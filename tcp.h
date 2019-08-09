@@ -2,20 +2,18 @@
 
 #include "sock.h"
 
-class Udp : public Sock
+#define MAX_CLINETS 500
+class Tcp : public Sock
 {
 public:
-    Udp();
-    Udp(int fd);
+    Tcp();
+    Tcp(int fd);
     int Listen(int count) override;
     int Connect(std::string ip, int port) override;
     int Accept() override;
 
 private:
-    static int Connect(int fd,sockaddr_in* remoteaddr,int size);
-
-    int count_;
+    int InitializeEx(int fd) const override;
     
-    DISALLOW_COPY_AND_ASSIGN(Udp);
+    DISALLOW_COPY_AND_ASSIGN(Tcp);
 };
-
