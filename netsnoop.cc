@@ -470,8 +470,6 @@ struct Context
     fd_set read_fds;
     fd_set write_fds;
     int max_fd;
-    timespec timeout;
-    std::function<void()> timeout_callback;
     std::vector<std::shared_ptr<Peer>> peers;
 };
 
@@ -488,7 +486,7 @@ public:
     }
 
     Peer(std::shared_ptr<Sock> control_sock, const std::string cookie, std::shared_ptr<Context> context) 
-        : cookie_(cookie), context_(context), cmd_(CMD_NULL),control_sock_(control_sock)
+        : cookie_(cookie), context_(context), cmd_(CMD_NULL),control_sock_(control_sock),timeout_(0)
     {
     }
 
@@ -507,9 +505,11 @@ public:
             context_->SetWriteFd(data_sock_->GetFd());
             context_->ClrReadFd(data_sock_->GetFd());
             cmd_ = CMD_ECHO;
-            context_->timeout.tv_nsec = 900 * 1000 * 1000; //100ms
-            context_->timeout_callback = [&]() {
+            timeout_ = 5*1000;//5s
+            timeout_callback_ = [&]() {
                 context_->SetWriteFd(data_sock_->GetFd());
+                timeout_ = 5*1000;//5s
+                return 0;
             };
         }
         // Stop send control cmd and Start recv control cmd.
@@ -528,7 +528,7 @@ public:
             context_->ClrReadFd(data_sock_->GetFd());
             context_->ClrWriteFd(control_sock_->GetFd());
             context_->ClrWriteFd(data_sock_->GetFd());
-            context_->timeout.tv_nsec = 0;
+            timeout_ = 0;
             // auto data = context_->peers.erase(std::remove(context_->peers.begin(),context_->peers.end(), std::make_shared<Peer>(this)),context_->peers.end());
             // ASSERT(data!=context_->peers.end());
             return -1;
@@ -598,7 +598,8 @@ public:
     {
         context_->SetReadFd(data_sock_->GetFd());
         context_->ClrWriteFd(data_sock_->GetFd());
-        const std::string tmp(10, 'a');
+        static unsigned long i = 0;
+        const std::string tmp(std::to_string(++i));
         return data_sock_->Send(tmp.c_str(), tmp.length());
     }
     int RecvEcho()
@@ -606,6 +607,14 @@ public:
         //context_->SetWriteFd(data_fd_);
         context_->ClrReadFd(data_sock_->GetFd());
         return data_sock_->Recv(buf_, sizeof(buf_));
+    }
+
+    int Timeout(int timeout)
+    {
+        if(!timeout_callback_ || timeout_ <= 0) return 0;
+        timeout_ -= timeout;
+        if(timeout_ <=0) return timeout_callback_();
+        return 0;
     }
     
     bool operator==(const Peer& peer)
@@ -616,6 +625,7 @@ public:
     int GetControlFd() { return control_sock_->GetFd(); }
     int GetCmd() { return cmd_; }
     const std::string &GetCookie() { return cookie_; }
+    int GetTimeout(){return timeout_;}
 
 private:
     std::shared_ptr<Sock> control_sock_;
@@ -624,6 +634,8 @@ private:
     int cmd_;
     char buf_[1024 * 64];
     std::shared_ptr<Context> context_;
+    int timeout_;
+    std::function<int()> timeout_callback_;
 
     DISALLOW_COPY_AND_ASSIGN(Peer);
 };
@@ -634,13 +646,14 @@ public:
     NetSnoopServer(std::shared_ptr<Option> option)
         :option_(option),
         context_(std::make_shared<Context>()),
-        listen_tcp_(std::make_shared<Tcp>()),
-        listen_udp_(std::make_shared<Udp>())
+        listen_tcp_(std::make_shared<Tcp>())
+        //listen_udp_(std::make_shared<Udp>())
         {}
     int Run()
     {
         int result;
-        timespec timeout = {2, 0};
+        int time_millseconds=0;
+        timespec timeout = {0, 0};
         timespec *timeout_ptr = NULL;
         fd_set read_fdsets, write_fdsets;
         FD_ZERO(&read_fdsets);
@@ -649,40 +662,66 @@ public:
         result = StartListen();
         ASSERT(result >= 0);
 
-        high_resolution_clock::time_point start, end;
         high_resolution_clock::time_point begin = high_resolution_clock::now();
+        high_resolution_clock::time_point start, end;
         while (true)
-        {
+        {   
+            if(timeout_ptr)
+            {
+                for(auto& peer:context_->peers)
+                {
+                    end = high_resolution_clock::now();
+                    peer->Timeout(duration_cast<milliseconds>(end-start).count());
+                    //ASSERT(result>=0);
+                }
+            }
             memcpy(&read_fdsets, &context_->read_fds, sizeof(read_fdsets));
             memcpy(&write_fdsets, &context_->write_fds, sizeof(write_fdsets));
-            if (context_->timeout.tv_sec != 0 || context_->timeout.tv_nsec != 0)
-            {
-                timeout = context_->timeout;
-                timeout_ptr = &timeout;
-                LOGV("Set timeout: %ld,%ld\n", timeout.tv_sec, timeout.tv_nsec);
-            }
-            else
-            {
-                timeout_ptr = NULL;
-                LOGV("Clear timeout.\n");
-            }
+            timeout_ptr = NULL;
+            time_millseconds = INT32_MAX;
 
-            LOGV("selecting\n");
+            for(auto& peer:context_->peers)
+            {
+                if(peer->GetTimeout()>0&&time_millseconds>peer->GetTimeout())
+                {
+                    time_millseconds = peer->GetTimeout();
+                    timeout.tv_sec = time_millseconds/1000;
+                    timeout.tv_nsec = (time_millseconds%1000)*1000*1000;
+                    timeout_ptr = &timeout;
+                    start = high_resolution_clock::now();
+                    LOGV("Set timeout: %ld,%ld\n", timeout.tv_sec, timeout.tv_nsec);
+                }
+            }
+            
+#ifdef _DEBUG
+            for(int i = 0;i<sizeof(fd_set);i++)
+            {
+                if(FD_ISSET(i,&context_->read_fds))
+                {
+                    LOGV("want read: %d\n",i);
+                }
+                if(FD_ISSET(i,&context_->write_fds))
+                {
+                    LOGV("want write: %d\n",i);
+                }
+            }
+#endif
+            //LOGV("selecting\n");
             result = pselect(context_->max_fd + 1, &read_fdsets, &write_fdsets, NULL, timeout_ptr, NULL);
-            LOGV("selected\n");
-
+            LOGV("selected---------------\n");
+#ifdef _DEBUG
             for(int i = 0;i<sizeof(fd_set);i++)
             {
                 if(FD_ISSET(i,&read_fdsets))
                 {
-                    std::cout<<"can read: "<<i<<std::endl;
+                    LOGV("can read: %d\n",i);
                 }
                 if(FD_ISSET(i,&write_fdsets))
                 {
-                    std::cout<<"can write: "<<i<<std::endl;
+                    LOGV("can write: %d\n",i);
                 }
             }
-
+#endif
             if (result < 0)
             {
                 // Todo: close socket
@@ -690,41 +729,41 @@ public:
                 return -1;
             }
 
-            if (result == 0 && context_->timeout_callback)
+            if (result == 0)
             {
-                LOGW("select timeout.\n");
-                context_->timeout_callback();
+                LOGV("time out: %d\n",time_millseconds);
                 continue;
             }
+
             if (FD_ISSET(context_->control_fd, &read_fdsets))
             {
-                result = AceeptNewControlConnect();
+                result = AceeptNewPeer();
                 ASSERT(result>=0);
             }
             
             for (auto &peer : context_->peers)
             {
-                std::cout<<"peer: "<<peer->GetControlFd()<<std::endl;
+                LOGV("peer: cfd= %d, dfd= %d\n",peer->GetControlFd(),peer->GetDataFd());
                 if (FD_ISSET(peer->GetControlFd(), &write_fdsets))
                 {
-                    LOGV("Sending Command.\n");
+                    LOGV("Sending Command: cfd=%d\n",peer->GetControlFd());
                     peer->SendCommand();
                 }
                 if (FD_ISSET(peer->GetControlFd(), &read_fdsets))
                 {
-                    LOGV("Recving Command.\n");
+                    LOGV("Recving Command: cfd=%d\n",peer->GetControlFd());
                     peer->RecvCommand();
                 }
                 if (peer->GetDataFd() < 0)
                     continue;
                 if (FD_ISSET(peer->GetDataFd(), &write_fdsets))
                 {
-                    LOGV("Sending Data.\n");
+                    LOGV("Sending Data: dfd=%d\n",peer->GetDataFd());
                     peer->SendData();
                 }
                 if (FD_ISSET(peer->GetDataFd(), &read_fdsets))
                 {
-                    LOGV("Recving Data.\n");
+                    LOGV("Recving Data: dfd=%d\n",peer->GetDataFd());
                     peer->RecvData();
                 }
             }
@@ -743,23 +782,22 @@ private:
         result = listen_tcp_->Listen(MAX_CLINETS);
         ASSERT(result >= 0);
 
-        result = listen_udp_->Initialize();
-        ASSERT(result >= 0);
-        result = listen_udp_->Bind(option_->ip_local,option_->port);
-        ASSERT(result >= 0);
-        result = listen_udp_->Listen(MAX_CLINETS);
-        ASSERT(result >= 0);
+        // result = listen_udp_->Initialize();
+        // ASSERT(result >= 0);
+        // result = listen_udp_->Bind(option_->ip_local,option_->port);
+        // ASSERT(result >= 0);
+        // result = listen_udp_->Listen(MAX_CLINETS);
+        // ASSERT(result >= 0);
         
         context_->control_fd = listen_tcp_->GetFd();
         context_->SetReadFd(listen_tcp_->GetFd());
 
-        context_->data_fd = listen_udp_->GetFd();
-        context_->SetReadFd(listen_udp_->GetFd());
+        // context_->data_fd = listen_udp_->GetFd();
+        // context_->SetReadFd(listen_udp_->GetFd());
         return 0;
     }
-    int AceeptNewControlConnect()
+    int AceeptNewPeer()
     {
-        LOGV("AceeptNewControlConnect.\n");
         int fd;
 
         if ((fd = listen_tcp_->Accept()) <= 0)
@@ -770,13 +808,14 @@ private:
         context_->peers.push_back(std::make_shared<Peer>(std::make_shared<Tcp>(fd),context_));
         context_->SetReadFd(fd);
 
+        LOGV("Aceept new peer: %d\n",fd);
         return fd;
     }
 
     std::shared_ptr<Option> option_;
     std::shared_ptr<Context> context_;
     std::shared_ptr<Tcp> listen_tcp_;
-    std::shared_ptr<Udp> listen_udp_;
+    //std::shared_ptr<Udp> listen_udp_;
     //std::vector<std::shared_ptr<Peer>> peers_;
     //std::vector<int> half_connect_data_fds_;
 
