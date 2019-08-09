@@ -25,6 +25,8 @@
 #include <algorithm>
 #include <cassert>
 #include <functional>
+#include <thread>
+#include <signal.h>
 
 //#include "netsnoop.h"
 //#include "udp.h"
@@ -428,10 +430,73 @@ private:
 enum CommandType : char
 {
     CMD_NULL = 0,
-    CMD_RECV = 1,
-    CMD_SEND = 2,
-    CMD_ECHO = 3
+    CMD_ECHO = 1,
+    CMD_RECV = 2,
+    CMD_SEND = 3,
 };
+
+static std::map<std::string,int> g_cmd_map = {
+    {"echo",CMD_ECHO},{"recv",CMD_RECV},{"send",CMD_SEND}
+};
+
+struct EchoCommand;
+
+struct Command
+{
+    Command(const std::string& cmd)
+        :cmd(cmd)
+    {
+        std::stringstream ss(cmd);
+        std::string arg;
+        ss>>this->name;
+        while (ss>>arg) 
+        {
+            args.push_back(arg);
+        }
+        id = g_cmd_map[this->name];
+    }
+
+    static std::shared_ptr<Command> CreateCommand(const std::string& cmd)
+    {
+        auto command = new Command(cmd);
+        if(command->id <= 0) return NULL;
+        return std::shared_ptr<Command>(command);
+    }
+
+    static std::string GetCommandName(std::string cmd)
+    {
+        std::stringstream ss(cmd);
+        std::string name;
+        ss>>name;
+        return name;
+    }
+
+    std::string cmd;
+    std::string name;
+    int id;
+    std::vector<std::string> args;
+};
+
+struct EchoCommand: public Command
+{
+    // format: echo [count] [interval in ms]
+    // example: echo 10 100
+    EchoCommand(const std::string& cmd):Command(cmd){}
+
+    int GetCount()
+    {
+        return args.size()>0?atoi(args[0].c_str()):10;
+    }
+
+    int GetInterval()
+    {
+        return args.size()>1?atoi(args[1].c_str()):100;
+    }
+};
+
+// const Command echo_cmd("echo");
+// const Command recv_cmd("recv");
+// const Command send_cmd("send 1024 10");
 
 class Peer;
 
@@ -473,10 +538,6 @@ struct Context
     std::vector<std::shared_ptr<Peer>> peers;
 };
 
-const std::string echo_cmd("ECHO");
-const std::string recv_cmd("RECV");
-const std::string send_cmd("SEND 1024 10");
-
 class Peer
 {
 public:
@@ -486,7 +547,7 @@ public:
     }
 
     Peer(std::shared_ptr<Sock> control_sock, const std::string cookie, std::shared_ptr<Context> context) 
-        : cookie_(cookie), context_(context), cmd_(CMD_NULL),control_sock_(control_sock),timeout_(0)
+        : cookie_(cookie), context_(context),control_sock_(control_sock),timeout_(0)
     {
     }
 
@@ -495,20 +556,22 @@ public:
 
     int SendCommand()
     {
-        if (cmd_ == CMD_NULL)
+        if (command_->id == CMD_ECHO)
         {
-            if (control_sock_->Send(echo_cmd.c_str(), echo_cmd.length()) == -1)
+            if (control_sock_->Send(command_->cmd.c_str(), command_->cmd.length()) == -1)
             {
                 LOGE("change mode error.\n");
                 return -1;
             }
             context_->SetWriteFd(data_sock_->GetFd());
             context_->ClrReadFd(data_sock_->GetFd());
-            cmd_ = CMD_ECHO;
-            timeout_ = 5*1000;//5s
+            command_->id = CMD_ECHO;
+            count_ = 0;
+            timeout_ = ((EchoCommand*)command_.get())->GetInterval();
             timeout_callback_ = [&]() {
+                if(count_ >= ((EchoCommand*)command_.get())->GetCount()) return 0;
                 context_->SetWriteFd(data_sock_->GetFd());
-                timeout_ = 5*1000;//5s
+                timeout_ = ((EchoCommand*)command_.get())->GetInterval();
                 return 0;
             };
         }
@@ -560,42 +623,42 @@ public:
             port = atoi(buf.substr(index+1).c_str());
             data_sock_->Connect(ip,port);
 
-            context_->SetWriteFd(control_sock_->GetFd());
-
             return 0;
         }
         
-        LOGV("Recv Command: %s\n",buf.c_str());
+        LOGV("Recv Action: %s\n",buf.c_str());
 
         return 0;
     }
 
     int SendData()
     {
-        if (cmd_ == CMD_ECHO)
+        if (command_->id == CMD_ECHO)
             return SendEcho();
-        if (cmd_ == CMD_RECV)
+        if (command_->id == CMD_RECV)
             return SendEcho();
-        if (cmd_ == CMD_SEND)
+        if (command_->id == CMD_SEND)
             return SendEcho();
-        LOGE("Peer send error: cmd = %d\n", cmd_);
+        LOGE("Peer send error: cmd = %d\n", command_->id);
 #define ERR_OTHER -99
         return ERR_OTHER;
     }
     int RecvData()
     {
-        if (cmd_ == CMD_ECHO)
+        if (command_->id == CMD_ECHO)
             return RecvEcho();
-        if (cmd_ == CMD_RECV)
+        if (command_->id == CMD_RECV)
             return RecvEcho();
-        if (cmd_ == CMD_SEND)
+        if (command_->id == CMD_SEND)
             return RecvEcho();
-        LOGE("Peer recv error: cmd = %d\n", cmd_);
+        LOGE("Peer recv error: cmd = %d\n", command_->id);
 #define ERR_OTHER -99
         return ERR_OTHER;
     }
+    
     int SendEcho()
     {
+        count_++;
         context_->SetReadFd(data_sock_->GetFd());
         context_->ClrWriteFd(data_sock_->GetFd());
         static unsigned long i = 0;
@@ -623,7 +686,12 @@ public:
     }
 
     int GetControlFd() { return control_sock_->GetFd(); }
-    int GetCmd() { return cmd_; }
+    std::shared_ptr<Command> GetCmd() { return command_; }
+    void SetCommand(std::shared_ptr<Command> command) 
+    {
+        command_ = command;
+        context_->SetWriteFd(control_sock_->GetFd());
+    }
     const std::string &GetCookie() { return cookie_; }
     int GetTimeout(){return timeout_;}
 
@@ -631,11 +699,12 @@ private:
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
     std::string cookie_;
-    int cmd_;
+    std::shared_ptr<Command> command_;
     char buf_[1024 * 64];
     std::shared_ptr<Context> context_;
     int timeout_;
     std::function<int()> timeout_callback_;
+    int count_;
 
     DISALLOW_COPY_AND_ASSIGN(Peer);
 };
@@ -658,9 +727,15 @@ public:
         fd_set read_fdsets, write_fdsets;
         FD_ZERO(&read_fdsets);
         FD_ZERO(&write_fdsets);
+        
+        result = pipe(pipefd_);
+        ASSERT(result == 0);
 
         result = StartListen();
         ASSERT(result >= 0);
+
+        context_->SetReadFd(pipefd_[0]);
+        LOGV("pipe fd: %d,%d\n",pipefd_[0],pipefd_[1]);
 
         high_resolution_clock::time_point begin = high_resolution_clock::now();
         high_resolution_clock::time_point start, end;
@@ -689,7 +764,7 @@ public:
                     timeout.tv_nsec = (time_millseconds%1000)*1000*1000;
                     timeout_ptr = &timeout;
                     start = high_resolution_clock::now();
-                    LOGV("Set timeout: %ld,%ld\n", timeout.tv_sec, timeout.tv_nsec);
+                    LOGV("Set timeout: %ld\n", timeout.tv_sec *1000 + timeout.tv_nsec/1000/1000);
                 }
             }
             
@@ -734,7 +809,21 @@ public:
                 LOGV("time out: %d\n",time_millseconds);
                 continue;
             }
+            if(FD_ISSET(pipefd_[0],&read_fdsets))
+            {
+                std::string cmd(64,'\0');
+                result = read(pipefd_[0],&cmd[0],cmd.length());
+                ASSERT(result>0);
+                cmd.resize(result);
+                LOGV("Pipe read data: %s\n",cmd.c_str());
+                auto command = Command::CreateCommand(cmd);
+                ASSERT(command);
 
+                for(auto& peer:context_->peers)
+                {
+                    peer->SetCommand(command);
+                }
+            }
             if (FD_ISSET(context_->control_fd, &read_fdsets))
             {
                 result = AceeptNewPeer();
@@ -769,6 +858,14 @@ public:
             }
         }
 
+        return 0;
+    }
+    int SendCommand(std::string cmd)
+    {
+        auto command = Command::CreateCommand(cmd);
+        if(!command) return ERR_ILLEGAL_PARAM;
+        LOGV("Send cmd: %s\n",cmd.c_str());
+        write(pipefd_[1],cmd.c_str(),cmd.length());
         return 0;
     }
 private:
@@ -815,6 +912,7 @@ private:
     std::shared_ptr<Option> option_;
     std::shared_ptr<Context> context_;
     std::shared_ptr<Tcp> listen_tcp_;
+    int pipefd_[2];
     //std::shared_ptr<Udp> listen_udp_;
     //std::vector<std::shared_ptr<Peer>> peers_;
     //std::vector<int> half_connect_data_fds_;
@@ -834,11 +932,11 @@ int udp_set_timeout(int sockfd, int type, int seconds)
     }
 }
 
-class Command
+class Action
 {
 public:
-    Command(std::shared_ptr<Context> context) : context_(context) {}
-    Command(std::string argv, std::shared_ptr<Context> context)
+    Action(std::shared_ptr<Context> context) : context_(context) {}
+    Action(std::string argv, std::shared_ptr<Context> context)
         : argv_(argv), context_(context) {}
     virtual void Start() = 0;
     virtual void Stop() = 0;
@@ -850,11 +948,11 @@ protected:
     std::shared_ptr<Context> context_;
 };
 
-class EchoCommand : public Command
+class EchoAction : public Action
 {
 public:
-    EchoCommand(std::shared_ptr<Context> context)
-        : length_(0), count_(0), running_(false), Command(context) {}
+    EchoAction(std::shared_ptr<Context> context)
+        : length_(0), count_(0), running_(false), Action(context) {}
 
     void Start() override
     {
@@ -930,7 +1028,7 @@ public:
             return result;
         context->SetReadFd(context->control_fd);
 
-        std::shared_ptr<Command> command;
+        std::shared_ptr<Action> action;
 
         while (true)
         {
@@ -948,9 +1046,9 @@ public:
             }
             if (FD_ISSET(context->control_fd, &read_fds))
             {
-                if ((result = ParseCommand(command)) > 0)
+                if ((result = ParseAction(action)) > 0)
                 {
-                    command->Start();
+                    action->Start();
                 }
                 else
                 {
@@ -963,11 +1061,11 @@ public:
             }
             if (FD_ISSET(context->data_fd, &read_fds))
             {
-                command->Recv();
+                action->Recv();
             }
             if (FD_ISSET(context->data_fd, &write_fds))
             {
-                command->Send();
+                action->Send();
             }
         }
 
@@ -1014,23 +1112,22 @@ private:
         return 0;
     }
 
-    int ParseCommand(std::shared_ptr<Command> &command)
+    int ParseAction(std::shared_ptr<Action> &action)
     {
         int result;
-        std::string cmd(20,'\0');
+        std::string cmd(64,'\0');
         LOGV("Client parsing cmd.\n");
         if ((result = tcp_client_->Recv(&cmd[0], cmd.length())) > 0)
         {
     #define ERR_ILLEGAL_DATA -5
             cmd.resize(result);
             
-            if (!cmd.rfind("RECV", 0))
-                return CMD_RECV;
-            if (!cmd.rfind("SEND", 0))
-                return CMD_SEND;
-            if (!cmd.rfind("ECHO", 0))
+            auto command = Command::CreateCommand(cmd);
+            if(!command) return ERR_ILLEGAL_DATA;
+
+            if (command->id == CMD_ECHO)
             {
-                command = std::make_shared<EchoCommand>(context_);
+                action = std::make_shared<EchoAction>(context_);
                 return CMD_ECHO;
             }
             return ERR_ILLEGAL_DATA;
@@ -1081,14 +1178,31 @@ int main(int argc, char *argv[])
             g_option->buffer_size = atoi(argv[2]);
         if (!strcmp(argv[1], "-s"))
         {
-            LOGV("init_server\n");
-            NetSnoopServer(g_option).Run();
+            NetSnoopServer server(g_option);
+            auto t = std::thread([&server](){
+                LOGV("init_server\n");
+                server.Run();
+            });
+            t.detach();
+            std::string data;
+            while(true)
+            {
+                std::cout<<"Input Action:";
+                std::cin>>data;
+                server.SendCommand(data);
+            }
         }
         else if (!strcmp(argv[1], "-c"))
         {
-            LOGV("init_client\n");
-            NetSnoopClient(g_option).Run();
+            NetSnoopClient client(g_option);
+            auto t = std::thread([&client](){
+                LOGV("init_client\n");
+                client.Run();
+            });
+            t.join();
         }
     }
+    
+
     return 0;
 }
