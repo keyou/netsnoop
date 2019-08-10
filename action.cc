@@ -2,17 +2,19 @@
 #include "context2.h"
 #include "action.h"
 
-void EchoAction::Start()
+int EchoAction::Start()
 {
     running_ = true;
-    LOGV("Echo Start.\n");
+    LOGV("Echo Start.%s\n", buf_);
     context_->SetReadFd(context_->data_fd);
+    return 0;
 }
-void EchoAction::Stop()
+int EchoAction::Stop()
 {
     running_ = false;
     LOGV("Echo Stop.\n");
     context_->ClrReadFd(context_->data_fd);
+    return 0;
 }
 int EchoAction::Send()
 {
@@ -48,20 +50,24 @@ int EchoAction::Recv()
     return 0;
 }
 
-    void RecvAction::Start()
+int RecvAction::Start()
+{
+    LOGV("RecvAction Start.\n");
+    context_->SetReadFd(context_->data_fd);
+    return 0;
+}
+int RecvAction::Stop()
+{
+    LOGV("RecvAction Stop.\n");
+    context_->ClrReadFd(context_->data_fd);
+    return 0;
+}
+int RecvAction::Recv()
+{
+    int result;
+    if ((result = Sock::Recv(context_->data_fd, buf_, sizeof(buf_))) < 0)
     {
-        context_->SetReadFd(context_->data_fd);
+        return -1;
     }
-    void RecvAction::Stop()
-    {
-        context_->ClrReadFd(context_->data_fd);
-    }
-    int RecvAction::Recv()
-    {
-        int result;
-        if ((result = Sock::Recv(context_->data_fd, buf_, sizeof(buf_))) < 0)
-        {
-            return -1;
-        }
-        return result;
-    }
+    return result;
+}

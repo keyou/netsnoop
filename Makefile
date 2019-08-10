@@ -8,7 +8,7 @@ OBJ = command.o context2.o sock.o tcp.o udp.o action.o peer.o net_snoop_client.o
 netsnoop: $(OBJ)
 	$(CXX) $(CXXFLAGS) $(LIBS) -o $@ $^ 
 
-%.o: %.cc $(DEPS)
+%.o: %.cc %.h $(DEPS)
 	$(CXX) $(CXXFLAGS) -c -o $@ $< 
 
 clear:

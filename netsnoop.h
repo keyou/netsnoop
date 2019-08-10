@@ -6,6 +6,7 @@
 #include <cassert>
 
 #define ASSERT(x) assert(x)
+#define RETURN_IF_NEG(x) if(x<0) return x;
 
 class Logger
 {
@@ -32,6 +33,7 @@ private:
 #define LOGV(...) fprintf(stdout, __VA_ARGS__)
 #define LOGW(...) fprintf(stderr, __VA_ARGS__)
 #define LOGE(...) fprintf(stderr, __VA_ARGS__)
+
 //#define LOGV(...)
 //#define LOGW(...)
 //#define LOGE(...)

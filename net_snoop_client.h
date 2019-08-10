@@ -18,7 +18,7 @@ public:
 
 private:
     int Connect();
-    int ParseAction(std::shared_ptr<Action> &action);
+    int ParseAction();
 
     std::shared_ptr<Option> option_;
     std::shared_ptr<Context> context_;

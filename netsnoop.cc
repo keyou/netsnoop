@@ -15,38 +15,46 @@ int main(int argc, char *argv[])
     g_option->port = 4000;
     g_option->rate = 2048;
     g_option->buffer_size = 1024 * 8;
+    auto tcp = std::make_shared<Tcp>();
+    auto context = std::make_shared<Context>();
+    std::shared_ptr<Option> o = NULL;
+    o = g_option;
 
+    std::vector<std::shared_ptr<Peer>> peers_;
     if (argc > 1)
     {
-        if (argc > 2)
-            g_option->buffer_size = atoi(argv[2]);
         if (!strcmp(argv[1], "-s"))
         {
             NetSnoopServer server(g_option);
-            auto t = std::thread([&server](){
+            auto t = std::thread([&server]() {
                 LOGV("init_server\n");
                 server.Run();
             });
             t.detach();
-            std::string data;
-            while(true)
+            std::string cmd;
+            while (true)
             {
-                std::cout<<"Input Action:";
-                std::getline(std::cin,data);
-                server.SendCommand(data);
+                std::cout << "Input Action:";
+                std::getline(std::cin, cmd);
+                auto command = Command::CreateCommand(cmd);
+                if (!command)
+                {
+                    LOGE("error command: %s\n", cmd.c_str());
+                    continue;
+                }
+                server.PushCommand(command);
             }
         }
         else if (!strcmp(argv[1], "-c"))
         {
             NetSnoopClient client(g_option);
-            auto t = std::thread([&client](){
+            auto t = std::thread([&client]() {
                 LOGV("init_client\n");
                 client.Run();
             });
             t.join();
         }
     }
-
 
     return 0;
 }

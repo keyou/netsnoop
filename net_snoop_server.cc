@@ -10,8 +10,13 @@
 #include <cassert>
 #include <functional>
 #include <thread>
+#include <chrono>
 
+using namespace std::chrono;
+
+#include "command.h"
 #include "context2.h"
+#include "netsnoop.h"
 #include "net_snoop_server.h"
 
 int NetSnoopServer::Run()
@@ -33,6 +38,7 @@ int NetSnoopServer::Run()
     context_->SetReadFd(pipefd_[0]);
     LOGV("pipe fd: %d,%d\n", pipefd_[0], pipefd_[1]);
 
+    std::vector<int> elements_to_remove;
     high_resolution_clock::time_point begin = high_resolution_clock::now();
     high_resolution_clock::time_point start, end;
     while (true)
@@ -107,14 +113,14 @@ int NetSnoopServer::Run()
         }
         if (FD_ISSET(pipefd_[0], &read_fdsets))
         {
-            std::string cmd(64, '\0');
+            std::string cmd(MAX_CMD_LENGTH, 0);
             result = read(pipefd_[0], &cmd[0], cmd.length());
             ASSERT(result > 0);
             cmd.resize(result);
             LOGV("Pipe read data: %s\n", cmd.c_str());
-            auto command = Command::CreateCommand(cmd);
-            ASSERT(command);
 
+            auto command = commands_.front(); 
+            // TODO: deal with multi thread sync
             for (auto &peer : peers_)
             {
                 peer->SetCommand(command);
@@ -126,47 +132,58 @@ int NetSnoopServer::Run()
             ASSERT(result >= 0);
         }
 
-        for (auto &peer : peers_)
+        //for (auto &peer : peers_)
+        for (auto it = peers_.begin(); it != peers_.end();)
         {
+            auto peer = *it;
             LOGV("peer: cfd= %d, dfd= %d\n", peer->GetControlFd(), peer->GetDataFd());
             if (FD_ISSET(peer->GetControlFd(), &write_fdsets))
             {
                 LOGV("Sending Command: cfd=%d\n", peer->GetControlFd());
-                peer->SendCommand();
+                result = peer->SendCommand();
             }
             if (FD_ISSET(peer->GetControlFd(), &read_fdsets))
             {
                 LOGV("Recving Command: cfd=%d\n", peer->GetControlFd());
-                peer->RecvCommand();
+                result = peer->RecvCommand();
             }
-            if (peer->GetDataFd() < 0)
-                continue;
-            if (FD_ISSET(peer->GetDataFd(), &write_fdsets))
+            if (peer->GetDataFd() > 0)
             {
-                LOGV("Sending Data: dfd=%d\n", peer->GetDataFd());
-                peer->SendData();
+                if (FD_ISSET(peer->GetDataFd(), &write_fdsets))
+                {
+                    LOGV("Sending Data: dfd=%d\n", peer->GetDataFd());
+                    result = peer->SendData();
+                }
+                if (FD_ISSET(peer->GetDataFd(), &read_fdsets))
+                {
+                    LOGV("Recving Data: dfd=%d\n", peer->GetDataFd());
+                    result = peer->RecvData();
+                }
             }
-            if (FD_ISSET(peer->GetDataFd(), &read_fdsets))
+            if (result < 0)
             {
-                LOGV("Recving Data: dfd=%d\n", peer->GetDataFd());
-                peer->RecvData();
+                LOGE("client removed: %s\n", peer->GetCookie().c_str());
+                context_->ClrReadFd(peer->GetControlFd());
+                context_->ClrWriteFd(peer->GetControlFd());
+                if (peer->GetDataFd() > 0)
+                {
+                    context_->ClrReadFd(peer->GetControlFd());
+                    context_->ClrWriteFd(peer->GetControlFd());
+                }
+                it = peers_.erase(it);
             }
+            else
+                it++;
         }
     }
 
     return 0;
 }
-int NetSnoopServer::SendCommand(std::string cmd)
+int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
 {
-    auto command = Command::CreateCommand(cmd);
-    if (!command)
-    {
-        LOGE("error command: %s\n",cmd.c_str());
-        return ERR_ILLEGAL_PARAM;
-    }
-    LOGV("Send cmd: %s\n", cmd.c_str());
-    write(pipefd_[1], cmd.c_str(), cmd.length());
-    return 0;
+    commands_.push(command);
+    LOGV("Get cmd: %s\n", command->cmd.c_str());
+    return write(pipefd_[1], command->cmd.c_str(), command->cmd.length());
 }
 
 int NetSnoopServer::StartListen()
@@ -179,7 +196,7 @@ int NetSnoopServer::StartListen()
     result = listen_tcp_->Listen(MAX_CLINETS);
     ASSERT(result >= 0);
 
-    LOGW("listen on %s:%d\n",option_->ip_local,option_->port);
+    LOGW("listen on %s:%d\n", option_->ip_local, option_->port);
 
     context_->control_fd = listen_tcp_->GetFd();
     context_->SetReadFd(listen_tcp_->GetFd());
@@ -202,6 +219,9 @@ int NetSnoopServer::AceeptNewPeer()
 
     std::string ip;
     int port;
-    tcp->GetPeerAddress(ip,port);
+    tcp->GetPeerAddress(ip, port);
+
+    LOGW("connect new client: %s:%d\n", ip.c_str(), port);
+
     return fd;
 }

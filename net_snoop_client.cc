@@ -20,8 +20,6 @@ int NetSnoopClient::Run()
         return result;
     context->SetReadFd(context->control_fd);
 
-    std::shared_ptr<Action> action;
-
     while (true)
     {
         memcpy(&read_fds, &context->read_fds, sizeof(read_fds));
@@ -38,11 +36,7 @@ int NetSnoopClient::Run()
         }
         if (FD_ISSET(context->control_fd, &read_fds))
         {
-            if ((result = ParseAction(action)) > 0)
-            {
-                action->Start();
-            }
-            else
+            if ((result = ParseAction()) < 0)
             {
                 LOGE("Parsing cmd error.\n");
                 break;
@@ -53,11 +47,11 @@ int NetSnoopClient::Run()
         }
         if (FD_ISSET(context->data_fd, &read_fds))
         {
-            action->Recv();
+            action_->Recv();
         }
         if (FD_ISSET(context->data_fd, &write_fds))
         {
-            action->Send();
+            action_->Send();
         }
     }
 
@@ -72,6 +66,18 @@ int NetSnoopClient::Connect()
     ASSERT(result > 0);
     result = tcp_client_->Connect(option_->ip_remote, option_->port);
     ASSERT(result >= 0);
+
+    // char buf[1024 * 64] = {0};
+    // ssize_t rlength = 0;
+    // srand(high_resolution_clock::now().time_since_epoch().count());
+    // std::string cookie = "cookie:" + std::to_string(rand());
+
+    // result = tcp_client_->Send(cookie.c_str(), cookie.length());
+    // ASSERT(result >= 0);
+
+    // result = tcp_client_->Recv(buf, sizeof(buf));
+    // ASSERT(result >= 0);
+    // ASSERT(cookie == buf);
 
     udp_client_ = std::make_shared<Udp>();
     udp_client_->Initialize();
@@ -92,31 +98,23 @@ int NetSnoopClient::Connect()
     return 0;
 }
 
-int NetSnoopClient::ParseAction(std::shared_ptr<Action> &action)
+int NetSnoopClient::ParseAction()
 {
     int result;
     std::string cmd(64, '\0');
     LOGV("Client parsing cmd.\n");
-    if ((result = tcp_client_->Recv(&cmd[0], cmd.length())) > 0)
+    if ((result = tcp_client_->Recv(&cmd[0], cmd.length())) <= 0)
     {
-#define ERR_ILLEGAL_DATA -5
-        cmd.resize(result);
-
-        auto command = Command::CreateCommand(cmd);
-        if (!command)
-            return ERR_ILLEGAL_DATA;
-
-        if (command->id == CMD_ECHO)
-        {
-            action = std::make_shared<EchoAction>(context_);
-            return CMD_ECHO;
-        }
-        if(command->id == CMD_RECV)
-        {
-            action = std::make_shared<RecvAction>(context_);
-            return CMD_RECV;
-        }
-        return ERR_ILLEGAL_DATA;
+        return -1;
     }
-    return -1;
+    cmd.resize(result);
+
+    auto command = Command::CreateCommand(cmd);
+    if (!command)
+        return ERR_ILLEGAL_DATA;
+    if(action_) action_->Stop();
+    if (command->id == CMD_ECHO) action_ = std::make_shared<EchoAction>(context_);
+    if (command->id == CMD_RECV) action_ = std::make_shared<RecvAction>(context_);
+    ASSERT(action_);
+    return action_->Start();
 }
