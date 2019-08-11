@@ -1,0 +1,111 @@
+
+#include "command.h"
+#include "netsnoop.h"
+#include "udp.h"
+#include "tcp.h"
+#include "context2.h"
+#include "command_sender.h"
+
+int CommandSender::SendCommand()
+{
+    if (control_sock_->Send(command_->cmd.c_str(), command_->cmd.length()) == -1)
+    {
+        LOGE("change commandsender error.\n");
+        return -1;
+    }
+    return 0;
+}
+int EchoCommandSender::SendCommand()
+{
+    start_ = high_resolution_clock::now();
+    CommandSender::SendCommand();
+    context_->SetWriteFd(data_sock_->GetFd());
+    context_->ClrReadFd(data_sock_->GetFd());
+    SetTimeout(((EchoCommand *)command_.get())->GetInterval());
+    count_ = 0;
+    return 0;
+}
+
+int EchoCommandSender::RecvCommand()
+{
+    int result;
+    char buf[64] = {0};
+    result = control_sock_->Recv(buf,sizeof(buf));
+    if(result <= 0) return -1;
+    //TODO: deal with the recv command
+    return 0;
+}
+
+int EchoCommandSender::SendData()
+{
+    count_++;
+    context_->SetReadFd(data_sock_->GetFd());
+    context_->ClrWriteFd(data_sock_->GetFd());
+    static unsigned long i = 0;
+    const std::string tmp(std::to_string(++i));
+    return data_sock_->Send(tmp.c_str(), tmp.length());
+}
+
+int EchoCommandSender::RecvData()
+{
+    //context_->SetWriteFd(data_fd_);
+    context_->ClrReadFd(data_sock_->GetFd());
+    return data_sock_->Recv(buf_, sizeof(buf_));
+}
+
+int EchoCommandSender::OnTimeout()
+{
+    if (count_ >= ((EchoCommand *)command_.get())->GetCount())
+    {
+        stop_ = high_resolution_clock::now();
+        return 0;
+    }
+    context_->SetWriteFd(data_sock_->GetFd());
+    SetTimeout(((EchoCommand *)command_.get())->GetInterval());
+    return 0;
+}
+
+int RecvCommandSender::SendCommand()
+{
+    int result = CommandSender::SendCommand();
+    RETURN_IF_NEG(result);
+
+    context_->SetWriteFd(data_sock_->GetFd());
+    buf_ = std::string(10,'x');
+    count_=0;
+    SetTimeout(100);
+    return 0;
+}
+int RecvCommandSender::RecvCommand()
+{
+    int result;
+    char buf[64] = {0};
+    result = control_sock_->Recv(buf,sizeof(buf));
+    if(result <= 0) return -1;
+    //TODO: deal with the recv command
+    return 0;
+}
+int RecvCommandSender::SendData()
+{
+    count_++;
+    context_->ClrWriteFd(data_sock_->GetFd());
+    return data_sock_->Send(buf_.c_str(),buf_.length());
+}
+int RecvCommandSender::RecvData()
+{
+    return 0;
+}
+int RecvCommandSender::OnTimeout()
+{
+    if(count_>=10) 
+    {
+        context_->ClrWriteFd(data_sock_->GetFd());
+    }
+    else
+    {
+        context_->SetWriteFd(data_sock_->GetFd());
+        SetTimeout(100);
+    }
+    
+    return 0;
+}

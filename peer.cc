@@ -3,13 +3,14 @@
 #include "netsnoop.h"
 #include "udp.h"
 #include "tcp.h"
-#include "peer.h"
+#include "command_sender.h"
 #include "context2.h"
+#include "peer.h"
 
 int Peer::SendCommand()
 {
-    ASSERT(mode_);
-    mode_->SendCommand();
+    ASSERT(commandsender_);
+    commandsender_->SendCommand();
     // Stop send control cmd and Start recv control cmd.
     context_->ClrWriteFd(control_sock_->GetFd());
     context_->SetReadFd(control_sock_->GetFd());
@@ -21,25 +22,25 @@ int Peer::RecvCommand()
     {
         return Auth();
     }
-    if(!mode_) 
+    if(!commandsender_) 
     {
         LOGE("illegal data.\n");
         return -1;
     }
 
-    return mode_->RecvCommand();
+    return commandsender_->RecvCommand();
 }
 
 int Peer::SendData()
 {
-    ASSERT(mode_);
-    return mode_->SendData();
+    ASSERT(commandsender_);
+    return commandsender_->SendData();
 }
 
 int Peer::RecvData()
 {
-    ASSERT(mode_);
-    return mode_->RecvData();
+    ASSERT(commandsender_);
+    return commandsender_->RecvData();
 }
 
 int Peer::Auth()
@@ -90,119 +91,16 @@ int Peer::Timeout(int timeout)
         return 0;
     timeout_ -= timeout;
     if (timeout_ <= 0)
-        return mode_->OnTimeout();
+        return commandsender_->OnTimeout();
     return 0;
 }
 
 void Peer::SetCommand(std::shared_ptr<Command> command)
 {
     if (command->name == "echo")
-        mode_ = std::make_shared<EchoMode>(this, command);
+        commandsender_ = std::make_shared<EchoCommandSender>(this, command);
     if(command->name == "recv")
-        mode_ = std::make_shared<RecvMode>(this, command);
-    ASSERT(mode_);
+        commandsender_ = std::make_shared<RecvCommandSender>(this, command);
+    ASSERT(commandsender_);
     context_->SetWriteFd(control_sock_->GetFd());
-}
-int Mode::SendCommand()
-{
-    if (control_sock_->Send(command_->cmd.c_str(), command_->cmd.length()) == -1)
-    {
-        LOGE("change mode error.\n");
-        return -1;
-    }
-    return 0;
-}
-int EchoMode::SendCommand()
-{
-    start_ = high_resolution_clock::now();
-    Mode::SendCommand();
-    context_->SetWriteFd(data_sock_->GetFd());
-    context_->ClrReadFd(data_sock_->GetFd());
-    SetTimeout(((EchoCommand *)command_.get())->GetInterval());
-    count_ = 0;
-    return 0;
-}
-
-int EchoMode::RecvCommand()
-{
-    int result;
-    char buf[64] = {0};
-    result = control_sock_->Recv(buf,sizeof(buf));
-    if(result <= 0) return -1;
-    //TODO: deal with the recv command
-    return 0;
-}
-
-int EchoMode::SendData()
-{
-    count_++;
-    context_->SetReadFd(data_sock_->GetFd());
-    context_->ClrWriteFd(data_sock_->GetFd());
-    static unsigned long i = 0;
-    const std::string tmp(std::to_string(++i));
-    return data_sock_->Send(tmp.c_str(), tmp.length());
-}
-
-int EchoMode::RecvData()
-{
-    //context_->SetWriteFd(data_fd_);
-    context_->ClrReadFd(data_sock_->GetFd());
-    return data_sock_->Recv(buf_, sizeof(buf_));
-}
-
-int EchoMode::OnTimeout()
-{
-    if (count_ >= ((EchoCommand *)command_.get())->GetCount())
-    {
-        stop_ = high_resolution_clock::now();
-        return 0;
-    }
-    context_->SetWriteFd(data_sock_->GetFd());
-    SetTimeout(((EchoCommand *)command_.get())->GetInterval());
-    return 0;
-}
-
-int RecvMode::SendCommand()
-{
-    int result = Mode::SendCommand();
-    RETURN_IF_NEG(result);
-
-    context_->SetWriteFd(data_sock_->GetFd());
-    buf_ = std::string(10,'x');
-    count_=0;
-    SetTimeout(100);
-    return 0;
-}
-int RecvMode::RecvCommand()
-{
-    int result;
-    char buf[64] = {0};
-    result = control_sock_->Recv(buf,sizeof(buf));
-    if(result <= 0) return -1;
-    //TODO: deal with the recv command
-    return 0;
-}
-int RecvMode::SendData()
-{
-    count_++;
-    context_->ClrWriteFd(data_sock_->GetFd());
-    return data_sock_->Send(buf_.c_str(),buf_.length());
-}
-int RecvMode::RecvData()
-{
-    return 0;
-}
-int RecvMode::OnTimeout()
-{
-    if(count_>=10) 
-    {
-        context_->ClrWriteFd(data_sock_->GetFd());
-    }
-    else
-    {
-        context_->SetWriteFd(data_sock_->GetFd());
-        SetTimeout(100);
-    }
-    
-    return 0;
 }

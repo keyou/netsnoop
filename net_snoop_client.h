@@ -5,7 +5,7 @@
 
 #include "tcp.h"
 #include "udp.h"
-#include "action.h"
+#include "command_receiver.h"
 
 class NetSnoopClient
 {
@@ -18,13 +18,13 @@ public:
 
 private:
     int Connect();
-    int ParseAction();
+    int ReceiveCommand();
 
     std::shared_ptr<Option> option_;
     std::shared_ptr<Context> context_;
     std::shared_ptr<Tcp> tcp_client_;
     std::shared_ptr<Udp> udp_client_;
-    std::shared_ptr<Action> action_;
+    std::shared_ptr<CommandReceiver> receiver_;
 
     DISALLOW_COPY_AND_ASSIGN(NetSnoopClient);
 };

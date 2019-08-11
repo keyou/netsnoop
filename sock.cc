@@ -76,7 +76,7 @@ int Sock::Bind(int fd_, std::string ip, int port)
     return 0;
 }
 
-// static
+//static
 ssize_t Sock::Send(int fd_, const char *buf, size_t size)
 {
     ASSERT(fd_ > 0);

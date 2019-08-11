@@ -1,22 +1,23 @@
 
 #include "context2.h"
-#include "action.h"
+#include "sock.h"
+#include "command_receiver.h"
 
-int EchoAction::Start()
+int EchoCommandReceiver::Start()
 {
     running_ = true;
     LOGV("Echo Start.%s\n", buf_);
     context_->SetReadFd(context_->data_fd);
     return 0;
 }
-int EchoAction::Stop()
+int EchoCommandReceiver::Stop()
 {
     running_ = false;
     LOGV("Echo Stop.\n");
     context_->ClrReadFd(context_->data_fd);
     return 0;
 }
-int EchoAction::Send()
+int EchoCommandReceiver::Send()
 {
     LOGV("Echo Send.\n");
     int result;
@@ -35,7 +36,7 @@ int EchoAction::Send()
     }
     return 0;
 }
-int EchoAction::Recv()
+int EchoCommandReceiver::Recv()
 {
     LOGV("Echo Recv.\n");
     int result;
@@ -50,19 +51,19 @@ int EchoAction::Recv()
     return 0;
 }
 
-int RecvAction::Start()
+int RecvCommandReceiver::Start()
 {
-    LOGV("RecvAction Start.\n");
+    LOGV("RecvCommandReceiver Start.\n");
     context_->SetReadFd(context_->data_fd);
     return 0;
 }
-int RecvAction::Stop()
+int RecvCommandReceiver::Stop()
 {
-    LOGV("RecvAction Stop.\n");
+    LOGV("RecvCommandReceiver Stop.\n");
     context_->ClrReadFd(context_->data_fd);
     return 0;
 }
-int RecvAction::Recv()
+int RecvCommandReceiver::Recv()
 {
     int result;
     if ((result = Sock::Recv(context_->data_fd, buf_, sizeof(buf_))) < 0)

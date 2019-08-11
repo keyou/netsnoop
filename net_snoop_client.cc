@@ -36,7 +36,7 @@ int NetSnoopClient::Run()
         }
         if (FD_ISSET(context->control_fd, &read_fds))
         {
-            if ((result = ParseAction()) < 0)
+            if ((result = ReceiveCommand()) < 0)
             {
                 LOGE("Parsing cmd error.\n");
                 break;
@@ -47,11 +47,11 @@ int NetSnoopClient::Run()
         }
         if (FD_ISSET(context->data_fd, &read_fds))
         {
-            action_->Recv();
+            receiver_->Recv();
         }
         if (FD_ISSET(context->data_fd, &write_fds))
         {
-            action_->Send();
+            receiver_->Send();
         }
     }
 
@@ -98,7 +98,7 @@ int NetSnoopClient::Connect()
     return 0;
 }
 
-int NetSnoopClient::ParseAction()
+int NetSnoopClient::ReceiveCommand()
 {
     int result;
     std::string cmd(64, '\0');
@@ -112,9 +112,9 @@ int NetSnoopClient::ParseAction()
     auto command = CommandFactory::New(cmd);
     if (!command)
         return ERR_ILLEGAL_DATA;
-    if(action_) action_->Stop();
-    if (command->name == "echo") action_ = std::make_shared<EchoAction>(context_);
-    if (command->name == "recv") action_ = std::make_shared<RecvAction>(context_);
-    ASSERT(action_);
-    return action_->Start();
+    if(receiver_) receiver_->Stop();
+    if (command->name == "echo") receiver_ = std::make_shared<EchoCommandReceiver>(context_);
+    if (command->name == "recv") receiver_ = std::make_shared<RecvCommandReceiver>(context_);
+    ASSERT(receiver_);
+    return receiver_->Start();
 }

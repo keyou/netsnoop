@@ -3,11 +3,11 @@
 #include "context2.h"
 #include "sock.h"
 
-class Action
+class CommandReceiver
 {
 public:
-    Action(std::shared_ptr<Context> context) : context_(context) {}
-    Action(std::string argv, std::shared_ptr<Context> context)
+    CommandReceiver(std::shared_ptr<Context> context) : context_(context) {}
+    CommandReceiver(std::string argv, std::shared_ptr<Context> context)
         : argv_(argv), context_(context) {}
     virtual int Start() = 0;
     virtual int Stop() = 0;
@@ -19,11 +19,11 @@ protected:
     std::shared_ptr<Context> context_;
 };
 
-class EchoAction : public Action
+class EchoCommandReceiver : public CommandReceiver
 {
 public:
-    EchoAction(std::shared_ptr<Context> context)
-        : length_(0),buf_{0}, count_(0), running_(false), Action(context)
+    EchoCommandReceiver(std::shared_ptr<Context> context)
+        : length_(0),buf_{0}, count_(0), running_(false), CommandReceiver(context)
     {
     }
 
@@ -39,11 +39,11 @@ private:
     bool running_;
 };
 
-class RecvAction : public Action
+class RecvCommandReceiver : public CommandReceiver
 {
 public:
-    RecvAction(std::shared_ptr<Context> context)
-        : length_(0), count_(0), running_(false), Action(context) {}
+    RecvCommandReceiver(std::shared_ptr<Context> context)
+        : length_(0), count_(0), running_(false), CommandReceiver(context) {}
 
     int Start() override;
     int Stop() override;
