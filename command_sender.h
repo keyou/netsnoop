@@ -5,19 +5,17 @@
 #include <chrono>
 
 #include "sock.h"
-#include "command.h"
 #include "context2.h"
-#include "peer.h"
+
+using namespace std::chrono;
 
 class Peer;
+class Command;
 
 class CommandSender
 {
 public:
-    CommandSender(Peer* peer,std::shared_ptr<Command> command)
-        : peer_(peer),control_sock_(peer->control_sock_),data_sock_(peer->data_sock_),context_(peer->context_),command_(command)
-    {
-    }
+    CommandSender(Peer* peer,std::shared_ptr<Command> command);
 
     virtual int SendCommand();
     virtual int RecvCommand(){return 0;};
@@ -25,7 +23,7 @@ public:
     virtual int RecvData(){return 0;};
     virtual int OnTimeout(){return 0;};
 
-    void SetTimeout(int timeout){peer_->timeout_ = timeout;}
+    void SetTimeout(int timeout);
 
 protected:
     std::shared_ptr<Sock> control_sock_;

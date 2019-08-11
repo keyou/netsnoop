@@ -46,7 +46,7 @@ public:
     std::shared_ptr<Sock> GetControlSock(){return control_sock_;}
     std::shared_ptr<Sock> GetDataSock(){return data_sock_;}
     std::shared_ptr<Context> GetContext(){return context_;}
-    void SetCommand(std::shared_ptr<Command> commjnd);
+    void SetCommand(std::shared_ptr<Command> command);
     const std::string &GetCookie() { return cookie_; }
     int GetTimeout() { return timeout_; }
 

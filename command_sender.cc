@@ -4,7 +4,14 @@
 #include "udp.h"
 #include "tcp.h"
 #include "context2.h"
+#include "peer.h"
 #include "command_sender.h"
+
+CommandSender::CommandSender(Peer *peer, std::shared_ptr<Command> command)
+    : peer_(peer), control_sock_(peer->control_sock_), data_sock_(peer->data_sock_),
+      context_(peer->context_), command_(command)
+{
+}
 
 int CommandSender::SendCommand()
 {
@@ -15,6 +22,9 @@ int CommandSender::SendCommand()
     }
     return 0;
 }
+
+void CommandSender::SetTimeout(int timeout) { peer_->timeout_ = timeout; }
+
 int EchoCommandSender::SendCommand()
 {
     start_ = high_resolution_clock::now();
@@ -30,8 +40,9 @@ int EchoCommandSender::RecvCommand()
 {
     int result;
     char buf[64] = {0};
-    result = control_sock_->Recv(buf,sizeof(buf));
-    if(result <= 0) return -1;
+    result = control_sock_->Recv(buf, sizeof(buf));
+    if (result <= 0)
+        return -1;
     //TODO: deal with the recv command
     return 0;
 }
@@ -71,8 +82,8 @@ int RecvCommandSender::SendCommand()
     RETURN_IF_NEG(result);
 
     context_->SetWriteFd(data_sock_->GetFd());
-    buf_ = std::string(10,'x');
-    count_=0;
+    buf_ = std::string(10, 'x');
+    count_ = 0;
     SetTimeout(100);
     return 0;
 }
@@ -80,8 +91,9 @@ int RecvCommandSender::RecvCommand()
 {
     int result;
     char buf[64] = {0};
-    result = control_sock_->Recv(buf,sizeof(buf));
-    if(result <= 0) return -1;
+    result = control_sock_->Recv(buf, sizeof(buf));
+    if (result <= 0)
+        return -1;
     //TODO: deal with the recv command
     return 0;
 }
@@ -89,7 +101,7 @@ int RecvCommandSender::SendData()
 {
     count_++;
     context_->ClrWriteFd(data_sock_->GetFd());
-    return data_sock_->Send(buf_.c_str(),buf_.length());
+    return data_sock_->Send(buf_.c_str(), buf_.length());
 }
 int RecvCommandSender::RecvData()
 {
@@ -97,7 +109,7 @@ int RecvCommandSender::RecvData()
 }
 int RecvCommandSender::OnTimeout()
 {
-    if(count_>=10) 
+    if (count_ >= 10)
     {
         context_->ClrWriteFd(data_sock_->GetFd());
     }
@@ -106,6 +118,6 @@ int RecvCommandSender::OnTimeout()
         context_->SetWriteFd(data_sock_->GetFd());
         SetTimeout(100);
     }
-    
+
     return 0;
 }

@@ -6,6 +6,8 @@
 #include <sstream>
 #include <functional>
 
+#include "command_receiver.h"
+#include "command_sender.h"
 #include "netsnoop.h"
 
 #define MAX_CMD_LENGTH 100
@@ -157,6 +159,8 @@ public:
     }
 
     virtual bool ResolveArgs(CommandArgs args) = 0;
+    virtual std::shared_ptr<CommandSender> GetCommandSender() = 0;
+    virtual std::shared_ptr<CommandReceiver> GetCommandReceiver() = 0;
 
     std::string name;
     std::string cmd;
@@ -201,6 +205,15 @@ public:
         return false;
     }
 
+    std::shared_ptr<CommandSender> GetCommandSender() override
+    {
+        return NULL;
+    }
+    std::shared_ptr<CommandReceiver> GetCommandReceiver() override
+    {
+        return NULL;
+    }
+
     int GetCount() { return count_; }
     int GetInterval() { return interval_; }
     int GetTime() { return time_; }
@@ -221,6 +234,15 @@ public:
     bool ResolveArgs(CommandArgs args) override
     {
         return true;
+    }
+    
+    std::shared_ptr<CommandSender> GetCommandSender() override
+    {
+        return NULL;
+    }
+    std::shared_ptr<CommandReceiver> GetCommandReceiver() override
+    {
+        return NULL;
     }
 
     int GetCount()
