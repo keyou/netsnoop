@@ -175,6 +175,11 @@ int RecvMode::SendCommand()
 }
 int RecvMode::RecvCommand()
 {
+    int result;
+    char buf[64] = {0};
+    result = control_sock_->Recv(buf,sizeof(buf));
+    if(result <= 0) return -1;
+    //TODO: deal with the recv command
     return 0;
 }
 int RecvMode::SendData()

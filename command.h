@@ -28,7 +28,7 @@ extern std::map<std::string, int> g_cmd_map;
 
 using CommandArgs = std::map<std::string, std::string>;
 //using Ctor = std::shared_ptr<Command>(*)(std::string);
-using Ctor = CommandFactory *;
+using Ctor = CommandFactory*;
 using CommandContainer = std::map<std::string, Ctor>;
 
 class CommandFactory
@@ -56,14 +56,14 @@ public:
     }
 
 protected:
-    virtual std::shared_ptr<Command> NewCommand(const std::string &cmd, CommandArgs args) = 0;
-    static CommandContainer &Container()
+    static CommandContainer& Container()
     {
         static CommandContainer commands;
         return commands;
     }
+    virtual std::shared_ptr<Command> NewCommand(const std::string &cmd, CommandArgs args) = 0;
 };
-template <typename T>
+template <class DerivedType>
 class CommandRegister : public CommandFactory
 {
 public:
@@ -75,7 +75,7 @@ public:
     }
     std::shared_ptr<Command> NewCommand(const std::string &cmd, CommandArgs args) override
     {
-        auto command = std::make_shared<T>();
+        auto command = std::make_shared<DerivedType>();
         command->name = name_;
         command->cmd = cmd;
         if (command->ResolveArgs(args))
@@ -158,7 +158,6 @@ public:
 
     virtual bool ResolveArgs(CommandArgs args) = 0;
 
-    int id;
     std::string name;
     std::string cmd;
 
