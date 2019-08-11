@@ -11,26 +11,28 @@ using namespace std::chrono;
 
 class Peer;
 class Command;
+class CommandChannel;
 
 class CommandSender
 {
 public:
-    CommandSender(Peer* peer,std::shared_ptr<Command> command);
+    CommandSender(std::shared_ptr<CommandChannel> channel);
 
     virtual int SendCommand();
-    virtual int RecvCommand(){return 0;};
-    virtual int SendData(){return 0;};
-    virtual int RecvData(){return 0;};
-    virtual int OnTimeout(){return 0;};
+    virtual int RecvCommand() { return 0; };
+    virtual int SendData() { return 0; };
+    virtual int RecvData() { return 0; };
+    virtual int OnTimeout() { return 0; };
 
-    void SetTimeout(int timeout);
+    void SetTimeout(int timeout) { timeout_ = timeout; };
+    int GetTimeout() { return timeout_; };
 
 protected:
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
-    std::shared_ptr<Command> command_;
     std::shared_ptr<Context> context_;
-    Peer* peer_;
+    std::shared_ptr<Command> command_;
+    int timeout_;
 
     DISALLOW_COPY_AND_ASSIGN(CommandSender);
 };
@@ -38,8 +40,8 @@ protected:
 class EchoCommandSender : public CommandSender
 {
 public:
-    EchoCommandSender(Peer* peer,std::shared_ptr<Command> command)
-        : CommandSender(peer,command),buf_{0},count_(0)
+    EchoCommandSender(std::shared_ptr<CommandChannel> channel)
+        : CommandSender(channel), buf_{0}, count_(0)
     {
     }
 
@@ -48,7 +50,7 @@ public:
     int SendData() override;
     int RecvData() override;
     int OnTimeout() override;
-    
+
 private:
     high_resolution_clock::time_point start_;
     high_resolution_clock::time_point stop_;
@@ -62,8 +64,8 @@ private:
 class RecvCommandSender : public CommandSender
 {
 public:
-    RecvCommandSender(Peer* peer,std::shared_ptr<Command> command)
-        : CommandSender(peer,command)
+    RecvCommandSender(std::shared_ptr<CommandChannel> channel)
+        : CommandSender(channel)
     {
     }
     int SendCommand() override;
@@ -71,8 +73,8 @@ public:
     int SendData() override;
     int RecvData() override;
     int OnTimeout() override;
+
 private:
     std::string buf_;
     int count_;
 };
-

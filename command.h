@@ -137,6 +137,14 @@ struct NetStat
     int retransmits;
 };
 
+struct CommandChannel
+{
+    std::shared_ptr<Command> command_;
+    std::shared_ptr<Context> context_;
+    std::shared_ptr<Sock> control_sock_;
+    std::shared_ptr<Sock> data_sock_;
+};
+
 /**
  * @brief A command stands for a type of network test.
  * 

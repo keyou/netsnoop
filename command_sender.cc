@@ -7,9 +7,9 @@
 #include "peer.h"
 #include "command_sender.h"
 
-CommandSender::CommandSender(Peer *peer, std::shared_ptr<Command> command)
-    : peer_(peer), control_sock_(peer->control_sock_), data_sock_(peer->data_sock_),
-      context_(peer->context_), command_(command)
+CommandSender::CommandSender(std::shared_ptr<CommandChannel> channel)
+    : timeout_(-1), control_sock_(channel->control_sock_), data_sock_(channel->data_sock_),
+      context_(channel->context_), command_(channel->command_)
 {
 }
 
@@ -22,8 +22,6 @@ int CommandSender::SendCommand()
     }
     return 0;
 }
-
-void CommandSender::SetTimeout(int timeout) { peer_->timeout_ = timeout; }
 
 int EchoCommandSender::SendCommand()
 {

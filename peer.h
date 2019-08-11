@@ -48,7 +48,7 @@ public:
     std::shared_ptr<Context> GetContext(){return context_;}
     void SetCommand(std::shared_ptr<Command> command);
     const std::string &GetCookie() { return cookie_; }
-    int GetTimeout() { return timeout_; }
+    int GetTimeout() { return commandsender_?commandsender_->GetTimeout():-1; }
 
 private:
 

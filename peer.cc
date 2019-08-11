@@ -22,7 +22,7 @@ int Peer::RecvCommand()
     {
         return Auth();
     }
-    if(!commandsender_) 
+    if (!commandsender_)
     {
         LOGE("illegal data.\n");
         return -1;
@@ -97,10 +97,11 @@ int Peer::Timeout(int timeout)
 
 void Peer::SetCommand(std::shared_ptr<Command> command)
 {
+    std::shared_ptr<CommandChannel> channel(new CommandChannel{command, context_, control_sock_, data_sock_});
     if (command->name == "echo")
-        commandsender_ = std::make_shared<EchoCommandSender>(this, command);
-    if(command->name == "recv")
-        commandsender_ = std::make_shared<RecvCommandSender>(this, command);
+        commandsender_ = std::make_shared<EchoCommandSender>(channel);
+    if (command->name == "recv")
+        commandsender_ = std::make_shared<RecvCommandSender>(channel);
     ASSERT(commandsender_);
     context_->SetWriteFd(control_sock_->GetFd());
 }
