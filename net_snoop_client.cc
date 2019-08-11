@@ -109,12 +109,12 @@ int NetSnoopClient::ParseAction()
     }
     cmd.resize(result);
 
-    auto command = Command::CreateCommand(cmd);
+    auto command = CommandFactory::New(cmd);
     if (!command)
         return ERR_ILLEGAL_DATA;
     if(action_) action_->Stop();
-    if (command->id == CMD_ECHO) action_ = std::make_shared<EchoAction>(context_);
-    if (command->id == CMD_RECV) action_ = std::make_shared<RecvAction>(context_);
+    if (command->name == "echo") action_ = std::make_shared<EchoAction>(context_);
+    if (command->name == "recv") action_ = std::make_shared<RecvAction>(context_);
     ASSERT(action_);
     return action_->Start();
 }

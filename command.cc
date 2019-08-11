@@ -1,36 +1,24 @@
 
 #include "command.h"
 
-std::map<std::string,int> g_cmd_map = {
-    {"echo",CMD_ECHO},{"recv",CMD_RECV},{"send",CMD_SEND}
-};
+#define REGISER_COMMAND(name, T) \
+static CommandRegister<T> __command_##name(#name)
 
-Command::Command(const std::string &cmd)
-    : cmd(cmd)
-{
-    std::stringstream ss(cmd);
-    std::string arg;
-    ss >> this->name;
-    while (ss >> arg)
-    {
-        args.push_back(arg);
-    }
-    id = g_cmd_map[this->name];
-}
+// template <typename T>
+// std::shared_ptr<Command> NewCommand(CommandArgs args)
+// {
+//     auto command = std::make_shared<T>();
+//     if(command->ResolveArgs(args)) return command;
+//     return NULL;
+// }
 
-//static
-std::shared_ptr<Command> Command::CreateCommand(const std::string &cmd)
-{
-    if (Command(cmd).id <= 0)
-        return NULL;
-    return std::make_shared<Command>(cmd);
-}
+//static CommandRegister<EchoCommand> e("echo");
 
-//static
-std::string Command::GetCommandName(std::string cmd)
-{
-    std::stringstream ss(cmd);
-    std::string name;
-    ss >> name;
-    return name;
-}
+REGISER_COMMAND(echo,EchoCommand);
+REGISER_COMMAND(recv,RecvCommand);
+
+// std::map<std::string, int> g_cmd_map = {
+//     {"echo", CMD_ECHO}, {"recv", CMD_RECV}, {"send", CMD_SEND}};
+
+// std::map<std::string, Ctor> CommandFactory::s_commands;
+

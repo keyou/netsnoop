@@ -96,9 +96,9 @@ int Peer::Timeout(int timeout)
 
 void Peer::SetCommand(std::shared_ptr<Command> command)
 {
-    if (command->id == CMD_ECHO)
+    if (command->name == "echo")
         mode_ = std::make_shared<EchoMode>(this, command);
-    if(command->id == CMD_RECV)
+    if(command->name == "recv")
         mode_ = std::make_shared<RecvMode>(this, command);
     ASSERT(mode_);
     context_->SetWriteFd(control_sock_->GetFd());

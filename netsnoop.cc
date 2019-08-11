@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
             {
                 std::cout << "Input Action:";
                 std::getline(std::cin, cmd);
-                auto command = Command::CreateCommand(cmd);
+                auto command = CommandFactory::New(cmd);
                 if (!command)
                 {
                     LOGE("error command: %s\n", cmd.c_str());

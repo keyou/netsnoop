@@ -125,6 +125,7 @@ int NetSnoopServer::Run()
             {
                 peer->SetCommand(command);
             }
+            commands_.pop();
         }
         if (FD_ISSET(context_->control_fd, &read_fdsets))
         {
