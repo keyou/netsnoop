@@ -4,6 +4,10 @@
 #include <mutex>
 #include <chrono>
 
+#include <mutex>  // For std::unique_lock
+#include <shared_mutex>
+#include <thread>
+
 #include "netsnoop.h"
 #include "net_snoop_client.h"
 #include "net_snoop_server.h"
@@ -19,15 +23,15 @@ int main(int argc, char *argv[])
     g_option->buffer_size = 1024 * 8;
 
     NetSnoopServer server(g_option);
-    auto server_thread = std::thread([&server]() {
+    auto server_thread = std::thread([&server] {
         LOGV("init_server\n");
         server.Run();
     });
     server_thread.detach();
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 1; i++)
     {
-        auto client_thread = std::thread([&g_option,&i]() {
+        auto client_thread = std::thread([&g_option,i]() {
             NetSnoopClient client(g_option);
             LOGV("init_client %d\n",i);
             client.Run();
@@ -35,7 +39,7 @@ int main(int argc, char *argv[])
         client_thread.detach();
     }
     
-    std::this_thread::sleep_for(std::chrono::seconds(3));
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     std::vector<std::string> cmds{
         "echo",
@@ -53,7 +57,7 @@ int main(int argc, char *argv[])
     int i = 0;
     for(auto& cmd:cmds)
     {
-        mtx.lock();
+        //mtx.lock();
         std::cout<<"============ "<<i++<<" ============="<<std::endl;
         std::cout<<"cmd: "<<cmd<<std::endl;
         auto command = CommandFactory::New(cmd);
@@ -62,11 +66,12 @@ int main(int argc, char *argv[])
             LOGE("error command: %s\n", cmd.c_str());
             continue;
         }
-        command->RegisterCallback([&](const Command * oldcommand, std::shared_ptr<NetStat> stat){
-            std::cout<<"command stop: "<<oldcommand->cmd<<std::endl;
-            mtx.unlock();
+        command->RegisterCallback([&,i](const Command * oldcommand, std::shared_ptr<NetStat> stat){
+            std::cout<<"command stop: "<<i<<oldcommand->cmd<<std::endl;
+            //mtx.unlock();
         });
         server.PushCommand(command);
     }
+    std::unique_lock<std::mutex> lock(mtx);
     return 0;
 }

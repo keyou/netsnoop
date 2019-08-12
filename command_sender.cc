@@ -34,10 +34,10 @@ int CommandSender::Timeout(int timeout)
     return 0;
 }
 
-    EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
-        : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)), buf_{0}, count_(0),CommandSender(channel)
-    {
-    }
+EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
+    : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)), buf_{0}, count_(0), CommandSender(channel)
+{
+}
 
 int EchoCommandSender::SendCommand()
 {
@@ -55,7 +55,7 @@ int EchoCommandSender::RecvCommand()
     int result;
     char buf[64] = {0};
     result = control_sock_->Recv(buf, sizeof(buf));
-    ASSERT_RETURN(result>0,-1);
+    ASSERT_RETURN(result > 0, -1);
     return 0;
 }
 
@@ -78,27 +78,27 @@ int EchoCommandSender::RecvData()
 
 int EchoCommandSender::OnTimeout()
 {
-    if (count_ >= ((EchoCommand *)command_.get())->GetCount())
+    if (count_ >= command_->GetCount())
     {
         stop_ = high_resolution_clock::now();
-        command_->InvokeCallback(NULL);
+        if(StopCallback) StopCallback(NULL);
         return 0;
     }
     context_->SetWriteFd(data_sock_->GetFd());
-    SetTimeout(((EchoCommand *)command_.get())->GetInterval());
+    SetTimeout(command_->GetInterval());
     return 0;
 }
 
 using RecvCommandClazz = class RecvCommand;
 RecvCommandSender::RecvCommandSender(std::shared_ptr<CommandChannel> channel)
-        : command_(std::dynamic_pointer_cast<RecvCommandClazz>(channel->command_)),CommandSender(channel)
-    {
-    }
+    : command_(std::dynamic_pointer_cast<RecvCommandClazz>(channel->command_)), CommandSender(channel)
+{
+}
 
 int RecvCommandSender::SendCommand()
 {
     int result = CommandSender::SendCommand();
-    ASSERT_RETURN(result>0,-1);
+    ASSERT_RETURN(result > 0, -1);
 
     context_->SetWriteFd(data_sock_->GetFd());
     buf_ = std::string(10, 'x');
@@ -111,7 +111,7 @@ int RecvCommandSender::RecvCommand()
     int result;
     char buf[64] = {0};
     result = control_sock_->Recv(buf, sizeof(buf));
-    ASSERT_RETURN(result>0,-1);
+    ASSERT_RETURN(result > 0, -1);
     //TODO: deal with the recv command
     return 0;
 }
@@ -130,7 +130,7 @@ int RecvCommandSender::OnTimeout()
     if (count_ >= 10)
     {
         context_->ClrWriteFd(data_sock_->GetFd());
-        command_->InvokeCallback(NULL);
+        if(StopCallback) StopCallback(NULL);
     }
     else
     {

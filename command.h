@@ -77,9 +77,7 @@ public:
     }
     std::shared_ptr<Command> NewCommand(const std::string &cmd, CommandArgs args) override
     {
-        auto command = std::make_shared<DerivedType>();
-        command->name = name_;
-        command->cmd = cmd;
+        auto command = std::make_shared<DerivedType>(name_,cmd);
         if (command->ResolveArgs(args))
         {
             LOGV("new command: %s:%s\n", name_.c_str(), cmd.c_str());
@@ -152,21 +150,29 @@ struct CommandChannel
 class Command
 {
 public:
+    Command(std::string name,std::string cmd):name(name),cmd(cmd){}
+    Command(const Command& command):name(command.name),cmd(command.cmd){}
     void RegisterCallback(CommandCallback callback)
     {
         if (callback)
             callbacks_.push_back(callback);
+
+        // for (auto& callback : callbacks_)
+        // {
+        //     callback(this, NULL);
+        // }
     }
 
     void InvokeCallback(std::shared_ptr<NetStat> netstat)
     {
-        for (auto callback : callbacks_)
+        for (auto& callback : callbacks_)
         {
             callback(this, netstat);
         }
     }
 
     virtual bool ResolveArgs(CommandArgs args) = 0;
+    virtual std::shared_ptr<Command> Clone() = 0;
     virtual std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) = 0;
     virtual std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) = 0;
 
@@ -174,7 +180,6 @@ public:
     std::string cmd;
 
 private:
-    CommandArgs args;
     std::vector<CommandCallback> callbacks_;
 };
 
@@ -188,14 +193,18 @@ public:
 
     // format: echo [count <num>] [time <num>] [interval <num>] [size <num>]
     // example: echo count 10 interval 100
-    EchoCommand()
+    EchoCommand(std::string name,std::string cmd)
         : count_(ECHO_DEFAULT_COUNT),
           time_(ECHO_DEFAULT_TIME),
           interval_(ECHO_DEFAULT_INTERVAL),
-          size_(ECHO_DEFAULT_SIZE)
+          size_(ECHO_DEFAULT_SIZE),
+          Command(name,cmd)
     {
     }
-
+    std::shared_ptr<Command> Clone() override
+    {
+        return std::make_shared<EchoCommand>(*this);
+    }
     bool ResolveArgs(CommandArgs args) override
     {
         try
@@ -237,8 +246,12 @@ private:
 class RecvCommand : public Command
 {
 public:
-    RecvCommand() {}
+    RecvCommand(std::string name,std::string cmd):Command(name,cmd) {}
 
+    std::shared_ptr<Command> Clone() override
+    {
+        return std::make_shared<RecvCommand>(*this);
+    }
     bool ResolveArgs(CommandArgs args) override
     {
         return true;

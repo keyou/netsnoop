@@ -39,7 +39,7 @@ int EchoCommandReceiver::Send()
 }
 int EchoCommandReceiver::Recv()
 {
-    LOGV("Echo Recv.\n");
+    LOGV("Client Echo Recv.\n");
     int result;
     if ((result = Sock::Recv(context_->data_fd, buf_, sizeof(buf_))) < 0)
     {

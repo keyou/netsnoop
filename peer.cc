@@ -7,6 +7,18 @@
 #include "context2.h"
 #include "peer.h"
 
+int Peer::Start()
+{
+    //TODO:
+    ASSERT(0);
+}
+
+int Peer::Stop()
+{
+    //TODO:
+    ASSERT(0);
+}
+
 int Peer::SendCommand()
 {
     ASSERT(commandsender_);
@@ -90,11 +102,15 @@ int Peer::Timeout(int timeout)
     return commandsender_->Timeout(timeout);
 }
 
-void Peer::SetCommand(std::shared_ptr<Command> command)
+int Peer::SetCommand(std::shared_ptr<Command> command)
 {
-    if(!data_sock_) return;
+    if(!data_sock_) return -1;
     std::shared_ptr<CommandChannel> channel(new CommandChannel{command, context_, control_sock_, data_sock_});
     commandsender_ = command->CreateCommandSender(channel);
-    ASSERT_RETURN(commandsender_);
+    ASSERT_RETURN(commandsender_,-1);
+    commandsender_->StopCallback = [&](std::shared_ptr<NetStat> netstat){
+        if(StopCallback) StopCallback(this,netstat);
+    };
     context_->SetWriteFd(control_sock_->GetFd());
+    return 0;
 }

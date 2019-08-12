@@ -28,6 +28,9 @@ public:
 
     inline int GetDataFd() { return data_sock_ ? data_sock_->GetFd() : -1; }
 
+    int Start();
+    int Stop();
+
     int SendCommand();
     int RecvCommand();
     int SendData();
@@ -43,9 +46,11 @@ public:
     std::shared_ptr<Sock> GetControlSock(){return control_sock_;}
     std::shared_ptr<Sock> GetDataSock(){return data_sock_;}
     std::shared_ptr<Context> GetContext(){return context_;}
-    void SetCommand(std::shared_ptr<Command> command);
+    int SetCommand(std::shared_ptr<Command> command);
     const std::string &GetCookie() { return cookie_; }
     int GetTimeout() { return commandsender_?commandsender_->GetTimeout():-1; }
+
+    std::function<void(Peer*,std::shared_ptr<NetStat>)> StopCallback;
 
 private:
 

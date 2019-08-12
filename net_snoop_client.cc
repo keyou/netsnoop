@@ -25,9 +25,9 @@ int NetSnoopClient::Run()
         memcpy(&read_fds, &context->read_fds, sizeof(read_fds));
         memcpy(&write_fds, &context->write_fds, sizeof(write_fds));
 
-        LOGV("selecting\n");
+        LOGV("client[%d] selecting\n",context->control_fd);
         result = select(context->max_fd + 1, &read_fds, &write_fds, NULL, NULL);
-        LOGV("selected\n");
+        LOGV("client[%d] selected\n",context->control_fd);
 
         if (result <= 0)
         {

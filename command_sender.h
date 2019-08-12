@@ -14,6 +14,7 @@ class Command;
 class CommandChannel;
 class EchoCommand;
 class RecvCommand;
+class NetStat;
 
 using RecvCommandClazz = class RecvCommand;
 
@@ -31,6 +32,8 @@ public:
 
     void SetTimeout(int timeout) { timeout_ = timeout; };
     int GetTimeout() { return timeout_; };
+
+    std::function<void(std::shared_ptr<NetStat>)> StopCallback;
 
 protected:
     virtual int OnTimeout() { return 0; };
