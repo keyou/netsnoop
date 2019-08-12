@@ -61,10 +61,10 @@ int NetSnoopClient::Run()
 int NetSnoopClient::Connect()
 {
     int result;
-    tcp_client_ = std::make_shared<Tcp>();
-    result = tcp_client_->Initialize();
+    control_sock_ = std::make_shared<Tcp>();
+    result = control_sock_->Initialize();
     ASSERT(result > 0);
-    result = tcp_client_->Connect(option_->ip_remote, option_->port);
+    result = control_sock_->Connect(option_->ip_remote, option_->port);
     ASSERT(result >= 0);
 
     // char buf[1024 * 64] = {0};
@@ -72,28 +72,28 @@ int NetSnoopClient::Connect()
     // srand(high_resolution_clock::now().time_since_epoch().count());
     // std::string cookie = "cookie:" + std::to_string(rand());
 
-    // result = tcp_client_->Send(cookie.c_str(), cookie.length());
+    // result = control_sock_->Send(cookie.c_str(), cookie.length());
     // ASSERT(result >= 0);
 
-    // result = tcp_client_->Recv(buf, sizeof(buf));
+    // result = control_sock_->Recv(buf, sizeof(buf));
     // ASSERT(result >= 0);
     // ASSERT(cookie == buf);
 
-    udp_client_ = std::make_shared<Udp>();
-    udp_client_->Initialize();
-    udp_client_->Connect(option_->ip_remote, option_->port);
+    data_sock_ = std::make_shared<Udp>();
+    data_sock_->Initialize();
+    data_sock_->Connect(option_->ip_remote, option_->port);
 
     std::string ip;
     int port;
-    result = udp_client_->GetLocalAddress(ip, port);
+    result = data_sock_->GetLocalAddress(ip, port);
     ASSERT(result >= 0);
 
     std::string cookie("cookie:" + ip + ":" + std::to_string(port));
-    result = tcp_client_->Send(cookie.c_str(), cookie.length());
+    result = control_sock_->Send(cookie.c_str(), cookie.length());
     ASSERT(result >= 0);
 
-    context_->control_fd = tcp_client_->GetFd();
-    context_->data_fd = udp_client_->GetFd();
+    context_->control_fd = control_sock_->GetFd();
+    context_->data_fd = data_sock_->GetFd();
 
     return 0;
 }
@@ -103,7 +103,7 @@ int NetSnoopClient::ReceiveCommand()
     int result;
     std::string cmd(64, '\0');
     LOGV("Client parsing cmd.\n");
-    if ((result = tcp_client_->Recv(&cmd[0], cmd.length())) <= 0)
+    if ((result = control_sock_->Recv(&cmd[0], cmd.length())) <= 0)
     {
         return -1;
     }
@@ -113,8 +113,10 @@ int NetSnoopClient::ReceiveCommand()
     if (!command)
         return ERR_ILLEGAL_DATA;
     if(receiver_) receiver_->Stop();
-    if (command->name == "echo") receiver_ = std::make_shared<EchoCommandReceiver>(context_);
-    if (command->name == "recv") receiver_ = std::make_shared<RecvCommandReceiver>(context_);
+    auto channel = std::shared_ptr<CommandChannel>(new CommandChannel{
+        command,context_,control_sock_,data_sock_
+    });
+    receiver_ = command->CreateCommandReceiver(channel);
     ASSERT(receiver_);
     return receiver_->Start();
 }

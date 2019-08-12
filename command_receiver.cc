@@ -1,7 +1,8 @@
 
-#include "context2.h"
-#include "sock.h"
+#include "command.h"
 #include "command_receiver.h"
+
+CommandReceiver::CommandReceiver(std::shared_ptr<CommandChannel> channel) : context_(channel->context_) {}
 
 int EchoCommandReceiver::Start()
 {

@@ -219,7 +219,7 @@ public:
     }
     std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) override
     {
-        return NULL;
+        return std::make_shared<EchoCommandReceiver>(channel);
     }
 
     int GetCount() { return count_; }
@@ -250,7 +250,7 @@ public:
     }
     std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) override
     {
-        return NULL;
+        return std::make_shared<RecvCommandReceiver>(channel);
     }
 
     int GetCount()

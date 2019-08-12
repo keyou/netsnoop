@@ -3,10 +3,14 @@
 #include "context2.h"
 #include "sock.h"
 
+
+class Command;
+class CommandChannel;
+
 class CommandReceiver
 {
 public:
-    CommandReceiver(std::shared_ptr<Context> context) : context_(context) {}
+    CommandReceiver(std::shared_ptr<CommandChannel> channel);
     CommandReceiver(std::string argv, std::shared_ptr<Context> context)
         : argv_(argv), context_(context) {}
     virtual int Start() = 0;
@@ -22,8 +26,8 @@ protected:
 class EchoCommandReceiver : public CommandReceiver
 {
 public:
-    EchoCommandReceiver(std::shared_ptr<Context> context)
-        : length_(0),buf_{0}, count_(0), running_(false), CommandReceiver(context)
+    EchoCommandReceiver(std::shared_ptr<CommandChannel> channel)
+        : length_(0),buf_{0}, count_(0), running_(false), CommandReceiver(channel)
     {
     }
 
@@ -42,8 +46,8 @@ private:
 class RecvCommandReceiver : public CommandReceiver
 {
 public:
-    RecvCommandReceiver(std::shared_ptr<Context> context)
-        : length_(0), count_(0), running_(false), CommandReceiver(context) {}
+    RecvCommandReceiver(std::shared_ptr<CommandChannel> channel)
+        : length_(0), count_(0), running_(false), CommandReceiver(channel) {}
 
     int Start() override;
     int Stop() override;
