@@ -34,6 +34,11 @@ int CommandSender::Timeout(int timeout)
     return 0;
 }
 
+    EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
+        : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)), buf_{0}, count_(0),CommandSender(channel)
+    {
+    }
+
 int EchoCommandSender::SendCommand()
 {
     start_ = high_resolution_clock::now();
@@ -76,12 +81,19 @@ int EchoCommandSender::OnTimeout()
     if (count_ >= ((EchoCommand *)command_.get())->GetCount())
     {
         stop_ = high_resolution_clock::now();
+        command_->InvokeCallback(NULL);
         return 0;
     }
     context_->SetWriteFd(data_sock_->GetFd());
     SetTimeout(((EchoCommand *)command_.get())->GetInterval());
     return 0;
 }
+
+using RecvCommandClazz = class RecvCommand;
+RecvCommandSender::RecvCommandSender(std::shared_ptr<CommandChannel> channel)
+        : command_(std::dynamic_pointer_cast<RecvCommandClazz>(channel->command_)),CommandSender(channel)
+    {
+    }
 
 int RecvCommandSender::SendCommand()
 {
@@ -118,6 +130,7 @@ int RecvCommandSender::OnTimeout()
     if (count_ >= 10)
     {
         context_->ClrWriteFd(data_sock_->GetFd());
+        command_->InvokeCallback(NULL);
     }
     else
     {

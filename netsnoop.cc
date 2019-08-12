@@ -8,19 +8,14 @@
 
 int main(int argc, char *argv[])
 {
-    std::cout << "hello,world!" << std::endl;
+    std::cout << "hello,netsnoop!" << std::endl;
     auto g_option = std::make_shared<Option>();
     strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
     g_option->rate = 2048;
     g_option->buffer_size = 1024 * 8;
-    auto tcp = std::make_shared<Tcp>();
-    auto context = std::make_shared<Context>();
-    std::shared_ptr<Option> o = NULL;
-    o = g_option;
 
-    std::vector<std::shared_ptr<Peer>> peers_;
     if (argc > 1)
     {
         if (!strcmp(argv[1], "-s"))

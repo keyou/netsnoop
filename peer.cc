@@ -92,6 +92,7 @@ int Peer::Timeout(int timeout)
 
 void Peer::SetCommand(std::shared_ptr<Command> command)
 {
+    if(!data_sock_) return;
     std::shared_ptr<CommandChannel> channel(new CommandChannel{command, context_, control_sock_, data_sock_});
     commandsender_ = command->CreateCommandSender(channel);
     ASSERT_RETURN(commandsender_);

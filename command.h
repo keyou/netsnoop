@@ -16,7 +16,7 @@ class CommandFactory;
 class Command;
 class NetStat;
 
-typedef std::function<void(Command *, std::shared_ptr<NetStat>)> CommandCallback;
+typedef std::function<void(const Command *, std::shared_ptr<NetStat>)> CommandCallback;
 
 enum CommandType : char
 {

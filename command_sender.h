@@ -12,6 +12,10 @@ using namespace std::chrono;
 class Peer;
 class Command;
 class CommandChannel;
+class EchoCommand;
+class RecvCommand;
+
+using RecvCommandClazz = class RecvCommand;
 
 class CommandSender
 {
@@ -33,8 +37,9 @@ protected:
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
     std::shared_ptr<Context> context_;
-    std::shared_ptr<Command> command_;
     int timeout_;
+private:
+    std::shared_ptr<Command> command_;
 
     DISALLOW_COPY_AND_ASSIGN(CommandSender);
 };
@@ -42,10 +47,7 @@ protected:
 class EchoCommandSender : public CommandSender
 {
 public:
-    EchoCommandSender(std::shared_ptr<CommandChannel> channel)
-        : CommandSender(channel), buf_{0}, count_(0)
-    {
-    }
+    EchoCommandSender(std::shared_ptr<CommandChannel> channel);
 
     int SendCommand() override;
     int RecvCommand() override;
@@ -58,6 +60,7 @@ private:
     high_resolution_clock::time_point stop_;
     high_resolution_clock::time_point begin_;
     high_resolution_clock::time_point end_;
+    std::shared_ptr<EchoCommand> command_;
 
     char buf_[1024 * 64];
     int count_;
@@ -66,10 +69,7 @@ private:
 class RecvCommandSender : public CommandSender
 {
 public:
-    RecvCommandSender(std::shared_ptr<CommandChannel> channel)
-        : CommandSender(channel)
-    {
-    }
+    RecvCommandSender(std::shared_ptr<CommandChannel> channel);
     int SendCommand() override;
     int RecvCommand() override;
     int SendData() override;
@@ -77,6 +77,7 @@ public:
     int OnTimeout() override;
 
 private:
+    std::shared_ptr<RecvCommandClazz> command_;
     std::string buf_;
     int count_;
 };
