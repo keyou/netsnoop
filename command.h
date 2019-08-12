@@ -167,8 +167,8 @@ public:
     }
 
     virtual bool ResolveArgs(CommandArgs args) = 0;
-    virtual std::shared_ptr<CommandSender> GetCommandSender() = 0;
-    virtual std::shared_ptr<CommandReceiver> GetCommandReceiver() = 0;
+    virtual std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) = 0;
+    virtual std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) = 0;
 
     std::string name;
     std::string cmd;
@@ -213,11 +213,11 @@ public:
         return false;
     }
 
-    std::shared_ptr<CommandSender> GetCommandSender() override
+    std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) override
     {
-        return NULL;
+        return std::make_shared<EchoCommandSender>(channel);
     }
-    std::shared_ptr<CommandReceiver> GetCommandReceiver() override
+    std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) override
     {
         return NULL;
     }
@@ -244,11 +244,11 @@ public:
         return true;
     }
     
-    std::shared_ptr<CommandSender> GetCommandSender() override
+    std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) override
     {
-        return NULL;
+        return std::make_shared<RecvCommandSender>(channel);
     }
-    std::shared_ptr<CommandReceiver> GetCommandReceiver() override
+    std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) override
     {
         return NULL;
     }

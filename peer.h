@@ -22,7 +22,7 @@ public:
     }
 
     Peer(std::shared_ptr<Sock> control_sock, const std::string cookie, std::shared_ptr<Context> context)
-        : cookie_(cookie), context_(context), control_sock_(control_sock),timeout_(-1)
+        : cookie_(cookie), context_(context), control_sock_(control_sock)
     {
     }
 
@@ -33,10 +33,7 @@ public:
     int SendData();
     int RecvData();
     int Timeout(int timeout);
-
-    int SendEcho();
-    int RecvEcho();
-
+    
     bool operator==(const Peer &peer)
     {
         return std::addressof(*this) == std::addressof(peer);
@@ -61,7 +58,6 @@ private:
     std::shared_ptr<CommandSender> commandsender_; 
     char buf_[1024 * 64];
     std::shared_ptr<Context> context_;
-    int timeout_;
 
     friend class CommandSender;
 

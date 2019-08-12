@@ -54,7 +54,6 @@ int Peer::Auth()
         context_->ClrReadFd(data_sock_->GetFd());
         context_->ClrWriteFd(control_sock_->GetFd());
         context_->ClrWriteFd(data_sock_->GetFd());
-        timeout_ = 0;
         return -1;
     }
     buf.resize(result);
@@ -87,21 +86,14 @@ int Peer::Auth()
 
 int Peer::Timeout(int timeout)
 {
-    if (timeout_ <= 0)
-        return 0;
-    timeout_ -= timeout;
-    if (timeout_ <= 0)
-        return commandsender_->OnTimeout();
-    return 0;
+    if(!commandsender_) return 0;
+    return commandsender_->Timeout(timeout);
 }
 
 void Peer::SetCommand(std::shared_ptr<Command> command)
 {
     std::shared_ptr<CommandChannel> channel(new CommandChannel{command, context_, control_sock_, data_sock_});
-    if (command->name == "echo")
-        commandsender_ = std::make_shared<EchoCommandSender>(channel);
-    if (command->name == "recv")
-        commandsender_ = std::make_shared<RecvCommandSender>(channel);
-    ASSERT(commandsender_);
+    commandsender_ = command->CreateCommandSender(channel);
+    ASSERT_RETURN(commandsender_);
     context_->SetWriteFd(control_sock_->GetFd());
 }

@@ -5,8 +5,6 @@
 #include <iostream>
 #include <cassert>
 
-#define ASSERT(x) assert(x)
-#define RETURN_IF_NEG(x) if(x<0) return x;
 
 class Logger
 {
@@ -52,6 +50,19 @@ private:
     // clazz(clazz &&) = delete;                 \
     // clazz &operator=(clazz &&) = delete;
 
+#ifdef _DEBUG
+    #define ASSERT(condition) assert(condition)
+    #define ASSERT_RETURN(condition,...) ASSERT(condition)
+#else // NO _DEBUG
+    #define ASSERT(x) 
+    #define __ASSERT_RETURN1(condition) ASSERT(condition);return
+    #define __ASSERT_RETURN2(condition,result) if(!(condition)) return (result)
+    #define __ASSERT_RETURN3(condition,result,msg) if(!(condition)) { LOGE("%s\n",msg); return (result);}
+
+    #define __ASSERT_RETURN_SELECT(arg1,arg2,arg3,arg4,...) arg4
+    #define __ASSERT_RETURN(...) __ASSERT_RETURN_SELECT(__VA_ARGS__,__ASSERT_RETURN3,__ASSERT_RETURN2,__ASSERT_RETURN1)
+    #define ASSERT_RETURN(...) __ASSERT_RETURN(__VA_ARGS__)(__VA_ARGS__)
+#endif //_DEBUG
 
 void join_mcast(int fd, struct sockaddr_in *sin);
 

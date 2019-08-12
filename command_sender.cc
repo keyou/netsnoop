@@ -15,11 +15,22 @@ CommandSender::CommandSender(std::shared_ptr<CommandChannel> channel)
 
 int CommandSender::SendCommand()
 {
-    if (control_sock_->Send(command_->cmd.c_str(), command_->cmd.length()) == -1)
+    int result;
+    if ((result = control_sock_->Send(command_->cmd.c_str(), command_->cmd.length())) == -1)
     {
         LOGE("change commandsender error.\n");
         return -1;
     }
+    return result;
+}
+
+int CommandSender::Timeout(int timeout)
+{
+    if (timeout_ <= 0)
+        return 0;
+    timeout_ -= timeout;
+    if (timeout_ <= 0)
+        return OnTimeout();
     return 0;
 }
 
@@ -39,9 +50,7 @@ int EchoCommandSender::RecvCommand()
     int result;
     char buf[64] = {0};
     result = control_sock_->Recv(buf, sizeof(buf));
-    if (result <= 0)
-        return -1;
-    //TODO: deal with the recv command
+    ASSERT_RETURN(result>0,-1);
     return 0;
 }
 
@@ -77,7 +86,7 @@ int EchoCommandSender::OnTimeout()
 int RecvCommandSender::SendCommand()
 {
     int result = CommandSender::SendCommand();
-    RETURN_IF_NEG(result);
+    ASSERT_RETURN(result>0,-1);
 
     context_->SetWriteFd(data_sock_->GetFd());
     buf_ = std::string(10, 'x');
@@ -90,8 +99,7 @@ int RecvCommandSender::RecvCommand()
     int result;
     char buf[64] = {0};
     result = control_sock_->Recv(buf, sizeof(buf));
-    if (result <= 0)
-        return -1;
+    ASSERT_RETURN(result>0,-1);
     //TODO: deal with the recv command
     return 0;
 }

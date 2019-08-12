@@ -22,12 +22,14 @@ public:
     virtual int RecvCommand() { return 0; };
     virtual int SendData() { return 0; };
     virtual int RecvData() { return 0; };
-    virtual int OnTimeout() { return 0; };
+
+    int Timeout(int timeout);
 
     void SetTimeout(int timeout) { timeout_ = timeout; };
     int GetTimeout() { return timeout_; };
 
 protected:
+    virtual int OnTimeout() { return 0; };
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
     std::shared_ptr<Context> context_;
