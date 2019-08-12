@@ -5,8 +5,8 @@
 #include <chrono>
 
 #include <mutex>  // For std::unique_lock
-#include <shared_mutex>
 #include <thread>
+#include <condition_variable>
 
 #include "netsnoop.h"
 #include "net_snoop_client.h"
@@ -54,12 +54,13 @@ int main(int argc, char *argv[])
     };
 
     std::mutex mtx;
+    std::condition_variable cv;
     int i = 0;
+    int j = 0;
     for(auto& cmd:cmds)
     {
-        //mtx.lock();
-        std::cout<<"============ "<<i++<<" ============="<<std::endl;
-        std::cout<<"cmd: "<<cmd<<std::endl;
+        std::cerr<<"============ "<<i++<<" ============="<<std::endl;
+        std::cerr<<"cmd: "<<cmd<<std::endl;
         auto command = CommandFactory::New(cmd);
         if (!command)
         {
@@ -67,11 +68,15 @@ int main(int argc, char *argv[])
             continue;
         }
         command->RegisterCallback([&,i](const Command * oldcommand, std::shared_ptr<NetStat> stat){
-            std::cout<<"command stop: "<<i<<oldcommand->cmd<<std::endl;
-            //mtx.unlock();
+            std::cout<<"command stop: ["<<i<<"] "<<oldcommand->cmd<<std::endl;
+            std::unique_lock<std::mutex> lock(mtx);
+            j++;
+            if(i==cmds.size()) cv.notify_all();
         });
         server.PushCommand(command);
     }
     std::unique_lock<std::mutex> lock(mtx);
+    cv.wait(lock,[&]{return j == cmds.size();});
+    std::cout<<"exit"<<std::endl;
     return 0;
 }

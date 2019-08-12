@@ -52,6 +52,10 @@ int NetSnoopServer::Run()
                 //ASSERT(result>=0);
             }
         }
+
+        result = AcceptNewCommand();
+        ASSERT(result==0);
+
         memcpy(&read_fdsets, &context_->read_fds, sizeof(read_fdsets));
         memcpy(&write_fdsets, &context_->write_fds, sizeof(write_fdsets));
         timeout_ptr = NULL;
@@ -70,9 +74,6 @@ int NetSnoopServer::Run()
             }
         }
 
-        result = AcceptNewCommand();
-        ASSERT(result==0);
-
 #ifdef _DEBUG
         for (int i = 0; i < sizeof(fd_set); i++)
         {
@@ -86,7 +87,7 @@ int NetSnoopServer::Run()
             }
         }
 #endif
-        LOGV("selecting\n");
+        LOGV("selecting...\n");
         result = pselect(context_->max_fd + 1, &read_fdsets, &write_fdsets, NULL, timeout_ptr, NULL);
         LOGV("selected---------------\n");
 #ifdef _DEBUG
@@ -230,6 +231,7 @@ int NetSnoopServer::AcceptNewCommand()
 {
     auto command = commands_.front();
     if(is_running_ || !command) return 0;
+    LOGV("accept new command: (peer count = %d)%s\n",peers_.size(),command->cmd.c_str());
     std::list<std::shared_ptr<Peer>> peers_copy = peers_;
     //auto copy_command = command->Clone();
     // TODO: deal with multi thread sync
@@ -237,6 +239,8 @@ int NetSnoopServer::AcceptNewCommand()
     {
         if(peer->SetCommand(command)==0)
         {
+            LOGV("peer cfd=%d\n",peer->GetControlFd());
+            ASSERT(FD_ISSET(peer->GetControlFd(), &(context_->write_fds)));
             peer->StopCallback = [&,command,peers_copy](Peer* p,std::shared_ptr<NetStat> netstat) mutable{
                 peers_copy.remove_if([&p](std::shared_ptr<Peer> p1){return p1.get() == p;});
                 if(peers_copy.size()>0) return;
@@ -244,6 +248,10 @@ int NetSnoopServer::AcceptNewCommand()
                 //TODO: stat all netstat
                 command->InvokeCallback(NULL);
             };
+        }
+        else
+        {
+            LOGE("Set command error.");
         }
     }
     is_running_ = true;
