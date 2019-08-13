@@ -2,6 +2,7 @@
 
 #include <list>
 #include <queue>
+#include <mutex>
 
 #include "command.h"
 #include "tcp.h"
@@ -20,9 +21,12 @@ public:
     int Run();
     int PushCommand(std::shared_ptr<Command> command);
 
+    std::function<void(Peer* peer)> OnAcceptNewPeer;
+    std::function<void(NetSnoopServer* server)> OnServerStart;
+
 private:
     int StartListen();
-    int AceeptNewPeer();
+    int AceeptNewConnect();
     int AcceptNewCommand();
 
     std::shared_ptr<Option> option_;
@@ -32,6 +36,7 @@ private:
     int pipefd_[2];
     std::queue<std::shared_ptr<Command>> commands_;
     bool is_running_;
+    std::mutex mtx;
 
     DISALLOW_COPY_AND_ASSIGN(NetSnoopServer);
 };

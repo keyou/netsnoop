@@ -50,7 +50,8 @@ public:
     const std::string &GetCookie() { return cookie_; }
     int GetTimeout() { return commandsender_?commandsender_->GetTimeout():-1; }
 
-    std::function<void(Peer*,std::shared_ptr<NetStat>)> StopCallback;
+    std::function<void(Peer*,std::shared_ptr<NetStat>)> OnStop;
+    std::function<void(Peer*)> OnAuthSuccess;
 
 private:
 

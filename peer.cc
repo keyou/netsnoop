@@ -22,10 +22,10 @@ int Peer::Stop()
 int Peer::SendCommand()
 {
     ASSERT(commandsender_);
-    commandsender_->SendCommand();
-    // Stop send control cmd and Start recv control cmd.
     context_->ClrWriteFd(control_sock_->GetFd());
     context_->SetReadFd(control_sock_->GetFd());
+    commandsender_->SendCommand();
+    // Stop send control cmd and Start recv control cmd.
     return 0;
 }
 int Peer::RecvCommand()
@@ -91,25 +91,29 @@ int Peer::Auth()
     ip = buf.substr(0, index);
     port = atoi(buf.substr(index + 1).c_str());
     data_sock_->Connect(ip, port);
-
+    if (OnAuthSuccess)
+        OnAuthSuccess(this);
     LOGW("connect new client: %s:%d (%s)\n", ip.c_str(), port, cookie_.c_str());
     return 0;
 }
 
 int Peer::Timeout(int timeout)
 {
-    if(!commandsender_) return 0;
+    if (!commandsender_)
+        return 0;
     return commandsender_->Timeout(timeout);
 }
 
 int Peer::SetCommand(std::shared_ptr<Command> command)
 {
-    if(!data_sock_) return -1;
+    if (!data_sock_)
+        return -1;
     std::shared_ptr<CommandChannel> channel(new CommandChannel{command, context_, control_sock_, data_sock_});
     commandsender_ = command->CreateCommandSender(channel);
-    ASSERT_RETURN(commandsender_,-1);
-    commandsender_->StopCallback = [&](std::shared_ptr<NetStat> netstat){
-        if(StopCallback) StopCallback(this,netstat);
+    ASSERT_RETURN(commandsender_, -1);
+    commandsender_->OnStop = [&](std::shared_ptr<NetStat> netstat) {
+        if (OnStop)
+            OnStop(this, netstat);
     };
     context_->SetWriteFd(control_sock_->GetFd());
     return 0;

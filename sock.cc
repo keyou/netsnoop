@@ -87,7 +87,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
         return -1;
     }
 
-    LOGV("send: %s\n", buf);
+    LOGV("send count: %ld\n", result);
     return result;
 }
 
@@ -107,7 +107,7 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
 #define ERR_TIMEOUT -2
         return ERR_TIMEOUT;
     }
-    LOGV("recv: %s\n", buf);
+    LOGV("recv count: %ld\n", result);
     return result;
 }
 int Sock::Initialize()

@@ -28,7 +28,7 @@ int NetSnoopClient::Run()
         LOGV("client[%d] selecting\n",context->control_fd);
         result = select(context->max_fd + 1, &read_fds, &write_fds, NULL, NULL);
         LOGV("client[%d] selected\n",context->control_fd);
-
+        ASSERT(result>0);
         if (result <= 0)
         {
             LOGE("select error: %d,%d\n", result, errno);
@@ -36,22 +36,27 @@ int NetSnoopClient::Run()
         }
         if (FD_ISSET(context->control_fd, &read_fds))
         {
-            if ((result = ReceiveCommand()) < 0)
+            if ((result = RecvCommand()) < 0)
             {
-                LOGE("Parsing cmd error.\n");
+                LOGE("client recv cmd error.\n");
                 break;
             }
         }
         if (FD_ISSET(context->control_fd, &write_fds))
         {
+            if ((result = SendCommand()) < 0)
+            {
+                LOGE("client send cmd error.\n");
+                break;
+            }
         }
         if (FD_ISSET(context->data_fd, &read_fds))
         {
-            receiver_->Recv();
+            ASSERT(receiver_->Recv()>=0);
         }
         if (FD_ISSET(context->data_fd, &write_fds))
         {
-            receiver_->Send();
+            ASSERT(receiver_->Send()>=0);
         }
     }
 
@@ -66,18 +71,6 @@ int NetSnoopClient::Connect()
     ASSERT(result > 0);
     result = control_sock_->Connect(option_->ip_remote, option_->port);
     ASSERT(result >= 0);
-
-    // char buf[1024 * 64] = {0};
-    // ssize_t rlength = 0;
-    // srand(high_resolution_clock::now().time_since_epoch().count());
-    // std::string cookie = "cookie:" + std::to_string(rand());
-
-    // result = control_sock_->Send(cookie.c_str(), cookie.length());
-    // ASSERT(result >= 0);
-
-    // result = control_sock_->Recv(buf, sizeof(buf));
-    // ASSERT(result >= 0);
-    // ASSERT(cookie == buf);
 
     data_sock_ = std::make_shared<Udp>();
     data_sock_->Initialize();
@@ -98,11 +91,10 @@ int NetSnoopClient::Connect()
     return 0;
 }
 
-int NetSnoopClient::ReceiveCommand()
+int NetSnoopClient::RecvCommand()
 {
     int result;
     std::string cmd(64, '\0');
-    LOGV("Client parsing cmd.\n");
     if ((result = control_sock_->Recv(&cmd[0], cmd.length())) <= 0)
     {
         return -1;
@@ -112,6 +104,10 @@ int NetSnoopClient::ReceiveCommand()
     auto command = CommandFactory::New(cmd);
     if (!command)
         return ERR_ILLEGAL_DATA;
+    if(receiver_ && command->is_private)
+    {
+        return receiver_->RecvPrivateCommand(command);
+    }
     if(receiver_) receiver_->Stop();
     auto channel = std::shared_ptr<CommandChannel>(new CommandChannel{
         command,context_,control_sock_,data_sock_
@@ -119,4 +115,10 @@ int NetSnoopClient::ReceiveCommand()
     receiver_ = command->CreateCommandReceiver(channel);
     ASSERT(receiver_);
     return receiver_->Start();
+}
+
+int NetSnoopClient::SendCommand()
+{
+    ASSERT(receiver_);
+    return receiver_->SendPrivateCommand();
 }

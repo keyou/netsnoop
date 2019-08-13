@@ -30,10 +30,10 @@ public:
 
     int Timeout(int timeout);
 
-    void SetTimeout(int timeout) { timeout_ = timeout; };
+    void SetTimeout(int timeout) { timeout_ = timeout>0?timeout:-1; };
     int GetTimeout() { return timeout_; };
 
-    std::function<void(std::shared_ptr<NetStat>)> StopCallback;
+    std::function<void(std::shared_ptr<NetStat>)> OnStop;
 
 protected:
     virtual int OnTimeout() { return 0; };
@@ -59,14 +59,21 @@ public:
     int OnTimeout() override;
 
 private:
+    int Stop();
+
+    std::shared_ptr<EchoCommand> command_;
+
     high_resolution_clock::time_point start_;
     high_resolution_clock::time_point stop_;
     high_resolution_clock::time_point begin_;
     high_resolution_clock::time_point end_;
-    std::shared_ptr<EchoCommand> command_;
 
-    char buf_[1024 * 64];
-    int count_;
+    double delay_;
+    double min_delay_;
+    double max_delay_;
+    ssize_t send_count_;
+    ssize_t recv_count_;
+    std::string data_buf_;
 };
 
 class RecvCommandSender : public CommandSender
@@ -80,7 +87,21 @@ public:
     int OnTimeout() override;
 
 private:
+    inline bool TryStop();
+    int Stop(std::shared_ptr<Command> command);
+
     std::shared_ptr<RecvCommandClazz> command_;
-    std::string buf_;
-    int count_;
+    bool is_stoping_;
+
+    high_resolution_clock::time_point start_;
+    high_resolution_clock::time_point stop_;
+    high_resolution_clock::time_point begin_;
+    high_resolution_clock::time_point end_;
+
+    double delay_;
+    double min_delay_;
+    double max_delay_;
+    ssize_t send_count_;
+    ssize_t recv_count_;
+    std::string data_buf_;
 };

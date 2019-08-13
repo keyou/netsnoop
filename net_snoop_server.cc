@@ -2,22 +2,20 @@
 #include <unistd.h>
 #include <sys/un.h>
 
-#include <memory>
 #include <vector>
 #include <map>
 #include <sstream>
 #include <algorithm>
-#include <cassert>
 #include <functional>
 #include <thread>
 #include <chrono>
-
-using namespace std::chrono;
 
 #include "command.h"
 #include "context2.h"
 #include "netsnoop.h"
 #include "net_snoop_server.h"
+
+using namespace std::chrono;
 
 int NetSnoopServer::Run()
 {
@@ -41,6 +39,7 @@ int NetSnoopServer::Run()
     std::vector<int> elements_to_remove;
     high_resolution_clock::time_point begin = high_resolution_clock::now();
     high_resolution_clock::time_point start, end;
+    int64_t time_spend;
     while (true)
     {
         if (timeout_ptr)
@@ -48,13 +47,14 @@ int NetSnoopServer::Run()
             for (auto &peer : peers_)
             {
                 end = high_resolution_clock::now();
-                peer->Timeout(duration_cast<milliseconds>(end - start).count());
+                time_spend = duration_cast<milliseconds>(end - start).count();
+                peer->Timeout(time_spend);
                 //ASSERT(result>=0);
             }
         }
 
         result = AcceptNewCommand();
-        ASSERT(result==0);
+        ASSERT(result == 0);
 
         memcpy(&read_fdsets, &context_->read_fds, sizeof(read_fdsets));
         memcpy(&write_fdsets, &context_->write_fds, sizeof(write_fdsets));
@@ -63,7 +63,7 @@ int NetSnoopServer::Run()
 
         for (auto &peer : peers_)
         {
-            if (peer->GetTimeout() > 0 && time_millseconds > peer->GetTimeout())
+            if (peer->GetTimeout() >= 0 && time_millseconds > peer->GetTimeout())
             {
                 time_millseconds = peer->GetTimeout();
                 timeout.tv_sec = time_millseconds / 1000;
@@ -124,39 +124,34 @@ int NetSnoopServer::Run()
             cmd.resize(result);
             LOGV("Pipe read data: %s\n", cmd.c_str());
             result = AcceptNewCommand();
-            ASSERT(result==0);
+            ASSERT(result == 0);
         }
         if (FD_ISSET(context_->control_fd, &read_fdsets))
         {
-            result = AceeptNewPeer();
+            result = AceeptNewConnect();
             ASSERT(result >= 0);
         }
-
         //for (auto &peer : peers_)
         for (auto it = peers_.begin(); it != peers_.end();)
         {
+            result = 0;
             auto peer = *it;
-            LOGV("peer: cfd= %d, dfd= %d\n", peer->GetControlFd(), peer->GetDataFd());
-            if (FD_ISSET(peer->GetControlFd(), &write_fdsets))
+            if (result >= 0 && FD_ISSET(peer->GetControlFd(), &write_fdsets))
             {
-                LOGV("Sending Command: cfd=%d\n", peer->GetControlFd());
                 result = peer->SendCommand();
             }
-            if (FD_ISSET(peer->GetControlFd(), &read_fdsets))
+            if (result >= 0 && FD_ISSET(peer->GetControlFd(), &read_fdsets))
             {
-                LOGV("Recving Command: cfd=%d\n", peer->GetControlFd());
                 result = peer->RecvCommand();
             }
             if (peer->GetDataFd() > 0)
             {
-                if (FD_ISSET(peer->GetDataFd(), &write_fdsets))
+                if (result >= 0 && FD_ISSET(peer->GetDataFd(), &write_fdsets))
                 {
-                    LOGV("Sending Data: dfd=%d\n", peer->GetDataFd());
                     result = peer->SendData();
                 }
-                if (FD_ISSET(peer->GetDataFd(), &read_fdsets))
+                if (result >= 0 && FD_ISSET(peer->GetDataFd(), &read_fdsets))
                 {
-                    LOGV("Recving Data: dfd=%d\n", peer->GetDataFd());
                     result = peer->RecvData();
                 }
             }
@@ -170,7 +165,8 @@ int NetSnoopServer::Run()
                     context_->ClrReadFd(peer->GetControlFd());
                     context_->ClrWriteFd(peer->GetControlFd());
                 }
-                if(peer->StopCallback) peer->StopCallback(peer.get(),NULL);
+                if (peer->OnStop)
+                    peer->OnStop(peer.get(), NULL);
                 it = peers_.erase(it);
             }
             else
@@ -182,6 +178,7 @@ int NetSnoopServer::Run()
 }
 int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
 {
+    std::unique_lock<std::mutex> lock(mtx);
     commands_.push(command);
     LOGV("Get cmd: %s\n", command->cmd.c_str());
     return write(pipefd_[1], command->cmd.c_str(), command->cmd.length());
@@ -202,9 +199,12 @@ int NetSnoopServer::StartListen()
     context_->control_fd = listen_tcp_->GetFd();
     context_->SetReadFd(listen_tcp_->GetFd());
 
+    if (OnServerStart)
+        OnServerStart(this);
+
     return 0;
 }
-int NetSnoopServer::AceeptNewPeer()
+int NetSnoopServer::AceeptNewConnect()
 {
     int fd;
 
@@ -217,6 +217,10 @@ int NetSnoopServer::AceeptNewPeer()
     auto peer = std::make_shared<Peer>(tcp, context_);
     peers_.push_back(peer);
     context_->SetReadFd(fd);
+    peer->OnAuthSuccess = [&](Peer *p) {
+        if (OnAcceptNewPeer)
+            OnAcceptNewPeer(p);
+    };
 
     std::string ip;
     int port;
@@ -229,24 +233,26 @@ int NetSnoopServer::AceeptNewPeer()
 
 int NetSnoopServer::AcceptNewCommand()
 {
+    std::unique_lock<std::mutex> lock(mtx);
     auto command = commands_.front();
-    if(is_running_ || !command) return 0;
-    LOGV("accept new command: (peer count = %d)%s\n",peers_.size(),command->cmd.c_str());
+    lock.unlock();
+    if (is_running_ || !command)
+        return 0;
+    LOGV("accept new command: (peer count = %ld)%s\n", peers_.size(), command->cmd.c_str());
     std::list<std::shared_ptr<Peer>> peers_copy = peers_;
     //auto copy_command = command->Clone();
     // TODO: deal with multi thread sync
     for (auto &peer : peers_)
     {
-        if(peer->SetCommand(command)==0)
+        if (peer->SetCommand(command) == 0)
         {
-            LOGV("peer cfd=%d\n",peer->GetControlFd());
-            ASSERT(FD_ISSET(peer->GetControlFd(), &(context_->write_fds)));
-            peer->StopCallback = [&,command,peers_copy](Peer* p,std::shared_ptr<NetStat> netstat) mutable{
-                peers_copy.remove_if([&p](std::shared_ptr<Peer> p1){return p1.get() == p;});
-                if(peers_copy.size()>0) return;
+            peer->OnStop = [&, command, peers_copy](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
+                peers_copy.remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
+                if (peers_copy.size() > 0)
+                    return;
                 is_running_ = false;
                 //TODO: stat all netstat
-                command->InvokeCallback(NULL);
+                command->InvokeCallback(netstat);
             };
         }
         else
@@ -256,5 +262,5 @@ int NetSnoopServer::AcceptNewCommand()
     }
     is_running_ = true;
     commands_.pop();
-    return 0; 
+    return 0;
 }

@@ -58,9 +58,10 @@ private:
     #define __ASSERT_RETURN1(condition) ASSERT(condition);return
     #define __ASSERT_RETURN2(condition,result) if(!(condition)) return (result)
     #define __ASSERT_RETURN3(condition,result,msg) if(!(condition)) { LOGE("%s\n",msg); return (result);}
+    #define __ASSERT_RETURN4(condition,result,msg,data) if(!(condition)) { LOGE(msg,data); return (result);}
 
-    #define __ASSERT_RETURN_SELECT(arg1,arg2,arg3,arg4,...) arg4
-    #define __ASSERT_RETURN(...) __ASSERT_RETURN_SELECT(__VA_ARGS__,__ASSERT_RETURN3,__ASSERT_RETURN2,__ASSERT_RETURN1)
+    #define __ASSERT_RETURN_SELECT(arg1,arg2,arg3,arg4,arg5,...) arg5
+    #define __ASSERT_RETURN(...) __ASSERT_RETURN_SELECT(__VA_ARGS__,__ASSERT_RETURN4,__ASSERT_RETURN3,__ASSERT_RETURN2,__ASSERT_RETURN1)
     #define ASSERT_RETURN(...) __ASSERT_RETURN(__VA_ARGS__)(__VA_ARGS__)
 #endif //_DEBUG
 
