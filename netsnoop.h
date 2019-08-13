@@ -29,8 +29,8 @@ private:
 
 #define TAG "NETSNOOP"
 #define LOGV(...) fprintf(stdout, __VA_ARGS__)
-#define LOGW(...) fprintf(stderr, __VA_ARGS__)
-#define LOGE(...) fprintf(stderr, __VA_ARGS__)
+#define LOGW(...) fprintf(stderr, __VA_ARGS__);
+#define LOGE(...) fprintf(stderr, __VA_ARGS__);
 
 //#define LOGV(...)
 //#define LOGW(...)
@@ -39,7 +39,9 @@ private:
 #define EXPORT
 
 #define ERR_ILLEGAL_PARAM -7
-#define ERR_TIMEOUT -2
+#define ERR_DEFAULT -1
+#define ERR_SOCKET_CLOSED -2
+#define ERR_TIMEOUT -3
 #define MAX_CLINETS 500
 #define ERR_OTHER -99
 #define ERR_ILLEGAL_DATA -5

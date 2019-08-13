@@ -43,7 +43,11 @@ public:
         std::string name, key, value;
         ss >> name;
         if (Container().find(name) == Container().end())
+        {
+            LOGE("illegal command: %s\n",cmd.c_str());
+            ASSERT(false);
             return NULL;
+        }
         while (ss >> key)
         {
             if (ss >> value)
@@ -217,8 +221,6 @@ struct CommandChannel
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
 };
-
-#define PRIVATE_CMD_NAME "private"
 
 /**
  * @brief A command stands for a type of network test.

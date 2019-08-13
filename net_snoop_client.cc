@@ -4,7 +4,6 @@
 #include "command.h"
 #include "net_snoop_client.h"
 
-
 int NetSnoopClient::Run()
 {
     int result;
@@ -36,9 +35,14 @@ int NetSnoopClient::Run()
         }
         if (FD_ISSET(context->control_fd, &read_fds))
         {
-            if ((result = RecvCommand()) < 0)
+            if ((result = RecvCommand()) == ERR_DEFAULT)
             {
                 LOGE("client recv cmd error.\n");
+                break;
+            }
+            else if(result == ERR_SOCKET_CLOSED)
+            {
+                LOGW("client control socket closed.\n");
                 break;
             }
         }
@@ -95,9 +99,14 @@ int NetSnoopClient::RecvCommand()
 {
     int result;
     std::string cmd(64, '\0');
-    if ((result = control_sock_->Recv(&cmd[0], cmd.length())) <= 0)
+    if ((result = control_sock_->Recv(&cmd[0], cmd.length())) < 0)
     {
-        return -1;
+        return ERR_DEFAULT;
+    }
+    if(result == 0)
+    {
+        // socket closed.
+        return ERR_SOCKET_CLOSED;
     }
     cmd.resize(result);
 

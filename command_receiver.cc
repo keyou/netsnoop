@@ -109,6 +109,7 @@ int RecvCommandReceiver::RecvPrivateCommand(std::shared_ptr<Command> private_com
     auto command = std::dynamic_pointer_cast<StopCommand>(private_command);
     ASSERT_RETURN(command, -1, "recv command error: not stop command.");
     context_->SetWriteFd(context_->control_fd);
+    return 0;
 }
 
 int RecvCommandReceiver::SendPrivateCommand()

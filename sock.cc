@@ -104,7 +104,6 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
             return -1;
         }
         LOGE("recv timeout.\n");
-#define ERR_TIMEOUT -2
         return ERR_TIMEOUT;
     }
     LOGV("recv count: %ld\n", result);

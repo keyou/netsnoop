@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     g_option->rate = 2048;
     g_option->buffer_size = 1024 * 8;
 
-    constexpr int MAX_CLIENT_COUNT = 1;
+    int MAX_CLIENT_COUNT = argc>1?atoi(argv[1]):1;
     int client_count = 0;
 
     std::mutex mtx;
@@ -71,12 +71,12 @@ void RunTest(NetSnoopServer *server)
         "recv count 10000 interval 0",
         "echo count 5 interval 200 size 1024",
         "echo count 5 interval 200 size 1024",
-        "recv",
         "recv count 5 interval 200 size 1024",
         "recv count 5 interval 200 size 1024",
         "echo", "recv",
         "echo", "recv",
         "echo", "recv"};
+    cmds.erase(cmds.begin()+1,cmds.end());
 
     std::mutex mtx;
     std::condition_variable cv;
@@ -93,7 +93,7 @@ void RunTest(NetSnoopServer *server)
             continue;
         }
         command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-            std::cout << "command stop: [" << i << "] " << oldcommand->cmd<< " >> "<<stat->ToString() << std::endl;
+            std::cout << "command finish: [" << i << "] " << oldcommand->cmd<< " >> "<<stat->ToString() << std::endl;
             std::unique_lock<std::mutex> lock(mtx);
             j++;
             if (i == cmds.size())

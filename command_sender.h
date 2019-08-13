@@ -36,6 +36,7 @@ public:
     std::function<void(std::shared_ptr<NetStat>)> OnStop;
 
 protected:
+    int SendStop();
     virtual int OnTimeout() { return 0; };
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;

@@ -1,5 +1,6 @@
 
 #include <cmath>
+#include <functional>
 
 #include "command.h"
 #include "netsnoop.h"
@@ -34,6 +35,12 @@ int CommandSender::Timeout(int timeout)
     if (timeout_ <= 0)
         return OnTimeout();
     return 0;
+}
+
+int CommandSender::SendStop()
+{
+    auto stop_command = std::make_shared<StopCommand>();
+    return control_sock_->Send(stop_command->cmd.c_str(),stop_command->cmd.length());
 }
 
 EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
@@ -104,8 +111,8 @@ int EchoCommandSender::Stop()
     if (!OnStop)
         return 0;
     auto stat = std::make_shared<NetStat>();
-    stat->delay = std::round(delay_);
-    stat->jitter = std::round(stat->max_delay - stat->min_delay);
+    stat->delay =delay_;
+    stat->jitter = stat->max_delay - stat->min_delay;
     stat->send_bytes = send_count_ * data_buf_.size();
     stat->send_packets = send_count_;
     stat->recv_packets = recv_count_;
@@ -128,11 +135,11 @@ RecvCommandSender::RecvCommandSender(std::shared_ptr<CommandChannel> channel)
 
 int RecvCommandSender::SendCommand()
 {
+    context_->ClrWriteFd(control_sock_->GetFd());
     if(is_stoping_)
     {
         LOGV("RecvCommandSender send stop command.\n");
-        auto stop_command = std::make_shared<StopCommand>();
-        return control_sock_->Send(stop_command->cmd.c_str(),stop_command->cmd.length());
+        return SendStop();
     }
     int result = CommandSender::SendCommand();
     ASSERT_RETURN(result > 0, -1);
@@ -147,6 +154,7 @@ int RecvCommandSender::RecvCommand()
     int result;
     char buf[MAX_CMD_LENGTH] = {0};
     result = control_sock_->Recv(buf, sizeof(buf));
+    ASSERT_RETURN(is_stoping_,-1,"RecvCommandSender recv command error: stop already.");
     ASSERT_RETURN(result > 0, -1,"RecvCommandSender recv command error: empty data");
     auto command = CommandFactory::New(buf);
     return Stop(command);
@@ -181,6 +189,7 @@ bool RecvCommandSender::TryStop()
 {
     if(send_count_>=command_->GetCount())
     {
+        LOGV("begin stop.\n");
         stop_ = high_resolution_clock::now();
         is_stoping_ = true;
         context_->SetWriteFd(control_sock_->GetFd());
@@ -191,6 +200,7 @@ bool RecvCommandSender::TryStop()
 }
 int RecvCommandSender::Stop(std::shared_ptr<Command> command)
 {
+    is_stoping_ = false;
     if (!OnStop)
         return 0;
     
@@ -215,6 +225,7 @@ int RecvCommandSender::Stop(std::shared_ptr<Command> command)
     stat->max_recv_speed = result_command->netstat->max_recv_speed;
     stat->loss = 1 - 1.0 * stat->recv_bytes / stat->send_bytes;
 
+    LOGV("Run OnStop\n");
     OnStop(stat);
     return 0;
 }
