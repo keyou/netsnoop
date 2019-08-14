@@ -12,7 +12,7 @@
 #include "net_snoop_client.h"
 #include "net_snoop_server.h"
 
-void RunTest(NetSnoopServer *server);
+void RunTest(NetSnoopServer *server,int);
 
 int main(int argc, char *argv[])
 {
@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
     g_option->buffer_size = 1024 * 8;
 
     int MAX_CLIENT_COUNT = argc>1?atoi(argv[1]):1;
+    int MAX_CMD_COUNT = argc>2?atoi(argv[2]):0;
     int client_count = 0;
 
     std::mutex mtx;
@@ -57,15 +58,17 @@ int main(int argc, char *argv[])
 
     std::unique_lock<std::mutex> lock(mtx);
     cv.wait(lock, [&] { return client_count == MAX_CLIENT_COUNT; });
-    RunTest(&server);
+    RunTest(&server,MAX_CMD_COUNT);
 
     std::cout << "exit" << std::endl;
     return 0;
 }
 
-void RunTest(NetSnoopServer *server)
+void RunTest(NetSnoopServer *server,int cmd_count)
 {
     std::vector<std::string> cmds{
+        "echo",
+        "recv",
         "recv count 100 interval 1",
         "recv count 100 interval 0",
         "recv count 10000 interval 0",
@@ -73,10 +76,9 @@ void RunTest(NetSnoopServer *server)
         "echo count 5 interval 200 size 1024",
         "recv count 5 interval 200 size 1024",
         "recv count 5 interval 200 size 1024",
-        "echo", "recv",
-        "echo", "recv",
-        "echo", "recv"};
-    cmds.erase(cmds.begin()+1,cmds.end());
+    };
+    if(cmd_count != 0)
+        cmds.erase(cmds.begin()+cmd_count,cmds.end());
 
     std::mutex mtx;
     std::condition_variable cv;
@@ -93,7 +95,7 @@ void RunTest(NetSnoopServer *server)
             continue;
         }
         command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-            std::cout << "command finish: [" << i << "] " << oldcommand->cmd<< " >> "<<stat->ToString() << std::endl;
+            std::clog << "command finish: [" << i<<"/"<< cmds.size() << "] " << oldcommand->cmd<< " >> "<<stat->ToString() << std::endl;
             std::unique_lock<std::mutex> lock(mtx);
             j++;
             if (i == cmds.size())

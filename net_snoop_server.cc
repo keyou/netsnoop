@@ -75,7 +75,7 @@ int NetSnoopServer::Run()
         }
 
 #ifdef _DEBUG
-        for (int i = 0; i < context_->max_fd+1; i++)
+        for (int i = 0; i < context_->max_fd + 1; i++)
         {
             if (FD_ISSET(i, &context_->read_fds))
             {
@@ -91,7 +91,7 @@ int NetSnoopServer::Run()
         result = pselect(context_->max_fd + 1, &read_fdsets, &write_fdsets, NULL, timeout_ptr, NULL);
         LOGV("selected---------------\n");
 #ifdef _DEBUG
-        for (int i = 0; i < context_->max_fd+1; i++)
+        for (int i = 0; i < context_->max_fd + 1; i++)
         {
             if (FD_ISSET(i, &read_fdsets))
             {
@@ -129,7 +129,7 @@ int NetSnoopServer::Run()
         if (FD_ISSET(context_->control_fd, &read_fdsets))
         {
             result = AceeptNewConnect();
-            ASSERT(result >= 0);
+            ASSERT(result > 0);
         }
         //for (auto &peer : peers_)
         for (auto it = peers_.begin(); it != peers_.end();)
@@ -165,8 +165,8 @@ int NetSnoopServer::Run()
                     context_->ClrReadFd(peer->GetControlFd());
                     context_->ClrWriteFd(peer->GetControlFd());
                 }
-                if (peer->OnStop)
-                    peer->OnStop(peer.get(), NULL);
+                if (peer->OnStopped)
+                    peer->OnStopped(peer.get(), NULL);
                 it = peers_.erase(it);
             }
             else
@@ -180,7 +180,7 @@ int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
 {
     std::unique_lock<std::mutex> lock(mtx);
     commands_.push(command);
-    LOGV("Get cmd: %s\n", command->cmd.c_str());
+    LOGV("pushed cmd: %s\n", command->cmd.c_str());
     return write(pipefd_[1], command->cmd.c_str(), command->cmd.length());
 }
 
@@ -215,17 +215,8 @@ int NetSnoopServer::AceeptNewConnect()
 
     auto tcp = std::make_shared<Tcp>(fd);
     auto peer = std::make_shared<Peer>(tcp, context_);
+    peer->OnAuthSuccess = OnAcceptNewPeer;
     peers_.push_back(peer);
-    context_->SetReadFd(fd);
-    peer->OnAuthSuccess = [&](Peer *p) {
-        if (OnAcceptNewPeer)
-            OnAcceptNewPeer(p);
-    };
-
-    std::string ip;
-    int port;
-    tcp->GetPeerAddress(ip, port);
-
     return fd;
 }
 
@@ -236,38 +227,31 @@ int NetSnoopServer::AcceptNewCommand()
     lock.unlock();
     if (is_running_ || !command)
         return 0;
-    auto peers_copy = std::make_shared<std::list<std::shared_ptr<Peer>>>();
-    for(auto& peer : peers_)
+    auto ready_peers = std::make_shared<std::list<std::shared_ptr<Peer>>>();
+    for (auto &peer : peers_)
     {
-        if(peer->GetDataSock())
-        {
-            peers_copy->push_back(peer);
-        }
+        if(peer->IsReady())
+            ready_peers->push_back(peer);
     }
-    LOGW("start command: %s (peer count = %ld)\n", command->cmd.c_str(), peers_copy->size());
-    auto count = std::make_shared<int>(peers_copy->size());
+    
+    LOGW("start command: %s (peer count = %ld)\n", command->cmd.c_str(), ready_peers->size());
+    auto count = std::make_shared<int>(ready_peers->size());
     //auto copy_command = command->Clone();
     // TODO: deal with multi thread sync
-    for (auto &peer : *peers_copy)
+    for (auto &peer : *ready_peers)
     {
-        if (peer->SetCommand(command) == 0)
-        {
-            peer->OnStop = [&, command,peers_copy,count](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
-                peers_copy->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
-                LOGV("stop command (%d/%d): %s (%s)\n",*count - peers_copy->size(),*count,command->cmd.c_str(),netstat?netstat->ToString().c_str():"NULL");
-                if (peers_copy->size() > 0)
-                    return;
-                is_running_ = false;
-                LOGW("finish command: %s (%s)\n",command->cmd.c_str(),netstat?netstat->ToString().c_str():"NULL");
-                //TODO: stat all netstat
-                command->InvokeCallback(netstat);
-            };
-        }
-        else
-        {
-            LOGE("set command error.\n");
-            (*count)--;
-        }
+        ASSERT(peer->SetCommand(command) == 0);
+        peer->OnStopped = [&, command, ready_peers, count](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
+            ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
+            LOGV("stop command (%ld/%d): %s (%s)\n", (*count - ready_peers->size()), *count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            if (ready_peers->size() > 0)
+                return;
+            is_running_ = false;
+            LOGW("finish command: %s (%s)\n", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            //TODO: stat all netstat
+            command->InvokeCallback(netstat);
+        };
+        peer->Start();
     }
     is_running_ = true;
     commands_.pop();

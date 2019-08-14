@@ -56,11 +56,13 @@ int NetSnoopClient::Run()
         }
         if (FD_ISSET(context->data_fd, &read_fds))
         {
-            ASSERT(receiver_->Recv()>=0);
+            result = receiver_->Recv();
+            ASSERT(result>=0);
         }
         if (FD_ISSET(context->data_fd, &write_fds))
         {
-            ASSERT(receiver_->Send()>=0);
+            result = receiver_->Send();
+            ASSERT(result>=0);
         }
     }
 
@@ -117,7 +119,7 @@ int NetSnoopClient::RecvCommand()
     {
         return receiver_->RecvPrivateCommand(command);
     }
-    if(receiver_) receiver_->Stop();
+
     auto channel = std::shared_ptr<CommandChannel>(new CommandChannel{
         command,context_,control_sock_,data_sock_
     });

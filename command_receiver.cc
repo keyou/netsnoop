@@ -11,7 +11,7 @@ CommandReceiver::CommandReceiver(std::shared_ptr<CommandChannel> channel)
 }
 
 EchoCommandReceiver::EchoCommandReceiver(std::shared_ptr<CommandChannel> channel)
-    : length_(0), buf_{0}, count_(0), running_(false),
+    : send_count_(0),recv_count_(0), running_(false),is_stopping_(false),
       command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)), CommandReceiver(channel)
 {
 }
@@ -28,40 +28,74 @@ int EchoCommandReceiver::Stop()
     running_ = false;
     LOGV("EchoCommandReceiver Stop.\n");
     context_->ClrReadFd(context_->data_fd);
+    // allow send result
+    context_->SetWriteFd(context_->control_fd);
     return 0;
 }
 int EchoCommandReceiver::Send()
 {
     LOGV("EchoCommandReceiver Send.\n");
     int result;
-    if (count_ <= 0)
+    if (data_queue_.size() == 0)
+    {
+        context_->ClrWriteFd(context_->data_fd);
+        if(is_stopping_)
+        {
+            return Stop();
+        }
         return 0;
-    if ((result = Sock::Send(context_->data_fd, buf_, length_)) < 0)
+    }
+    auto buf = data_queue_.front();
+    if ((result = Sock::Send(context_->data_fd, &buf[0], buf.length())) < 0)
     {
         return -1;
     }
-    count_--;
-    if (count_ <= 0)
-    {
-        context_->ClrWriteFd(context_->data_fd);
-        if (running_)
-            context_->SetReadFd(context_->data_fd);
-    }
-    return 0;
+    send_count_++;
+    data_queue_.pop();
+    return result;
 }
 int EchoCommandReceiver::Recv()
 {
     LOGV("EchoCommandReceiver Recv.\n");
     int result;
-    if ((result = Sock::Recv(context_->data_fd, buf_, sizeof(buf_))) < 0)
+    std::string buf(1024*64,0);
+    if ((result = Sock::Recv(context_->data_fd, &buf[0], buf.length())) < 0)
     {
         return -1;
     }
-    length_ = result;
+    buf.resize(result);
+    data_queue_.push(buf);
     context_->SetWriteFd(context_->data_fd);
-    context_->ClrReadFd(context_->data_fd);
-    count_++;
+    // context_->ClrReadFd(context_->data_fd);
+    recv_count_++;
     return 0;
+}
+int EchoCommandReceiver::RecvPrivateCommand(std::shared_ptr<Command> private_command)
+{
+    auto command = std::dynamic_pointer_cast<StopCommand>(private_command);
+    ASSERT_RETURN(command, -1, "recv command error: not stop command.");
+    if(data_queue_.size()==0) 
+    {
+        return Stop();
+    }
+    is_stopping_ = true;
+    return 0;
+}
+
+int EchoCommandReceiver::SendPrivateCommand()
+{
+    int result;
+    context_->ClrWriteFd(context_->control_fd);
+    auto command = std::make_shared<ResultCommand>();
+    NetStat stat;
+    stat.recv_packets = recv_count_;
+    stat.send_packets = send_count_;
+    auto cmd = command->Serialize(stat);
+    if ((result = Sock::Send(context_->control_fd, cmd.c_str(), cmd.length())) < 0)
+    {
+        return -1;
+    }
+    return result;
 }
 
 RecvCommandReceiver::RecvCommandReceiver(std::shared_ptr<CommandChannel> channel)

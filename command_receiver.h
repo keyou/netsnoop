@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <queue>
 
 #include "context2.h"
 #include "sock.h"
@@ -38,13 +39,16 @@ public:
     int Stop() override;
     int Send() override;
     int Recv() override;
+    int RecvPrivateCommand(std::shared_ptr<Command> private_command) override;
+    int SendPrivateCommand() override;
 
 private:
-    char buf_[1024 * 64];
-    int length_;
-    ssize_t count_;
+    ssize_t recv_count_;
+    ssize_t send_count_;
     bool running_;
+    bool is_stopping_;
     std::shared_ptr<EchoCommand> command_;
+    std::queue<std::string> data_queue_;
 };
 
 class RecvCommandReceiver : public CommandReceiver

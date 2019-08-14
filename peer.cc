@@ -9,24 +9,20 @@
 
 int Peer::Start()
 {
-    //TODO:
-    ASSERT(0);
+    ASSERT(commandsender_);
+    return commandsender_->Start();
 }
 
 int Peer::Stop()
 {
-    //TODO:
-    ASSERT(0);
+    ASSERT(commandsender_);
+    return commandsender_->Stop();
 }
 
 int Peer::SendCommand()
 {
     ASSERT(commandsender_);
-    context_->ClrWriteFd(control_sock_->GetFd());
-    context_->SetReadFd(control_sock_->GetFd());
-    commandsender_->SendCommand();
-    // Stop send control cmd and Start recv control cmd.
-    return 0;
+    return commandsender_->SendCommand();
 }
 int Peer::RecvCommand()
 {
@@ -34,12 +30,7 @@ int Peer::RecvCommand()
     {
         return Auth();
     }
-    if (!commandsender_)
-    {
-        LOGE("illegal data.\n");
-        return -1;
-    }
-
+    ASSERT(commandsender_);
     return commandsender_->RecvCommand();
 }
 
@@ -62,10 +53,6 @@ int Peer::Auth()
     if ((result = control_sock_->Recv(&buf[0], buf.length())) <= 0)
     {
         LOGE("Disconnect.\n");
-        context_->ClrReadFd(control_sock_->GetFd());
-        context_->ClrReadFd(data_sock_->GetFd());
-        context_->ClrWriteFd(control_sock_->GetFd());
-        context_->ClrWriteFd(data_sock_->GetFd());
         return -1;
     }
     buf.resize(result);
@@ -84,13 +71,16 @@ int Peer::Auth()
     ASSERT(result >= 0);
     result = control_sock_->GetLocalAddress(ip, port);
     ASSERT(result >= 0);
-    data_sock_->Bind(ip, port);
+    result = data_sock_->Bind(ip, port);
+    ASSERT(result>=0);
 
     buf = buf.substr(sizeof("cookie:") - 1);
     int index = buf.find(':');
     ip = buf.substr(0, index);
     port = atoi(buf.substr(index + 1).c_str());
-    data_sock_->Connect(ip, port);
+    result = data_sock_->Connect(ip, port);
+    ASSERT(result>=0);
+    context_->ClrReadFd(control_sock_->GetFd());
     if (OnAuthSuccess)
         OnAuthSuccess(this);
     LOGW("connect new client: %s:%d (%s)\n", ip.c_str(), port, cookie_.c_str());
@@ -106,15 +96,13 @@ int Peer::Timeout(int timeout)
 
 int Peer::SetCommand(std::shared_ptr<Command> command)
 {
-    if (!data_sock_)
-        return -1;
+    ASSERT(data_sock_);
     std::shared_ptr<CommandChannel> channel(new CommandChannel{command, context_, control_sock_, data_sock_});
     commandsender_ = command->CreateCommandSender(channel);
     ASSERT_RETURN(commandsender_, -1);
-    commandsender_->OnStop = [&](std::shared_ptr<NetStat> netstat) {
-        if (OnStop)
-            OnStop(this, netstat);
+    commandsender_->OnStopped = [&](std::shared_ptr<NetStat> netstat) {
+        if (OnStopped)
+            OnStopped(this, netstat);
     };
-    context_->SetWriteFd(control_sock_->GetFd());
     return 0;
 }
