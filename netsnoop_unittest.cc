@@ -12,18 +12,52 @@
 #include "net_snoop_client.h"
 #include "net_snoop_server.h"
 
-void RunTest(NetSnoopServer *server,int);
+void RunTest(NetSnoopServer *server, int);
+void StartClients(int count, bool join);
+void StartServer();
 
+std::vector<std::string> cmds{
+    "echo interval 0",
+    "recv",
+    "recv count 100 interval 1 size 1024",
+    "recv count 10000 interval 0 size 1024",
+    "echo count 10 interval 200 size 1024",
+    "echo count 10 interval 200 size 10240",
+    "recv count 1000 interval 1 size 1024",
+    "recv count 1000 interval 1 size 10240",
+    "recv count 1000 interval 1 size 20240"};
+
+std::shared_ptr<Option> g_option;
 int main(int argc, char *argv[])
 {
     std::cout << "netsnoop test begin." << std::endl;
-    auto g_option = std::make_shared<Option>();
+    g_option = std::make_shared<Option>();
     strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
 
-    int MAX_CLIENT_COUNT = argc>1?atoi(argv[1]):10;
-    int MAX_CMD_COUNT = argc>2?atoi(argv[2]):0;
+    if (argc > 1 && strncmp("-s", argv[1], 2) == 0)
+    {
+        StartServer();
+        return 0;
+    }
+    else if (argc > 1 && strncmp("-c", argv[1], 2) == 0)
+    {
+        int count = 1;
+        if (argc > 2)
+        {
+            count = atoi(argv[2]);
+        }
+        if (argc > 3)
+        {
+            strncpy(g_option->ip_remote, argv[3], sizeof(g_option->ip_remote));
+        }
+        StartClients(count, true);
+        return 0;
+    }
+
+    int MAX_CLIENT_COUNT = argc > 1 ? atoi(argv[1]) : 10;
+    int MAX_CMD_COUNT = argc > 2 ? atoi(argv[2]) : 0;
     int client_count = 0;
 
     std::mutex mtx;
@@ -38,15 +72,7 @@ int main(int argc, char *argv[])
             cv.notify_all();
     };
     server.OnServerStart = [&](NetSnoopServer *server) {
-        for (int i = 0; i < MAX_CLIENT_COUNT; i++)
-        {
-            auto client_thread = std::thread([&g_option, i]() {
-                NetSnoopClient client(g_option);
-                LOGV("init_client %d\n", i);
-                client.Run();
-            });
-            client_thread.detach();
-        }
+        StartClients(MAX_CLIENT_COUNT, false);
     };
     auto server_thread = std::thread([&server] {
         LOGV("init_server\n");
@@ -56,27 +82,16 @@ int main(int argc, char *argv[])
 
     std::unique_lock<std::mutex> lock(mtx);
     cv.wait(lock, [&] { return client_count == MAX_CLIENT_COUNT; });
-    RunTest(&server,MAX_CMD_COUNT);
+    RunTest(&server, MAX_CMD_COUNT);
 
     std::cout << "exit" << std::endl;
     return 0;
 }
 
-void RunTest(NetSnoopServer *server,int cmd_count)
+void RunTest(NetSnoopServer *server, int cmd_count)
 {
-    std::vector<std::string> cmds{
-        "echo interval 0",
-        "recv",
-        "recv count 100 interval 1 size 1024",
-        "recv count 10000 interval 0 size 1024",
-        "echo count 10 interval 200 size 1024",
-        "echo count 10 interval 200 size 10240",
-        "recv count 1000 interval 1 size 1024",
-        "recv count 1000 interval 1 size 10240",
-        "recv count 1000 interval 1 size 20240"
-    };
-    if(cmd_count != 0)
-        cmds.erase(cmds.begin()+cmd_count,cmds.end());
+    if (cmd_count != 0)
+        cmds.erase(cmds.begin() + cmd_count, cmds.end());
 
     std::mutex mtx;
     std::condition_variable cv;
@@ -93,7 +108,7 @@ void RunTest(NetSnoopServer *server,int cmd_count)
             continue;
         }
         command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-            std::clog << "command finish: [" << i<<"/"<< cmds.size() << "] " << oldcommand->cmd<< " >> "<<stat->ToString() << std::endl;
+            std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << stat->ToString() << std::endl;
             std::unique_lock<std::mutex> lock(mtx);
             j++;
             if (i == cmds.size())
@@ -103,4 +118,56 @@ void RunTest(NetSnoopServer *server,int cmd_count)
     }
     std::unique_lock<std::mutex> lock(mtx);
     cv.wait(lock, [&] { return j == cmds.size(); });
+}
+
+void StartServer()
+{
+    NetSnoopServer server(g_option);
+    server.OnAcceptNewPeer = [&](Peer *peer) {
+        static int count = 0;
+        count++;
+        std::clog<<"peer connect: "<<count<<std::endl;
+    };
+    auto thread = std::thread([&] {
+        LOGV("start server.\n");
+        server.Run();
+    });
+    while (true)
+    {
+        std::cout << "Press Enter to start." << std::endl;
+        getchar();
+        int i = 0;
+        for (auto &cmd : cmds)
+        {
+            i++;
+            auto command = CommandFactory::New(cmd);
+            command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
+                std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << stat->ToString() << std::endl;
+            });
+            server.PushCommand(command);
+        }
+    }
+    thread.join();
+}
+
+void StartClients(int count, bool join)
+{
+    LOGV("start clients.(count=%d)\n", count);
+    std::vector<std::thread> threads;
+    for (int i = 0; i < count; i++)
+    {
+        auto client_thread = std::thread([i]() {
+            NetSnoopClient client(g_option);
+            LOGV("init_client %d\n", i);
+            client.Run();
+        });
+        threads.push_back(std::move(client_thread));
+    }
+    if (join)
+    {
+        for (auto &thread : threads)
+        {
+            thread.join();
+        }
+    }
 }
