@@ -25,9 +25,6 @@ int CommandSender::Start()
     is_starting_ = true;
     // allow control channel write fist command
     context_->SetWriteFd(control_sock_->GetFd());
-    // allow control channel read command even no any command want to read,
-    // because we use read to detect client disconnected.
-    context_->SetReadFd(control_sock_->GetFd());
     return OnStart();
 }
 int CommandSender::OnStart()
@@ -113,8 +110,9 @@ int CommandSender::RecvCommand()
         ASSERT(is_stop_command_send_);
         auto result_command = std::dynamic_pointer_cast<ResultCommand>(command);
         ASSERT_RETURN(result_command, -1, "CommandSender recv result command error: %s", command->cmd.c_str());
-        context_->ClrWriteFd(control_sock_->GetFd());
-        context_->ClrReadFd(control_sock_->GetFd());
+        //context_->ClrWriteFd(control_sock_->GetFd());
+        // should not clear control sock,keep control sock readable for detecting client disconnect
+        //context_->ClrReadFd(control_sock_->GetFd());
         return OnStop(result_command->netstat);
     }
 
@@ -182,7 +180,6 @@ int EchoCommandSender::SendData()
     // write timestamp to data
     *buf = timestamp;
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
-    stop_ = high_resolution_clock::now();
     return result;
 }
 
@@ -196,10 +193,11 @@ int EchoCommandSender::RecvData()
     if(result>=sizeof(int64_t))
     {
         int64_t* buf = (int64_t*)&data_buf_[0];
-        auto delay = *buf - end_.time_since_epoch().count();
+        auto delay = end_.time_since_epoch().count() - *buf;
         max_delay_ = std::max(max_delay_, delay);
         min_delay_ = std::min(min_delay_, delay);
-        delay_ = (delay_ + delay) / recv_count_;
+        if(recv_count_ == 1) delay_ = delay;
+        delay_ = (delay_ + delay + 1)/2;
     }
     else
     {
@@ -220,11 +218,13 @@ int EchoCommandSender::OnTimeout()
     return 0;
 }
 
-int EchoCommandSender::OnStop(std::shared_ptr<NetStat> stat)
+int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 {
     if (!OnStopped)
         return 0;
-    stat = std::make_shared<NetStat>();
+    stop_ = high_resolution_clock::now();
+    
+    auto stat = std::make_shared<NetStat>();
     stat->delay = delay_/(1000*1000);
     stat->max_delay = max_delay_/(1000*1000);
     stat->min_delay = min_delay_/(1000*1000);
@@ -280,7 +280,9 @@ int RecvCommandSender::SendData()
     send_count_++;
     if (command_->GetInterval() > 0)
         context_->ClrWriteFd(data_sock_->GetFd());
-    return data_sock_->Send(data_buf_.c_str(), data_buf_.length());
+    auto result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
+    stop_ = high_resolution_clock::now();
+    return result;
 }
 int RecvCommandSender::RecvData()
 {
@@ -310,7 +312,6 @@ bool RecvCommandSender::TryStop()
 }
 int RecvCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 {
-    stop_ = high_resolution_clock::now();
     is_stoping_ = false;
     if (!OnStopped)
         return 0;

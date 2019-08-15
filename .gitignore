@@ -8,4 +8,5 @@ GTAGS
 *.swp
 netsnoop
 netsnoop_unittest
+data/
 

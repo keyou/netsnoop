@@ -45,7 +45,6 @@ public:
         if (Container().find(name) == Container().end())
         {
             LOGE("illegal command: %s\n",cmd.c_str());
-            ASSERT(false);
             return NULL;
         }
         while (ss >> key)
@@ -259,8 +258,8 @@ private:
     std::vector<CommandCallback> callbacks_;
 };
 
-#define ECHO_DEFAULT_COUNT 10
-#define ECHO_DEFAULT_INTERVAL 100
+#define ECHO_DEFAULT_COUNT 5
+#define ECHO_DEFAULT_INTERVAL 200
 #define ECHO_DEFAULT_TIME 1
 #define ECHO_DEFAULT_SIZE 32
 #define ECHO_DEFAULT_SPEED 0

@@ -157,16 +157,15 @@ int NetSnoopServer::Run()
             }
             if (result < 0)
             {
-                LOGE("client removed: %s\n", peer->GetCookie().c_str());
+                LOGW("client removed: %s\n", peer->GetCookie().c_str());
                 context_->ClrReadFd(peer->GetControlFd());
                 context_->ClrWriteFd(peer->GetControlFd());
                 if (peer->GetDataFd() > 0)
                 {
-                    context_->ClrReadFd(peer->GetControlFd());
-                    context_->ClrWriteFd(peer->GetControlFd());
+                    context_->ClrReadFd(peer->GetDataFd());
+                    context_->ClrWriteFd(peer->GetDataFd());
                 }
-                if (peer->OnStopped)
-                    peer->OnStopped(peer.get(), NULL);
+                peer->Stop();
                 it = peers_.erase(it);
             }
             else
@@ -224,9 +223,11 @@ int NetSnoopServer::AcceptNewCommand()
 {
     std::unique_lock<std::mutex> lock(mtx);
     auto command = commands_.front();
-    lock.unlock();
     if (is_running_ || !command)
         return 0;
+    commands_.pop();
+    lock.unlock();
+
     int result;
     auto ready_peers = std::make_shared<std::list<std::shared_ptr<Peer>>>();
     for (auto &peer : peers_)
@@ -234,7 +235,12 @@ int NetSnoopServer::AcceptNewCommand()
         if(peer->IsReady())
             ready_peers->push_back(peer);
     }
-    
+    if(ready_peers->size()==0)
+    {
+        command->InvokeCallback(NULL);
+        LOGW("no client ready.\n");
+        return 0;
+    }
     LOGW("start command: %s (peer count = %ld)\n", command->cmd.c_str(), ready_peers->size());
     auto count = std::make_shared<int>(ready_peers->size());
     //auto copy_command = command->Clone();
@@ -247,15 +253,20 @@ int NetSnoopServer::AcceptNewCommand()
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
             LOGV("stop command (%ld/%d): %s (%s)\n", (*count - ready_peers->size()), *count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             if (ready_peers->size() > 0)
+            {
+                //release lambdma resource
+                p->OnStopped = NULL;
                 return;
+            }
             is_running_ = false;
             LOGW("finish command: %s (%s)\n", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             //TODO: stat all netstat
             command->InvokeCallback(netstat);
+            p->OnStopped = NULL;
         };
-        peer->Start();
+        result = peer->Start();
+        ASSERT(result == 0);
+        is_running_ = true;
     }
-    is_running_ = true;
-    commands_.pop();
     return 0;
 }

@@ -13,8 +13,12 @@ int main(int argc, char *argv[])
     strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
-    g_option->rate = 2048;
-    g_option->buffer_size = 1024 * 8;
+
+    if(argc>2)
+    {
+        strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote));
+        strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local));
+    }
 
     if (argc > 1)
     {
@@ -31,13 +35,15 @@ int main(int argc, char *argv[])
             {
                 std::cout << "Input Action:";
                 std::getline(std::cin, cmd);
+                if(cmd.length()<4) continue;
                 auto command = CommandFactory::New(cmd);
-                if (!command)
+                if (command)
                 {
-                    LOGE("error command: %s\n", cmd.c_str());
-                    continue;
+                    command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
+                        std::clog << "command finish: " << oldcommand->cmd<< " >> "<<(stat?stat->ToString():"NULL") << std::endl;
+                    });
+                    server.PushCommand(command);
                 }
-                server.PushCommand(command);
             }
         }
         else if (!strcmp(argv[1], "-c"))

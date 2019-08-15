@@ -9,7 +9,6 @@ public:
     Tcp();
     Tcp(int fd);
     int Listen(int count) override;
-    int Connect(std::string ip, int port) override;
     int Accept() override;
 
 private:

@@ -79,8 +79,4 @@ struct Option
     char ip_local[20];
     char ip_remote[20];
     int port;
-    // Bit Rate
-    int rate;
-    // Buffer Size
-    int buffer_size;
 };

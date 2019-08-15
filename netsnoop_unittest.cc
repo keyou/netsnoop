@@ -21,10 +21,8 @@ int main(int argc, char *argv[])
     strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
-    g_option->rate = 2048;
-    g_option->buffer_size = 1024 * 8;
 
-    int MAX_CLIENT_COUNT = argc>1?atoi(argv[1]):1;
+    int MAX_CLIENT_COUNT = argc>1?atoi(argv[1]):10;
     int MAX_CMD_COUNT = argc>2?atoi(argv[2]):0;
     int client_count = 0;
 
@@ -67,15 +65,15 @@ int main(int argc, char *argv[])
 void RunTest(NetSnoopServer *server,int cmd_count)
 {
     std::vector<std::string> cmds{
-        "echo",
+        "echo interval 0",
         "recv",
-        "recv count 100 interval 1",
-        "recv count 100 interval 0",
-        "recv count 10000 interval 0",
+        "recv count 100 interval 1 size 1024",
+        "recv count 10000 interval 0 size 1024",
         "echo count 10 interval 200 size 1024",
         "echo count 10 interval 200 size 10240",
         "recv count 1000 interval 1 size 1024",
-        "recv count 1000 interval 10 size 1024",
+        "recv count 1000 interval 1 size 10240",
+        "recv count 1000 interval 1 size 20240"
     };
     if(cmd_count != 0)
         cmds.erase(cmds.begin()+cmd_count,cmds.end());

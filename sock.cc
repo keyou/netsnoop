@@ -5,6 +5,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <netdb.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +62,8 @@ int Sock::Bind(int fd_, std::string ip, int port)
     localaddr.sin_family = AF_INET;
     localaddr.sin_port = htons(port);
 
+    //if(GetSockAddr(ip,&localaddr.sin_addr)<0) return -1;
+
     if (inet_pton(AF_INET, ip.c_str(), &localaddr.sin_addr) <= 0)
     {
         LOGE("inet_pton local error for %s\n", ip.c_str());
@@ -71,6 +74,32 @@ int Sock::Bind(int fd_, std::string ip, int port)
     if (bind(fd_, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
     {
         LOGE("bind error: %s(errno: %d)\n", strerror(errno), errno);
+        return -1;
+    }
+    return 0;
+}
+
+//static
+int Sock::Connect(int fd_,std::string ip,int port)
+{
+    ASSERT(fd_ > 0);
+    struct sockaddr_in remoteaddr;
+    memset(&remoteaddr, 0, sizeof(remoteaddr));
+    remoteaddr.sin_family = AF_INET;
+    remoteaddr.sin_port = htons(port);
+
+    //if(GetSockAddr(ip,&remoteaddr.sin_addr)<0) return -1;
+
+    if (inet_pton(AF_INET, ip.c_str(), &remoteaddr.sin_addr) <= 0)
+    {
+        LOGE("inet_pton remote error for %s\n", ip.c_str());
+        return ERR_ILLEGAL_PARAM;
+    }
+
+    LOGV("connect %s:%d\n", ip.c_str(), port);
+    if (connect(fd_, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
+    {
+        LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
         return -1;
     }
     return 0;
@@ -140,6 +169,12 @@ int Sock::Bind(std::string ip, int port)
     local_port_ = port;
     return Bind(fd_, ip, port);
 }
+int Sock::Connect(std::string ip,int port)
+{
+    remote_ip_ = ip;
+    remote_port_ = port;
+    return Connect(fd_,ip,port);
+}
 ssize_t Sock::Send(const char *buf, size_t size) const
 {
     return Send(fd_, buf, size);
@@ -175,6 +210,20 @@ int Sock::GetPeerAddress(std::string& ip,int& port)
     }
     ip = inet_ntoa(peeraddr.sin_addr);
     port = ntohs(peeraddr.sin_port);
+    return 0;
+}
+
+//static
+int Sock::GetSockAddr(const std::string& ip,in_addr* addr)
+{
+    hostent * record = gethostbyname(ip.c_str());
+	if(record == NULL)
+	{
+		LOGE("gethostbyname error: %s(errno: %d)\n", strerror(errno),errno);
+		return -1;
+	}
+    // TODO: in multi thread,it crash here sometimes.
+	*addr = *(in_addr*)record->h_addr;
     return 0;
 }
 
