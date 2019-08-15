@@ -41,12 +41,14 @@ int CommandSender::OnStart()
  */
 int CommandSender::Stop()
 {
+    ASSERT(!is_stopping_);
     is_stopping_ = true;
     // stop data channel
     context_->ClrWriteFd(data_sock_->GetFd());
     context_->ClrReadFd(data_sock_->GetFd());
     // allow to send stop command
     context_->SetWriteFd(control_sock_->GetFd());
+    timeout_ = -1;
     return 0;
 }
 
@@ -61,12 +63,13 @@ int CommandSender::SendCommand()
     int result;
     // stop control channel write
     context_->ClrWriteFd(control_sock_->GetFd());
-
+    ASSERT(!is_stopped_);
     if (is_stopping_)
     {
         ASSERT(is_started_);
+        ASSERT(!is_stop_command_send_);
         is_stop_command_send_ = true;
-        LOGV("CommandSender send stop command. (%s)\n", command_->cmd.c_str());
+        LOGV("CommandSender send stop for: %s\n", command_->cmd.c_str());
         auto stop_command = std::make_shared<StopCommand>();
         result = control_sock_->Send(stop_command->cmd.c_str(), stop_command->cmd.length());
         if(result <= 0) return -1;
@@ -101,7 +104,7 @@ int CommandSender::RecvCommand()
     // client disconnected.
     if(result <= 0 ) return -1;
     auto command = CommandFactory::New(buf);
-    ASSERT_RETURN(command);
+    ASSERT_RETURN(command,-1);
     if (is_stopping_)
     {
         is_stopping_ = false;
@@ -109,7 +112,7 @@ int CommandSender::RecvCommand()
         LOGV("CommandSender recv result command.\n");
         ASSERT(is_stop_command_send_);
         auto result_command = std::dynamic_pointer_cast<ResultCommand>(command);
-        ASSERT_RETURN(result_command, -1, "CommandSender recv result command error: %s", command->cmd);
+        ASSERT_RETURN(result_command, -1, "CommandSender recv result command error: %s", command->cmd.c_str());
         context_->ClrWriteFd(control_sock_->GetFd());
         context_->ClrReadFd(control_sock_->GetFd());
         return OnStop(result_command->netstat);
@@ -126,7 +129,7 @@ int CommandSender::OnRecvCommand(std::shared_ptr<Command> command)
 
 int CommandSender::Timeout(int timeout)
 {
-    ASSERT(timeout >= 0);
+    ASSERT(timeout > 0);
     timeout_ -= timeout;
     if (timeout_ <= 0)
         return OnTimeout();
@@ -301,9 +304,6 @@ bool RecvCommandSender::TryStop()
 {
     if (send_count_ >= command_->GetCount())
     {
-        LOGV("begin stop.\n");
-        context_->SetWriteFd(control_sock_->GetFd());
-        context_->ClrWriteFd(data_sock_->GetFd());
         return true;
     }
     return false;

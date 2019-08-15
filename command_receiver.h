@@ -20,14 +20,16 @@ public:
 
     virtual int Start() = 0;
     virtual int Stop() = 0;
-    virtual int Send() { return 0; }
-    virtual int Recv() { return 0; }
-    virtual int RecvPrivateCommand(std::shared_ptr<Command> private_command){return 0;}
+    virtual int Send() { ASSERT(0);return -1; }
+    virtual int Recv() { ASSERT(0);return -1; }
+    virtual int RecvPrivateCommand(std::shared_ptr<Command> private_command);
     virtual int SendPrivateCommand(){return 0;}
 
 protected:
     std::string argv_;
     std::shared_ptr<Context> context_;
+    std::shared_ptr<Sock> control_sock_;
+    std::shared_ptr<Sock> data_sock_;
 };
 
 class EchoCommandReceiver : public CommandReceiver
@@ -39,7 +41,6 @@ public:
     int Stop() override;
     int Send() override;
     int Recv() override;
-    int RecvPrivateCommand(std::shared_ptr<Command> private_command) override;
     int SendPrivateCommand() override;
 
 private:
@@ -59,13 +60,13 @@ public:
     int Start() override;
     int Stop() override;
     int Recv() override;
-    int RecvPrivateCommand(std::shared_ptr<Command> private_command) override;
     int SendPrivateCommand() override;
 
 private:
     char buf_[1024 * 64];
     int length_;
     bool running_;
+    bool is_stopping_;
     std::shared_ptr<RecvCommand> command_;
 
     high_resolution_clock::time_point start_;

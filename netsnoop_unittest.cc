@@ -72,10 +72,10 @@ void RunTest(NetSnoopServer *server,int cmd_count)
         "recv count 100 interval 1",
         "recv count 100 interval 0",
         "recv count 10000 interval 0",
-        "echo count 5 interval 200 size 1024",
-        "echo count 5 interval 200 size 1024",
-        "recv count 5 interval 200 size 1024",
-        "recv count 5 interval 200 size 1024",
+        "echo count 10 interval 200 size 1024",
+        "echo count 10 interval 200 size 10240",
+        "recv count 1000 interval 1 size 1024",
+        "recv count 1000 interval 10 size 1024",
     };
     if(cmd_count != 0)
         cmds.erase(cmds.begin()+cmd_count,cmds.end());

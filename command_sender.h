@@ -46,7 +46,6 @@ protected:
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
     std::shared_ptr<Context> context_;
-    int timeout_;
 
     // /**
     //  * @brief the 'start' command send time
@@ -70,6 +69,7 @@ protected:
     // high_resolution_clock::time_point end_;
 
 private:
+    int timeout_;
     std::shared_ptr<Command> command_;
     bool is_stopping_;
     bool is_stopped_;

@@ -6,8 +6,15 @@
 #include "command_receiver.h"
 
 CommandReceiver::CommandReceiver(std::shared_ptr<CommandChannel> channel)
-    : context_(channel->context_)
+    : context_(channel->context_),control_sock_(channel->control_sock_),data_sock_(channel->data_sock_)
 {
+}
+
+int CommandReceiver::RecvPrivateCommand(std::shared_ptr<Command> command)
+{
+    LOGE("we don't expect to recv any private command.(%s)\n",command->cmd.c_str());
+    ASSERT(0);
+    return -1;
 }
 
 EchoCommandReceiver::EchoCommandReceiver(std::shared_ptr<CommandChannel> channel)
@@ -25,9 +32,11 @@ int EchoCommandReceiver::Start()
 }
 int EchoCommandReceiver::Stop()
 {
+    ASSERT(running_);
     running_ = false;
     LOGV("EchoCommandReceiver Stop.\n");
     context_->ClrReadFd(context_->data_fd);
+    context_->ClrWriteFd(context_->data_fd);
     // allow send result
     context_->SetWriteFd(context_->control_fd);
     return 0;
@@ -35,31 +44,30 @@ int EchoCommandReceiver::Stop()
 int EchoCommandReceiver::Send()
 {
     LOGV("EchoCommandReceiver Send.\n");
-    int result;
-    if (data_queue_.size() == 0)
+    int result=0;
+    context_->ClrWriteFd(context_->data_fd);
+    ASSERT(data_queue_.size()>0);
+    while (data_queue_.size()>0)
     {
-        context_->ClrWriteFd(context_->data_fd);
-        if(is_stopping_)
+        auto buf = data_queue_.front();
+        // use sync method to send extra data.
+        if ((result = data_sock_->Send(&buf[0], buf.length())) < 0)
         {
-            return Stop();
+            return -1;
         }
-        return 0;
+        send_count_++;
+        data_queue_.pop();    
     }
-    auto buf = data_queue_.front();
-    if ((result = Sock::Send(context_->data_fd, &buf[0], buf.length())) < 0)
-    {
-        return -1;
-    }
-    send_count_++;
-    data_queue_.pop();
+    
     return result;
 }
 int EchoCommandReceiver::Recv()
 {
     LOGV("EchoCommandReceiver Recv.\n");
     int result;
+    ASSERT(running_);
     std::string buf(1024*64,0);
-    if ((result = Sock::Recv(context_->data_fd, &buf[0], buf.length())) < 0)
+    if ((result = data_sock_->Recv(&buf[0], buf.length())) < 0)
     {
         return -1;
     }
@@ -70,28 +78,23 @@ int EchoCommandReceiver::Recv()
     recv_count_++;
     return 0;
 }
-int EchoCommandReceiver::RecvPrivateCommand(std::shared_ptr<Command> private_command)
-{
-    auto command = std::dynamic_pointer_cast<StopCommand>(private_command);
-    ASSERT_RETURN(command, -1, "recv command error: not stop command.");
-    if(data_queue_.size()==0) 
-    {
-        return Stop();
-    }
-    is_stopping_ = true;
-    return 0;
-}
 
 int EchoCommandReceiver::SendPrivateCommand()
 {
     int result;
+    if(data_queue_.size()>0)
+    {
+        LOGW("echo stop: drop %ld data.\n",data_queue_.size());
+        ASSERT(0);
+    }
+
     context_->ClrWriteFd(context_->control_fd);
     auto command = std::make_shared<ResultCommand>();
-    NetStat stat;
+    NetStat stat = {};
     stat.recv_packets = recv_count_;
     stat.send_packets = send_count_;
     auto cmd = command->Serialize(stat);
-    if ((result = Sock::Send(context_->control_fd, cmd.c_str(), cmd.length())) < 0)
+    if ((result = control_sock_->Send(cmd.c_str(), cmd.length())) < 0)
     {
         return -1;
     }
@@ -99,7 +102,8 @@ int EchoCommandReceiver::SendPrivateCommand()
 }
 
 RecvCommandReceiver::RecvCommandReceiver(std::shared_ptr<CommandChannel> channel)
-    : length_(0), recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0), running_(false),
+    : length_(0), recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0), 
+      running_(false),is_stopping_(false),
       command_(std::dynamic_pointer_cast<RecvCommand>(channel->command_)), CommandReceiver(channel) {}
 
 int RecvCommandReceiver::Start()
@@ -108,19 +112,26 @@ int RecvCommandReceiver::Start()
     context_->SetReadFd(context_->data_fd);
     start_ = high_resolution_clock::now();
     begin_ = high_resolution_clock::now();
+    running_ = true;
     return 0;
 }
 int RecvCommandReceiver::Stop()
 {
     LOGV("RecvCommandReceiver Stop.\n");
     context_->ClrReadFd(context_->data_fd);
+    context_->ClrWriteFd(context_->data_fd);
+    //context_->ClrReadFd(context_->control_fd);
+    // allow to send stop command.
+    context_->SetWriteFd(context_->control_fd);
+    running_ = false;
     return 0;
 }
 int RecvCommandReceiver::Recv()
 {
     LOGV("RecvCommandReceiver Recv.\n");
+    ASSERT(running_);
     int result;
-    if ((result = Sock::Recv(context_->data_fd, buf_, sizeof(buf_))) < 0)
+    if ((result = data_sock_->Recv(buf_, sizeof(buf_))) < 0)
     {
         return -1;
     }
@@ -138,27 +149,11 @@ int RecvCommandReceiver::Recv()
     }
     return result;
 }
-int RecvCommandReceiver::RecvPrivateCommand(std::shared_ptr<Command> private_command)
-{
-    auto command = std::dynamic_pointer_cast<StopCommand>(private_command);
-    ASSERT_RETURN(command, -1, "recv command error: not stop command.");
-    context_->SetWriteFd(context_->control_fd);
-    return 0;
-}
 
 int RecvCommandReceiver::SendPrivateCommand()
 {
     int result;
-    char buf = 0;
-    result = recv(context_->data_fd, &buf, sizeof(buf), MSG_PEEK | MSG_DONTWAIT);
-    if(result != -1)
-    {
-        LOGV("client has more data to read.\n");
-        return 0;
-    }
     context_->ClrWriteFd(context_->control_fd);
-    //TODO: sync control and data channel
-
     NetStat stat = {};
     stat.recv_bytes = recv_bytes_;
     stat.recv_packets = recv_count_;

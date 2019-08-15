@@ -33,6 +33,24 @@ int NetSnoopClient::Run()
             LOGE("select error: %d,%d\n", result, errno);
             return -1;
         }
+        if (FD_ISSET(context->data_fd, &read_fds))
+        {
+            result = receiver_->Recv();
+            ASSERT(result>=0);
+        }
+        if (FD_ISSET(context->data_fd, &write_fds))
+        {
+            result = receiver_->Send();
+            ASSERT(result>=0);
+        }
+        if (FD_ISSET(context->control_fd, &write_fds))
+        {
+            if ((result = SendCommand()) < 0)
+            {
+                LOGE("client send cmd error.\n");
+                break;
+            }
+        }
         if (FD_ISSET(context->control_fd, &read_fds))
         {
             if ((result = RecvCommand()) == ERR_DEFAULT)
@@ -45,24 +63,6 @@ int NetSnoopClient::Run()
                 LOGW("client control socket closed.\n");
                 break;
             }
-        }
-        if (FD_ISSET(context->control_fd, &write_fds))
-        {
-            if ((result = SendCommand()) < 0)
-            {
-                LOGE("client send cmd error.\n");
-                break;
-            }
-        }
-        if (FD_ISSET(context->data_fd, &read_fds))
-        {
-            result = receiver_->Recv();
-            ASSERT(result>=0);
-        }
-        if (FD_ISSET(context->data_fd, &write_fds))
-        {
-            result = receiver_->Send();
-            ASSERT(result>=0);
         }
     }
 
@@ -117,7 +117,12 @@ int NetSnoopClient::RecvCommand()
         return ERR_ILLEGAL_DATA;
     if(receiver_ && command->is_private)
     {
-        return receiver_->RecvPrivateCommand(command);
+        auto stop_command = std::dynamic_pointer_cast<StopCommand>(command);
+        if(!stop_command)
+        {
+            return receiver_->RecvPrivateCommand(command);
+        }
+        return receiver_->Stop();
     }
 
     auto channel = std::shared_ptr<CommandChannel>(new CommandChannel{

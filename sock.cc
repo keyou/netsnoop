@@ -87,7 +87,11 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
         return -1;
     }
 
-    LOGV("send count: %ld\n", result);
+    #ifdef _DEBUG
+    char tmp[64] = {};
+    strncpy(tmp,buf,sizeof(tmp));
+    LOGV("send(%ld): %s\n", result,tmp);
+    #endif // _DEBUG
     return result;
 }
 
@@ -106,7 +110,11 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
         LOGE("recv timeout.\n");
         return ERR_TIMEOUT;
     }
-    LOGV("recv count: %ld\n", result);
+    #ifdef _DEBUG
+    char tmp[64] = {};
+    strncpy(tmp,buf,sizeof(tmp));
+    LOGV("recv(%ld): %s\n", result,tmp);
+    #endif // _DEBUG
     return result;
 }
 int Sock::Initialize()

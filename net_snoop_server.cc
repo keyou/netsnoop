@@ -48,7 +48,7 @@ int NetSnoopServer::Run()
             {
                 end = high_resolution_clock::now();
                 time_spend = duration_cast<milliseconds>(end - start).count();
-                peer->Timeout(time_spend);
+                if(time_spend>0&&peer->GetTimeout()>0) peer->Timeout(time_spend);
                 //ASSERT(result>=0);
             }
         }
@@ -227,6 +227,7 @@ int NetSnoopServer::AcceptNewCommand()
     lock.unlock();
     if (is_running_ || !command)
         return 0;
+    int result;
     auto ready_peers = std::make_shared<std::list<std::shared_ptr<Peer>>>();
     for (auto &peer : peers_)
     {
@@ -240,7 +241,8 @@ int NetSnoopServer::AcceptNewCommand()
     // TODO: deal with multi thread sync
     for (auto &peer : *ready_peers)
     {
-        ASSERT(peer->SetCommand(command) == 0);
+        result = peer->SetCommand(command);
+        ASSERT(result == 0);
         peer->OnStopped = [&, command, ready_peers, count](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
             LOGV("stop command (%ld/%d): %s (%s)\n", (*count - ready_peers->size()), *count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");

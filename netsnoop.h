@@ -4,7 +4,7 @@
 #include <string>
 #include <iostream>
 #include <cassert>
-
+#include <thread>
 
 class Logger
 {
@@ -28,13 +28,32 @@ private:
 };
 
 #define TAG "NETSNOOP"
-#define LOGV(...) fprintf(stdout, "" __VA_ARGS__)
-#define LOGW(...) fprintf(stderr, "" __VA_ARGS__);
-#define LOGE(...) fprintf(stderr, "" __VA_ARGS__);
+#ifdef _DEBUG
+    #define LOGV(...) {std::cout<<"["<<std::this_thread::get_id()<<"]";fprintf(stdout, "[LOGV] " __VA_ARGS__);}
+    #define LOGW(...) {std::cout<<"["<<std::this_thread::get_id()<<"]";fprintf(stdout, "[WARN] " __VA_ARGS__);}
+    #define LOGE(...) {std::cerr<<"["<<std::this_thread::get_id()<<"]";fprintf(stderr, "[ERRO] " __VA_ARGS__);}
+#else // NO _DEBUG
+    #define LOGV(...) //{std::cout<<"["<<std::this_thread::get_id()<<"]";fprintf(stdout, "[LOGV] " __VA_ARGS__);}
+    #define LOGW(...) {std::cout<<"["<<std::this_thread::get_id()<<"]";fprintf(stdout, "[WARN] " __VA_ARGS__);}
+    #define LOGE(...) {std::cerr<<"["<<std::this_thread::get_id()<<"]";fprintf(stderr, "[ERRO] " __VA_ARGS__);}
+#endif // _DEBUG
 
-//#define LOGV(...)
-//#define LOGW(...)
-//#define LOGE(...)
+#ifdef _DEBUG
+    #define ASSERT(expr,...) assert(expr)
+    #define ASSERT_RETURN(expr,...) ASSERT(expr,__VA_ARGS__)
+#else // NO _DEBUG
+    #define ASSERT(expr) {if(!(expr)) {LOGE("assert failed: " #expr "\n");}}
+    #define __ASSERT_RETURN1(expr) {ASSERT(expr);return;}
+    #define __ASSERT_RETURN2(expr,result) {ASSERT(expr);if(!(expr)){return (result);}}
+    #define __ASSERT_RETURN3(expr,result,msg) {ASSERT(expr);if(!(expr)) {LOGE(msg); return (result);}}
+    #define __ASSERT_RETURN4(expr,result,msg,arg1) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1); return (result);}}
+    #define __ASSERT_RETURN5(expr,result,msg,arg1,arg2) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1,arg2); return (result);}}
+    #define __ASSERT_RETURN6(expr,result,msg,arg1,arg2,arg3) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1,arg2,arg3); return (result);}}
+
+    #define __ASSERT_RETURN_SELECT(arg1,arg2,arg3,arg4,arg5,arg6,arg7,...)  arg7
+    #define __ASSERT_RETURN(...) __ASSERT_RETURN_SELECT(__VA_ARGS__,__ASSERT_RETURN6,__ASSERT_RETURN5,__ASSERT_RETURN4,__ASSERT_RETURN3,__ASSERT_RETURN2,__ASSERT_RETURN1 )
+    #define ASSERT_RETURN(...) __ASSERT_RETURN(__VA_ARGS__)(__VA_ARGS__)
+#endif //_DEBUG
 
 #define EXPORT
 
@@ -52,19 +71,6 @@ private:
     // clazz(clazz &&) = delete;                 \
     // clazz &operator=(clazz &&) = delete;
 
-#ifdef _DEBUG
-    #define ASSERT(expr,...) assert(expr)
-    #define ASSERT_RETURN(expr,...) ASSERT(expr,__VA_ARGS__)
-#else // NO _DEBUG
-    #define ASSERT(expr,...) if(!(expr)) {LOGE("assert failed: " #expr "\n");LOGE(__VA_ARGS__);}
-    #define __ASSERT_RETURN1(expr) ASSERT(expr);return
-    #define __ASSERT_RETURN2(expr,result,...) if(!(expr)){ LOGE(__VA_ARGS__);return (result);}
-    //#define __ASSERT_RETURN3(expr,result,msg,...) if(!(expr)) { LOGE(msg,__VA_ARGS__); return (result);}
-
-    #define __ASSERT_RETURN_SELECT(arg1,arg2,arg3,...) arg3
-    #define __ASSERT_RETURN(...) __ASSERT_RETURN_SELECT(__VA_ARGS__,__ASSERT_RETURN2,__ASSERT_RETURN1)
-    #define ASSERT_RETURN(...) __ASSERT_RETURN(__VA_ARGS__)(__VA_ARGS__)
-#endif //_DEBUG
 
 void join_mcast(int fd, struct sockaddr_in *sin);
 

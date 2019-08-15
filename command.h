@@ -52,10 +52,12 @@ public:
         {
             if (ss >> value)
             {
+                ASSERT(args.find(key) == args.end());
                 args[key] = value;
             }
             else
             {
+                ASSERT(!value.empty());
                 args[key] = "";
             }
         }
