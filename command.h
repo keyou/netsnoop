@@ -234,8 +234,8 @@ struct NetStat
         A(send_bytes);
         A(recv_packets);
         A(recv_bytes);
-        A(send_time);
-        A(recv_time);
+        AI(send_time);
+        AI(recv_time);
         #undef AI
         #undef AF
         return *this;

@@ -203,6 +203,7 @@ int EchoCommandSender::OnTimeout()
 {
     if (send_count_ >= command_->GetCount())
     {
+        stop_ = high_resolution_clock::now();
         return Stop();
     }
     context_->SetWriteFd(data_sock_->GetFd());
@@ -214,7 +215,6 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 {
     if (!OnStopped)
         return 0;
-    stop_ = high_resolution_clock::now();
     
     auto stat = std::make_shared<NetStat>();
     stat->delay = delay_/(1000*1000);
@@ -262,7 +262,6 @@ int RecvCommandSender::SendData()
     auto result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
     ASSERT_RETURN(result>0,-1);
     send_bytes_+=result;
-    stop_ = high_resolution_clock::now();
     return result;
 }
 int RecvCommandSender::RecvData()
@@ -286,6 +285,7 @@ bool RecvCommandSender::TryStop()
 {
     if (send_count_ >= command_->GetCount())
     {
+        stop_ = high_resolution_clock::now();
         return true;
     }
     return false;
