@@ -193,26 +193,54 @@ struct NetStat
 #define W(p)   \
     if (p > 0) \
     ss << #p " " << p << " "
-        W(delay);
-        W(min_delay);
-        W(max_delay);
-        W(jitter);
         W(loss);
-        W(send_packets);
-        W(send_bytes);
-        W(recv_packets);
-        W(recv_bytes);
-        W(send_time);
-        W(recv_time);
         W(send_speed);
         W(max_send_speed);
         W(min_send_speed);
         W(recv_speed);
         W(max_recv_speed);
         W(min_recv_speed);
+        W(delay);
+        W(min_delay);
+        W(max_delay);
+        W(jitter);
+        W(send_packets);
+        W(send_bytes);
+        W(recv_packets);
+        W(recv_bytes);
+        W(send_time);
+        W(recv_time);
 #undef W
         return ss.str();
     }
+
+    NetStat& operator+=(const NetStat& stat)
+    {
+        #define AI(p) p=(p+stat.p+1)/2
+        #define AF(p) p=(p+stat.p)/2
+        #define A(p)  p=p+stat.p
+        AF(loss);
+        A(send_speed);
+        A(max_send_speed);
+        A(min_send_speed);
+        A(recv_speed);
+        A(max_recv_speed);
+        A(min_recv_speed);
+        AI(delay);
+        AI(min_delay);
+        AI(max_delay);
+        AI(jitter);
+        A(send_packets);
+        A(send_bytes);
+        A(recv_packets);
+        A(recv_bytes);
+        A(send_time);
+        A(recv_time);
+        #undef AI
+        #undef AF
+        return *this;
+    }
+
 };
 
 struct CommandChannel

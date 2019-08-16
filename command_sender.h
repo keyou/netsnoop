@@ -47,27 +47,6 @@ protected:
     std::shared_ptr<Sock> data_sock_;
     std::shared_ptr<Context> context_;
 
-    // /**
-    //  * @brief the 'start' command send time
-    //  * 
-    //  */
-    // high_resolution_clock::time_point start_;
-    // /**
-    //  * @brief the 'result' command recv time
-    //  * 
-    //  */
-    // high_resolution_clock::time_point stop_;
-    // /**
-    //  * @brief the latest command send time
-    //  * 
-    //  */
-    // high_resolution_clock::time_point begin_;
-    // /**
-    //  * @brief the latest command recv time
-    //  * 
-    //  */
-    // high_resolution_clock::time_point end_;
-
 private:
     int timeout_;
     std::shared_ptr<Command> command_;
@@ -138,6 +117,6 @@ private:
     double min_delay_;
     double max_delay_;
     ssize_t send_count_;
-    ssize_t recv_count_;
+    ssize_t send_bytes_;
     std::string data_buf_;
 };

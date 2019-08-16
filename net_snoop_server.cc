@@ -274,14 +274,16 @@ int NetSnoopServer::ProcessNextCommand()
 
     LOGW("start command: %s (peer count = %ld)\n", command->cmd.c_str(), ready_peers->size());
     auto count = std::make_shared<int>(ready_peers->size());
+    auto stat = std::make_shared<NetStat>();
 
     for (auto &peer : *ready_peers)
     {
         result = peer->SetCommand(command);
         ASSERT(result == 0);
-        peer->OnStopped = [&, command, ready_peers, count](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
+        peer->OnStopped = [&, command, ready_peers, count,stat](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
             LOGV("stop command (%ld/%d): %s (%s)\n", (*count - ready_peers->size()), *count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            if(netstat) *stat+=*netstat;
             if (ready_peers->size() > 0)
             {
                 //release lambdma resource
@@ -291,7 +293,7 @@ int NetSnoopServer::ProcessNextCommand()
             is_running_ = false;
             LOGW("finish command: %s (%s)\n", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             //TODO: stat all netstat
-            command->InvokeCallback(netstat);
+            command->InvokeCallback(stat);
             p->OnStopped = NULL;
         };
         result = peer->Start();

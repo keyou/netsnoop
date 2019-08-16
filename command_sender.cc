@@ -243,7 +243,7 @@ RecvCommandSender::RecvCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<RecvCommandClazz>(channel->command_)),
       data_buf_(command_->GetSize(), 0),
       delay_(0), max_delay_(0), min_delay_(INT32_MAX),
-      send_count_(0), recv_count_(0),
+      send_count_(0), send_bytes_(0),
       is_stoping_(false),
       CommandSender(channel)
 {
@@ -281,6 +281,8 @@ int RecvCommandSender::SendData()
     if (command_->GetInterval() > 0)
         context_->ClrWriteFd(data_sock_->GetFd());
     auto result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
+    ASSERT_RETURN(result>0,-1);
+    send_bytes_+=result;
     stop_ = high_resolution_clock::now();
     return result;
 }
@@ -317,7 +319,7 @@ int RecvCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
         return 0;
 
     auto stat = std::make_shared<NetStat>();
-    stat->send_bytes = send_count_ * data_buf_.size();
+    stat->send_bytes = send_bytes_;
     stat->send_packets = send_count_;
     stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
     auto seconds = duration_cast<duration<double>>(stop_ - start_).count();

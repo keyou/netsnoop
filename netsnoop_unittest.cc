@@ -108,7 +108,7 @@ void RunTest(NetSnoopServer *server, int cmd_count)
             continue;
         }
         command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-            std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << (stat ? stat->ToString() : "NULL") << std::endl;
+            std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
             std::unique_lock<std::mutex> lock(mtx);
             j++;
             if (i == cmds.size())
@@ -153,7 +153,7 @@ void StartServer()
             i++;
             auto command = CommandFactory::New(cmd);
             command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << (stat ? stat->ToString() : "NULL") << std::endl;
+                std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
             });
             server->PushCommand(command);
         }
@@ -174,7 +174,7 @@ void StartClients(int count, bool join)
             NetSnoopClient client(g_option);
             client.OnStopped = [&,i](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
                 std::unique_lock<std::mutex> lock(mtx);
-                std::clog << "client ["<<i+1<<"] finish: " << oldcommand->cmd << " >> " << (stat ? stat->ToString() : "NULL") << std::endl;
+                std::clog << "client ["<<i+1<<"] finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
             };
             client.Run();
         });
