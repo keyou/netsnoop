@@ -17,6 +17,8 @@ public:
     }
     int Run();
 
+    std::function<void(std::shared_ptr<Command>,std::shared_ptr<NetStat>)> OnStopped;
+
 private:
     int Connect();
     int RecvCommand();
@@ -27,8 +29,6 @@ private:
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
     std::shared_ptr<CommandReceiver> receiver_;
-
-    std::queue<std::shared_ptr<Command>> commands_;
 
     DISALLOW_COPY_AND_ASSIGN(NetSnoopClient);
 };

@@ -76,7 +76,7 @@ int NetSnoopClient::Connect()
     result = control_sock_->Initialize();
     ASSERT(result > 0);
     result = control_sock_->Connect(option_->ip_remote, option_->port);
-    ASSERT(result >= 0);
+    ASSERT_RETURN(result >= 0,-1);
 
     data_sock_ = std::make_shared<Udp>();
     data_sock_->Initialize();
@@ -89,7 +89,7 @@ int NetSnoopClient::Connect()
 
     std::string cookie("cookie:" + ip + ":" + std::to_string(port));
     result = control_sock_->Send(cookie.c_str(), cookie.length());
-    ASSERT(result >= 0);
+    ASSERT_RETURN(result >= 0,-1);
 
     context_->control_fd = control_sock_->GetFd();
     context_->data_fd = data_sock_->GetFd();
@@ -130,6 +130,7 @@ int NetSnoopClient::RecvCommand()
     });
     receiver_ = command->CreateCommandReceiver(channel);
     ASSERT(receiver_);
+    receiver_->OnStopped = OnStopped;
     return receiver_->Start();
 }
 

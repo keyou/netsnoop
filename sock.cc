@@ -80,7 +80,7 @@ int Sock::Bind(int fd_, std::string ip, int port)
 }
 
 //static
-int Sock::Connect(int fd_,std::string ip,int port)
+int Sock::Connect(int fd_, std::string ip, int port)
 {
     ASSERT(fd_ > 0);
     struct sockaddr_in remoteaddr;
@@ -116,11 +116,11 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
         return -1;
     }
 
-    #ifdef _DEBUG
+#ifdef _DEBUG
     char tmp[64] = {};
-    strncpy(tmp,buf,sizeof(tmp));
-    LOGV("send(%ld): %s\n", result,tmp);
-    #endif // _DEBUG
+    strncpy(tmp, buf, sizeof(tmp));
+    LOGV("send(%ld): %s\n", result, tmp);
+#endif // _DEBUG
     return result;
 }
 
@@ -139,11 +139,11 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
         LOGE("recv timeout.\n");
         return ERR_TIMEOUT;
     }
-    #ifdef _DEBUG
+#ifdef _DEBUG
     char tmp[64] = {};
-    strncpy(tmp,buf,sizeof(tmp));
-    LOGV("recv(%ld): %s\n", result,tmp);
-    #endif // _DEBUG
+    strncpy(tmp, buf, sizeof(tmp));
+    LOGV("recv(%ld): %s\n", result, tmp);
+#endif // _DEBUG
     return result;
 }
 int Sock::Initialize()
@@ -169,11 +169,11 @@ int Sock::Bind(std::string ip, int port)
     local_port_ = port;
     return Bind(fd_, ip, port);
 }
-int Sock::Connect(std::string ip,int port)
+int Sock::Connect(std::string ip, int port)
 {
     remote_ip_ = ip;
     remote_port_ = port;
-    return Connect(fd_,ip,port);
+    return Connect(fd_, ip, port);
 }
 ssize_t Sock::Send(const char *buf, size_t size) const
 {
@@ -185,7 +185,18 @@ ssize_t Sock::Recv(char *buf, size_t size) const
     return Recv(fd_, buf, size);
 }
 
-int Sock::GetLocalAddress(std::string &ip, int &port)
+int Sock::GetLocalAddress(std::string &ip, int &port) 
+{
+    return GetLocalAddress(fd_,ip,port);
+}
+
+int Sock::GetPeerAddress(std::string &ip, int &port)
+{
+    return GetPeerAddress(fd_,ip,port);
+}
+
+//static
+int Sock::GetLocalAddress(int fd_, std::string &ip, int &port)
 {
     sockaddr_in localaddr;
     socklen_t localaddr_length = sizeof(localaddr);
@@ -199,7 +210,8 @@ int Sock::GetLocalAddress(std::string &ip, int &port)
     return 0;
 }
 
-int Sock::GetPeerAddress(std::string& ip,int& port)
+//static
+int Sock::GetPeerAddress(int fd_, std::string &ip, int &port)
 {
     sockaddr_in peeraddr;
     socklen_t peeraddr_length = sizeof(peeraddr);
@@ -214,16 +226,43 @@ int Sock::GetPeerAddress(std::string& ip,int& port)
 }
 
 //static
-int Sock::GetSockAddr(const std::string& ip,in_addr* addr)
+int Sock::SockAddrToStr(sockaddr_in* sockaddr,std::string &ip,int &port)
 {
-    hostent * record = gethostbyname(ip.c_str());
-	if(record == NULL)
-	{
-		LOGE("gethostbyname error: %s(errno: %d)\n", strerror(errno),errno);
-		return -1;
-	}
-    // TODO: in multi thread,it crash here sometimes.
-	*addr = *(in_addr*)record->h_addr;
+    ip = inet_ntoa(sockaddr->sin_addr);
+    port = ntohs(sockaddr->sin_port);
+    return 0;
+}
+
+//static
+int Sock::StrToSockAddr(const std::string& ip,int port,sockaddr_in* sockaddr)
+{
+    //sockaddr_in peeraddr;
+    //socklen_t peeraddr_size = sizeof(sockaddr_in);
+    memset(sockaddr, 0, sizeof(sockaddr_in));
+    sockaddr->sin_family = AF_INET;
+    sockaddr->sin_port = htons(port);
+
+    //if(GetSockAddr(ip,&sockaddr.sin_addr)<0) return -1;
+
+    if (inet_pton(AF_INET, ip.c_str(), &sockaddr->sin_addr) <= 0)
+    {
+        LOGE("inet_pton remote error for %s\n", ip.c_str());
+        return ERR_ILLEGAL_PARAM;
+    }
+    return 0;
+}
+
+//static
+int Sock::GetSockAddr(const std::string &ip, in_addr *addr)
+{
+    hostent *record = gethostbyname(ip.c_str());
+    if (record == NULL)
+    {
+        LOGE("gethostbyname error: %s(errno: %d)\n", strerror(errno), errno);
+        return -1;
+    }
+    // TODO: in multi(100) thread,it crash here sometimes.
+    *addr = *(in_addr *)record->h_addr;
     return 0;
 }
 

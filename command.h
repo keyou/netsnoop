@@ -231,7 +231,6 @@ class Command
 {
 public:
     Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false) {}
-    Command(const Command &command) : name(command.name), cmd(command.cmd) {}
     void RegisterCallback(CommandCallback callback)
     {
         if (callback)
@@ -256,6 +255,8 @@ public:
 
 private:
     std::vector<CommandCallback> callbacks_;
+
+    DISALLOW_COPY_AND_ASSIGN(Command);
 };
 
 #define ECHO_DEFAULT_COUNT 5
@@ -318,6 +319,8 @@ private:
     int interval_;
     int size_;
     int speed_;
+
+    DISALLOW_COPY_AND_ASSIGN(EchoCommand);
 };
 
 #define RECV_DEFAULT_COUNT 10
@@ -368,6 +371,8 @@ private:
     int time_;
     int size_;
     int speed_;
+
+    DISALLOW_COPY_AND_ASSIGN(RecvCommand);
 };
 
 // #define DEFINE_COMMAND(name,typename) \
@@ -382,6 +387,8 @@ class StopCommand : public Command
 public:
     StopCommand() : StopCommand("stop") {}
     StopCommand(std::string cmd) : Command("stop", cmd) {}
+
+    DISALLOW_COPY_AND_ASSIGN(StopCommand);
 };
 
 class ResultCommand : public Command
@@ -401,4 +408,6 @@ public:
     }
 
     std::shared_ptr<NetStat> netstat;
+
+    DISALLOW_COPY_AND_ASSIGN(ResultCommand);
 };

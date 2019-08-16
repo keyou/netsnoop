@@ -72,6 +72,9 @@ private:
     // clazz &operator=(clazz &&) = delete;
 
 
+#define MAX_CLINETS 500
+#define MAX_SENDERS 10
+
 void join_mcast(int fd, struct sockaddr_in *sin);
 
 struct Option

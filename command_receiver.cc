@@ -90,10 +90,11 @@ int EchoCommandReceiver::SendPrivateCommand()
 
     context_->ClrWriteFd(context_->control_fd);
     auto command = std::make_shared<ResultCommand>();
-    NetStat stat = {};
-    stat.recv_packets = recv_count_;
-    stat.send_packets = send_count_;
-    auto cmd = command->Serialize(stat);
+    auto stat = std::make_shared<NetStat>();
+    stat->recv_packets = recv_count_;
+    stat->send_packets = send_count_;
+    auto cmd = command->Serialize(*stat);
+    if(OnStopped) OnStopped(command_,stat);
     if ((result = control_sock_->Send(cmd.c_str(), cmd.length())) < 0)
     {
         return -1;
@@ -154,22 +155,23 @@ int RecvCommandReceiver::SendPrivateCommand()
 {
     int result;
     context_->ClrWriteFd(context_->control_fd);
-    NetStat stat = {};
-    stat.recv_bytes = recv_bytes_;
-    stat.recv_packets = recv_count_;
+    auto stat = std::make_shared<NetStat>();
+    stat->recv_bytes = recv_bytes_;
+    stat->recv_packets = recv_count_;
     auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
     if (seconds >= 0.001)
     {
-        stat.recv_time = seconds * 1000;
-        stat.recv_speed = recv_bytes_ / seconds;
-        stat.max_recv_speed = max_speed_;
+        stat->recv_time = seconds * 1000;
+        stat->recv_speed = recv_bytes_ / seconds;
+        stat->max_recv_speed = max_speed_;
         if (min_speed_ > 0)
-            stat.min_recv_speed = min_speed_;
+            stat->min_recv_speed = min_speed_;
     }
 
     auto command = std::make_shared<ResultCommand>();
-    auto cmd = command->Serialize(stat);
-    if ((result = Sock::Send(context_->control_fd, cmd.c_str(), cmd.length())) < 0)
+    auto cmd = command->Serialize(*stat);
+    if(OnStopped) OnStopped(command_,stat);
+    if ((result = control_sock_->Send(cmd.c_str(), cmd.length())) < 0)
     {
         return -1;
     }

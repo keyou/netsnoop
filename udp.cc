@@ -74,8 +74,11 @@ int Udp::Accept()
     int peerfd = CreateSocket(type_, protocol_);
     if (Bind(peerfd, local_ip_, local_port_) < 0)
         return -1;
-    if (Connect(peerfd, &peeraddr, peeraddr_size) < 0)
+    if (connect(peerfd, (struct sockaddr *)&peeraddr, peeraddr_size) < 0)
+    {
+        LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
         return -1;
+    }
     if ((result = Send(peerfd, buf, result)) < 0)
         return -1;
 
@@ -83,12 +86,42 @@ int Udp::Accept()
 }
 
 //static
-int Udp::Connect(int fd, sockaddr_in *remoteaddr, int size)
+ssize_t Udp::SendTo(const std::string &buf, sockaddr_in* peeraddr)
 {
-    if (connect(fd, (struct sockaddr *)remoteaddr, size) < 0)
+    int result;
+    
+    if ((result = sendto(fd_, buf.c_str(), buf.length(), 0, (struct sockaddr *)peeraddr, sizeof(sockaddr_in))) < 0)
     {
-        LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("sendto error: %s(errno: %d)\n", strerror(errno), errno);
         return -1;
     }
-    return 0;
+    #ifdef _DEBUG
+    char* ip = inet_ntoa(peeraddr->sin_addr);
+    int port = ntohs(peeraddr->sin_port);
+    LOGV("sendto(%s:%d)(%d): %s\n", ip,port,result,buf.substr(0,64).c_str());
+    #endif // _DEBUG
+    return result;
+}
+
+//static
+ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in* peeraddr)
+{
+    int result;
+    char remote_ip[64] = {0};
+
+    socklen_t peeraddr_size = sizeof(sockaddr_in);
+    memset(peeraddr, 0, sizeof(sockaddr_in));
+
+    if ((result = recvfrom(fd_, &buf[0], buf.length(), 0, (struct sockaddr *)peeraddr, &peeraddr_size)) == -1)
+    {
+        LOGE("accept error: %s(errno: %d)\n", strerror(errno), errno);
+        return -1;
+    }
+
+    #ifdef _DEBUG
+    char* ip = inet_ntoa(peeraddr->sin_addr);
+    int port = ntohs(peeraddr->sin_port);
+    LOGV("recvfrom(%s:%d)(%d): %s\n", ip,port,result,buf.substr(0,64).c_str());
+    #endif // _DEBUG
+    return result;
 }

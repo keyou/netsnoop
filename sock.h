@@ -13,13 +13,16 @@ public:
     static int Connect(int fd_,std::string ip, int port);
     static ssize_t Send(int fd_, const char *buf, size_t size);
     static ssize_t Recv(int fd_, char *buf, size_t size);
+    static int GetLocalAddress(int fd_,std::string& ip,int& port);
+    static int GetPeerAddress(int fd_,std::string& ip,int& port);
+    static int SockAddrToStr(sockaddr_in* sockaddr,std::string &ip,int &port);
+    static int StrToSockAddr(const std::string& ip,int port,sockaddr_in* sockaddr);
 
     int Initialize();
     int Bind(std::string ip, int port);
     int Connect(std::string ip,int port);
     ssize_t Send(const char *buf, size_t size) const;
     ssize_t Recv(char *buf, size_t size) const;
-
     int GetLocalAddress(std::string& ip,int& port);
     int GetPeerAddress(std::string& ip,int& port);
 

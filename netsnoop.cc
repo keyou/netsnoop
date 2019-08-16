@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
 
-    if(argc>2)
+    if (argc > 2)
     {
         strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote));
         strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local));
@@ -24,26 +24,40 @@ int main(int argc, char *argv[])
     {
         if (!strcmp(argv[1], "-s"))
         {
-            NetSnoopServer server(g_option);
-            auto t = std::thread([&server]() {
+            auto t = std::thread([&]() {
                 LOGV("init_server\n");
+                NetSnoopServer server(g_option);
                 server.Run();
             });
             t.detach();
+
+            int result;
+            std::string ip = g_option->ip_remote;
+            int port = g_option->port;
+            Udp udp;
+            result = udp.Initialize();
+            udp.Connect(ip, port);
+
             std::string cmd;
             while (true)
             {
                 std::cout << "Input Action:";
                 std::getline(std::cin, cmd);
-                if(cmd.length()<4) continue;
+                if (cmd.length() < 4)
+                    continue;
                 auto command = CommandFactory::New(cmd);
                 if (command)
                 {
                     command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                        std::clog << "command finish: " << oldcommand->cmd<< " >> "<<(stat?stat->ToString():"NULL") << std::endl;
+                        std::clog << "command finish: " << oldcommand->cmd << " >> " << (stat ? stat->ToString() : "NULL") << std::endl;
                     });
-                    server.PushCommand(command);
                 }
+                result = udp.Send(command->cmd.c_str(), command->cmd.length());
+                std::string cmd2(MAX_CMD_LENGTH, 0);
+                result = udp.Recv(&cmd2[0], cmd2.length());
+                ASSERT(result == cmd.length());
+                cmd2.resize(result);
+                LOGV("pushed cmd: %s\n", cmd2.c_str());
             }
         }
         else if (!strcmp(argv[1], "-c"))

@@ -2,7 +2,6 @@
 
 #include "sock.h"
 
-#define MAX_CLINETS 500
 class Tcp : public Sock
 {
 public:

@@ -12,6 +12,7 @@ class Command;
 class CommandChannel;
 class EchoCommand;
 class RecvCommand;
+class NetStat;
 
 class CommandReceiver
 {
@@ -24,6 +25,8 @@ public:
     virtual int Recv() { ASSERT(0);return -1; }
     virtual int RecvPrivateCommand(std::shared_ptr<Command> private_command);
     virtual int SendPrivateCommand(){return 0;}
+
+    std::function<void(std::shared_ptr<Command>,std::shared_ptr<NetStat>)> OnStopped;
 
 protected:
     std::string argv_;

@@ -10,6 +10,7 @@
 #include <thread>
 #include <chrono>
 
+#include "sock.h"
 #include "command.h"
 #include "context2.h"
 #include "netsnoop.h"
@@ -17,6 +18,11 @@
 
 using namespace std::chrono;
 
+/**
+ * @brief run main command loop.
+ * 
+ * @return int if success return 0 else return -1
+ */
 int NetSnoopServer::Run()
 {
     int result;
@@ -28,16 +34,11 @@ int NetSnoopServer::Run()
     FD_ZERO(&write_fdsets);
 
     result = pipe(pipefd_);
-    ASSERT(result == 0);
+    ASSERT_RETURN(result == 0,-1,"create pipe failed.");
 
     result = StartListen();
-    ASSERT(result >= 0);
+    ASSERT_RETURN(result >= 0,-1,"start server error.");
 
-    context_->SetReadFd(pipefd_[0]);
-    LOGV("pipe fd: %d,%d\n", pipefd_[0], pipefd_[1]);
-
-    std::vector<int> elements_to_remove;
-    high_resolution_clock::time_point begin = high_resolution_clock::now();
     high_resolution_clock::time_point start, end;
     int64_t time_spend;
     while (true)
@@ -48,12 +49,13 @@ int NetSnoopServer::Run()
             {
                 end = high_resolution_clock::now();
                 time_spend = duration_cast<milliseconds>(end - start).count();
-                if(time_spend>0&&peer->GetTimeout()>0) peer->Timeout(time_spend);
+                if (time_spend > 0 && peer->GetTimeout() > 0)
+                    peer->Timeout(time_spend);
                 //ASSERT(result>=0);
             }
         }
 
-        result = AcceptNewCommand();
+        result = ProcessNextCommand();
         ASSERT(result == 0);
 
         memcpy(&read_fdsets, &context_->read_fds, sizeof(read_fdsets));
@@ -115,21 +117,15 @@ int NetSnoopServer::Run()
             LOGV("time out: %d\n", time_millseconds);
             continue;
         }
-        if (FD_ISSET(pipefd_[0], &read_fdsets))
+        if (FD_ISSET(command_sock_->GetFd(), &read_fdsets))
         {
-            int result;
-            std::string cmd(MAX_CMD_LENGTH, 0);
-            result = read(pipefd_[0], &cmd[0], cmd.length());
-            ASSERT(result > 0);
-            cmd.resize(result);
-            LOGV("Pipe read data: %s\n", cmd.c_str());
             result = AcceptNewCommand();
-            ASSERT(result == 0);
+            ASSERT_RETURN(result >= 0, -1, "command socket error.");
         }
         if (FD_ISSET(context_->control_fd, &read_fdsets))
         {
             result = AceeptNewConnect();
-            ASSERT(result > 0);
+            ASSERT_RETURN(result >= 0, -1, "listen socket error.");
         }
         //for (auto &peer : peers_)
         for (auto it = peers_.begin(); it != peers_.end();)
@@ -175,28 +171,34 @@ int NetSnoopServer::Run()
 
     return 0;
 }
+
 int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
 {
     std::unique_lock<std::mutex> lock(mtx);
     commands_.push(command);
-    LOGV("pushed cmd: %s\n", command->cmd.c_str());
-    return write(pipefd_[1], command->cmd.c_str(), command->cmd.length());
+    return 0;
 }
 
 int NetSnoopServer::StartListen()
 {
     int result;
-    result = listen_tcp_->Initialize();
+    result = listen_peers_sock_->Initialize();
     ASSERT(result >= 0);
-    result = listen_tcp_->Bind(option_->ip_local, option_->port);
+    result = listen_peers_sock_->Bind(option_->ip_local, option_->port);
     ASSERT(result >= 0);
-    result = listen_tcp_->Listen(MAX_CLINETS);
+    result = listen_peers_sock_->Listen(MAX_CLINETS);
     ASSERT(result >= 0);
 
     LOGW("listen on %s:%d\n", option_->ip_local, option_->port);
 
-    context_->control_fd = listen_tcp_->GetFd();
-    context_->SetReadFd(listen_tcp_->GetFd());
+    context_->control_fd = listen_peers_sock_->GetFd();
+    context_->SetReadFd(listen_peers_sock_->GetFd());
+
+    result = command_sock_->Initialize();
+    result = command_sock_->Bind(option_->ip_local, option_->port);
+    result = command_sock_->Listen(MAX_SENDERS);
+    ASSERT(result >= 0);
+    context_->SetReadFd(command_sock_->GetFd());
 
     if (OnServerStart)
         OnServerStart(this);
@@ -207,7 +209,7 @@ int NetSnoopServer::AceeptNewConnect()
 {
     int fd;
 
-    if ((fd = listen_tcp_->Accept()) <= 0)
+    if ((fd = listen_peers_sock_->Accept()) <= 0)
     {
         return -1;
     }
@@ -216,35 +218,74 @@ int NetSnoopServer::AceeptNewConnect()
     auto peer = std::make_shared<Peer>(tcp, context_);
     peer->OnAuthSuccess = OnAcceptNewPeer;
     peers_.push_back(peer);
-    return fd;
+    return 0;
 }
 
 int NetSnoopServer::AcceptNewCommand()
 {
-    std::unique_lock<std::mutex> lock(mtx);
-    auto command = commands_.front();
-    if (is_running_ || !command)
+    int result;
+    sockaddr_in peeraddr;
+    std::string cmd(MAX_CMD_LENGTH, 0);
+    result = command_sock_->RecvFrom(cmd, &peeraddr);
+    ASSERT_RETURN(result >= 0, -1);
+    cmd.resize(result);
+    auto command = CommandFactory::New(cmd);
+    if (command)
+    {
+        // use block send confident.
+        // echo received command to indicate sucess.
+        result = command_sock_->SendTo(cmd, &peeraddr);
+        ASSERT_RETURN(result >= 0, -1);
+        commands_.push(command);
+        LOGV("get cmd: %s\n", cmd.c_str());
+
+        result = ProcessNextCommand();
+        ASSERT(result == 0);
+    }
+    else
+    {
+        command_sock_->SendTo(CMD_ILLEGAL, &peeraddr);
+    }
+    return 0;
+}
+
+int NetSnoopServer::ProcessNextCommand()
+{
+    if (is_running_ || commands_.empty())
+    {
         return 0;
+    }
+    std::unique_lock<std::mutex> lock(mtx);
+    // when commands is empty, commands_.front() causes random segmentfault.
+    auto command = commands_.front();
     commands_.pop();
     lock.unlock();
 
     int result;
-    auto ready_peers = std::make_shared<std::list<std::shared_ptr<Peer>>>();
+    auto ready_peers = &ready_peers_;
     for (auto &peer : peers_)
     {
-        if(peer->IsReady())
+        if (peer->IsReady())
             ready_peers->push_back(peer);
     }
-    if(ready_peers->size()==0)
+
+    if (ready_peers->size() == 0)
     {
+        ASSERT(command->cmd.length() > 3);
         command->InvokeCallback(NULL);
+        while (commands_.size() > 0)
+        {
+            command = commands_.front();
+            commands_.pop();
+            command->InvokeCallback(NULL);
+        }
         LOGW("no client ready.\n");
         return 0;
     }
+    return 0;
     LOGW("start command: %s (peer count = %ld)\n", command->cmd.c_str(), ready_peers->size());
     auto count = std::make_shared<int>(ready_peers->size());
-    //auto copy_command = command->Clone();
-    // TODO: deal with multi thread sync
+
     for (auto &peer : *ready_peers)
     {
         result = peer->SetCommand(command);
@@ -267,6 +308,8 @@ int NetSnoopServer::AcceptNewCommand()
         result = peer->Start();
         ASSERT(result == 0);
         is_running_ = true;
+        return 0;
     }
-    return 0;
+
+    return -1;
 }

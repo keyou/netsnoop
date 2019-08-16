@@ -108,7 +108,7 @@ void RunTest(NetSnoopServer *server, int cmd_count)
             continue;
         }
         command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-            std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << stat->ToString() << std::endl;
+            std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << (stat ? stat->ToString() : "NULL") << std::endl;
             std::unique_lock<std::mutex> lock(mtx);
             j++;
             if (i == cmds.size())
@@ -122,16 +122,23 @@ void RunTest(NetSnoopServer *server, int cmd_count)
 
 void StartServer()
 {
-    NetSnoopServer server(g_option);
-    server.OnAcceptNewPeer = [&](Peer *peer) {
-        static int count = 0;
-        count++;
-        std::clog<<"peer connect: "<<count<<std::endl;
-    };
     auto thread = std::thread([&] {
         LOGV("start server.\n");
-        server.Run();
+        std::shared_ptr<NetSnoopServer> server = std::make_shared<NetSnoopServer>(g_option);
+        server->OnAcceptNewPeer = [&](Peer *peer) {
+            static int count = 0;
+            count++;
+            std::clog << "peer connect: " << count << std::endl;
+        };
+        server->Run();
     });
+    int result;
+    std::string ip = g_option->ip_remote;
+    int port = g_option->port;
+    Udp udp;
+    result = udp.Initialize();
+    udp.Connect(ip, port);
+
     while (true)
     {
         std::cout << "Press Enter to start." << std::endl;
@@ -142,9 +149,15 @@ void StartServer()
             i++;
             auto command = CommandFactory::New(cmd);
             command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << stat->ToString() << std::endl;
+                std::clog << "command finish: [" << i << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << (stat ? stat->ToString() : "NULL") << std::endl;
             });
-            server.PushCommand(command);
+            //server->PushCommand(command);
+            result = udp.Send(command->cmd.c_str(), command->cmd.length());
+            std::string cmd2(MAX_CMD_LENGTH, 0);
+            result = udp.Recv(&cmd2[0], cmd2.length());
+            ASSERT(result == cmd.length());
+            cmd2.resize(result);
+            LOGV("pushed cmd: %s\n", cmd2.c_str());
         }
     }
     thread.join();
@@ -156,9 +169,14 @@ void StartClients(int count, bool join)
     std::vector<std::thread> threads;
     for (int i = 0; i < count; i++)
     {
-        auto client_thread = std::thread([i]() {
-            NetSnoopClient client(g_option);
+        auto client_thread = std::thread([&, i]() {
             LOGV("init_client %d\n", i);
+            NetSnoopClient client(g_option);
+            client.OnStopped = [i](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
+                static int index = 0;
+                index++;
+                std::clog << "command finish: [" << index << "/" << cmds.size() << "] " << oldcommand->cmd << " >> " << (stat ? stat->ToString() : "NULL") << std::endl;
+            };
             client.Run();
         });
         threads.push_back(std::move(client_thread));
