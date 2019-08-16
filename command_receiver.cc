@@ -12,9 +12,7 @@ CommandReceiver::CommandReceiver(std::shared_ptr<CommandChannel> channel)
 
 int CommandReceiver::RecvPrivateCommand(std::shared_ptr<Command> command)
 {
-    LOGE("we don't expect to recv any private command.(%s)\n",command->cmd.c_str());
-    ASSERT(0);
-    return -1;
+    ASSERT_RETURN(0,-1,"CommandReceiver recv unexpected command: %s\n",command->cmd.c_str());
 }
 
 EchoCommandReceiver::EchoCommandReceiver(std::shared_ptr<CommandChannel> channel)

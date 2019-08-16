@@ -258,7 +258,9 @@ struct CommandChannel
 class Command
 {
 public:
-    Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false) {}
+    Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false) 
+    {
+    }
     void RegisterCallback(CommandCallback callback)
     {
         if (callback)
@@ -292,7 +294,10 @@ private:
 #define ECHO_DEFAULT_TIME 1
 #define ECHO_DEFAULT_SIZE 32
 #define ECHO_DEFAULT_SPEED 0
-
+/**
+ * @brief a main command, server send to client and client should echo
+ * 
+ */
 class EchoCommand : public Command
 {
 public:
@@ -356,6 +361,10 @@ private:
 #define RECV_DEFAULT_TIME 1
 #define RECV_DEFAULT_SIZE 1024 * 10
 #define RECV_DEFAULT_SPEED 0
+/**
+ * @brief a main command, server send data only and client recv only.
+ * 
+ */
 class RecvCommand : public Command
 {
 public:
@@ -410,6 +419,23 @@ private:
 //     typename(std::string cmd):Command(#name,cmd){}\
 // }
 
+/**
+ * @brief every client should response a ack command to a main command
+ * 
+ */
+class AckCommand : public Command
+{
+public:
+    AckCommand() : AckCommand("ack") {}
+    AckCommand(std::string cmd) : Command("ack", cmd) {}
+
+    DISALLOW_COPY_AND_ASSIGN(AckCommand);
+};
+
+/**
+ * @brief notify client the command has finished.
+ * 
+ */
 class StopCommand : public Command
 {
 public:
@@ -419,6 +445,10 @@ public:
     DISALLOW_COPY_AND_ASSIGN(StopCommand);
 };
 
+/**
+ * @brief send the test result to server
+ * 
+ */
 class ResultCommand : public Command
 {
 public:

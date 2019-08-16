@@ -17,7 +17,7 @@ void StartClients(int count, bool join);
 void StartServer();
 
 std::vector<std::string> cmds{
-    "echo interval 0",
+    "echo",
     "recv",
     "recv count 100 interval 1 size 1024",
     "recv count 10000 interval 0 size 1024",

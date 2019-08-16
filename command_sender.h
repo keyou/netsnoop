@@ -52,9 +52,10 @@ private:
     std::shared_ptr<Command> command_;
     bool is_stopping_;
     bool is_stopped_;
-    bool is_stop_command_send_;
     bool is_starting_;
     bool is_started_;
+    bool is_waiting_result_;
+    bool is_waiting_ack_;
 
     DISALLOW_COPY_AND_ASSIGN(CommandSender);
 };
@@ -64,8 +65,6 @@ class EchoCommandSender : public CommandSender
 public:
     EchoCommandSender(std::shared_ptr<CommandChannel> channel);
 
-    int OnSendCommand() override;
-    int OnRecvCommand(std::shared_ptr<Command> command) override;
     int SendData() override;
     int RecvData() override;
     int OnTimeout() override;
@@ -94,8 +93,6 @@ class RecvCommandSender : public CommandSender
 public:
     RecvCommandSender(std::shared_ptr<CommandChannel> channel);
     
-    int OnSendCommand() override;
-    int OnRecvCommand(std::shared_ptr<Command> command) override;
     int SendData() override;
     int RecvData() override;
     int OnTimeout() override;

@@ -39,21 +39,21 @@ private:
 #endif // _DEBUG
 
 #ifdef _DEBUG
-    #define ASSERT(expr,...) assert(expr)
-    #define ASSERT_RETURN(expr,...) ASSERT(expr,__VA_ARGS__)
+    #define ASSERT(expr) assert(expr)
+    //#define ASSERT_RETURN(expr,...) ASSERT(expr,__VA_ARGS__)
 #else // NO _DEBUG
     #define ASSERT(expr) {if(!(expr)) {LOGE("assert failed: " #expr "\n");}}
-    #define __ASSERT_RETURN1(expr) {ASSERT(expr);return;}
-    #define __ASSERT_RETURN2(expr,result) {ASSERT(expr);if(!(expr)){return (result);}}
-    #define __ASSERT_RETURN3(expr,result,msg) {ASSERT(expr);if(!(expr)) {LOGE(msg); return (result);}}
-    #define __ASSERT_RETURN4(expr,result,msg,arg1) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1); return (result);}}
-    #define __ASSERT_RETURN5(expr,result,msg,arg1,arg2) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1,arg2); return (result);}}
-    #define __ASSERT_RETURN6(expr,result,msg,arg1,arg2,arg3) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1,arg2,arg3); return (result);}}
-
-    #define __ASSERT_RETURN_SELECT(arg1,arg2,arg3,arg4,arg5,arg6,arg7,...)  arg7
-    #define __ASSERT_RETURN(...) __ASSERT_RETURN_SELECT(__VA_ARGS__,__ASSERT_RETURN6,__ASSERT_RETURN5,__ASSERT_RETURN4,__ASSERT_RETURN3,__ASSERT_RETURN2,__ASSERT_RETURN1 )
-    #define ASSERT_RETURN(...) __ASSERT_RETURN(__VA_ARGS__)(__VA_ARGS__)
 #endif //_DEBUG
+#define __ASSERT_RETURN1(expr) {ASSERT(expr);return;}
+#define __ASSERT_RETURN2(expr,result) {ASSERT(expr);if(!(expr)){return (result);}}
+#define __ASSERT_RETURN3(expr,result,msg) {ASSERT(expr);if(!(expr)) {LOGE(msg); return (result);}}
+#define __ASSERT_RETURN4(expr,result,msg,arg1) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1); return (result);}}
+#define __ASSERT_RETURN5(expr,result,msg,arg1,arg2) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1,arg2); return (result);}}
+#define __ASSERT_RETURN6(expr,result,msg,arg1,arg2,arg3) {ASSERT(expr);if(!(expr)) {LOGE(msg,arg1,arg2,arg3); return (result);}}
+
+#define __ASSERT_RETURN_SELECT(arg1,arg2,arg3,arg4,arg5,arg6,arg7,...)  arg7
+#define __ASSERT_RETURN(...) __ASSERT_RETURN_SELECT(__VA_ARGS__,__ASSERT_RETURN6,__ASSERT_RETURN5,__ASSERT_RETURN4,__ASSERT_RETURN3,__ASSERT_RETURN2,__ASSERT_RETURN1 )
+#define ASSERT_RETURN(...) __ASSERT_RETURN(__VA_ARGS__)(__VA_ARGS__)
 
 #define EXPORT
 

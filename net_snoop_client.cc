@@ -118,12 +118,15 @@ int NetSnoopClient::RecvCommand()
     if(receiver_ && command->is_private)
     {
         auto stop_command = std::dynamic_pointer_cast<StopCommand>(command);
-        if(!stop_command)
+        if(stop_command)
         {
-            return receiver_->RecvPrivateCommand(command);
+            return receiver_->Stop();    
         }
-        return receiver_->Stop();
+        return receiver_->RecvPrivateCommand(command);
     }
+    auto ack_command = std::make_shared<AckCommand>();
+    result = control_sock_->Send(ack_command->cmd.c_str(),ack_command->cmd.length());
+    ASSERT_RETURN(result>0,ERR_DEFAULT,"send ack command error.");
 
     auto channel = std::shared_ptr<CommandChannel>(new CommandChannel{
         command,context_,control_sock_,data_sock_
