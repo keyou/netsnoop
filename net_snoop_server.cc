@@ -35,6 +35,7 @@ int NetSnoopServer::Run()
 
     result = pipe(pipefd_);
     ASSERT_RETURN(result == 0,-1,"create pipe failed.");
+    context_->SetReadFd(pipefd_[0]);
 
     result = StartListen();
     ASSERT_RETURN(result >= 0,-1,"start server error.");
@@ -117,17 +118,17 @@ int NetSnoopServer::Run()
             LOGV("time out: %d\n", time_millseconds);
             continue;
         }
-        if (FD_ISSET(command_sock_->GetFd(), &read_fdsets))
+        if (FD_ISSET(pipefd_[0], &read_fdsets))
         {
             result = AcceptNewCommand();
-            ASSERT_RETURN(result >= 0, -1, "command socket error.");
+            ASSERT_RETURN(result >= 0, -1, "accept new command error.");
         }
         if (FD_ISSET(context_->control_fd, &read_fdsets))
         {
             result = AceeptNewConnect();
-            ASSERT_RETURN(result >= 0, -1, "listen socket error.");
+            ASSERT_RETURN(result >= 0, -1, "accept new connect error.");
         }
-        //for (auto &peer : peers_)
+        // process clients
         for (auto it = peers_.begin(); it != peers_.end();)
         {
             result = 0;
@@ -163,6 +164,8 @@ int NetSnoopServer::Run()
                 }
                 peer->Stop();
                 it = peers_.erase(it);
+                if(OnClientDisconnect)
+                    OnClientDisconnect(peer.get());
             }
             else
                 it++;
@@ -174,8 +177,12 @@ int NetSnoopServer::Run()
 
 int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
 {
+    int result;
     std::unique_lock<std::mutex> lock(mtx);
+    ASSERT_RETURN(command,-1);
     commands_.push(command);
+    result = write(pipefd_[1],command->cmd.c_str(),command->cmd.length());
+    ASSERT(result>0);
     return 0;
 }
 
@@ -194,11 +201,11 @@ int NetSnoopServer::StartListen()
     context_->control_fd = listen_peers_sock_->GetFd();
     context_->SetReadFd(listen_peers_sock_->GetFd());
 
-    result = command_sock_->Initialize();
-    result = command_sock_->Bind(option_->ip_local, option_->port);
-    result = command_sock_->Listen(MAX_SENDERS);
-    ASSERT(result >= 0);
-    context_->SetReadFd(command_sock_->GetFd());
+    // result = command_sock_->Initialize();
+    // result = command_sock_->Bind(option_->ip_local, option_->port);
+    // result = command_sock_->Listen(MAX_SENDERS);
+    // ASSERT(result >= 0);
+    // context_->SetReadFd(command_sock_->GetFd());
 
     if (OnServerStart)
         OnServerStart(this);
@@ -224,29 +231,11 @@ int NetSnoopServer::AceeptNewConnect()
 int NetSnoopServer::AcceptNewCommand()
 {
     int result;
-    sockaddr_in peeraddr;
-    std::string cmd(MAX_CMD_LENGTH, 0);
-    result = command_sock_->RecvFrom(cmd, &peeraddr);
-    ASSERT_RETURN(result >= 0, -1);
+    std::string cmd(MAX_CMD_LENGTH,0);
+    result = read(pipefd_[0],&cmd[0],cmd.length());
+    ASSERT_RETURN(result>0,-1);
     cmd.resize(result);
-    auto command = CommandFactory::New(cmd);
-    if (command)
-    {
-        // use block send confident.
-        // echo received command to indicate sucess.
-        result = command_sock_->SendTo(cmd, &peeraddr);
-        ASSERT_RETURN(result >= 0, -1);
-        commands_.push(command);
-        LOGV("get cmd: %s\n", cmd.c_str());
-
-        result = ProcessNextCommand();
-        ASSERT(result == 0);
-    }
-    else
-    {
-        command_sock_->SendTo(CMD_ILLEGAL, &peeraddr);
-    }
-    return 0;
+    return ProcessNextCommand();
 }
 
 int NetSnoopServer::ProcessNextCommand()
@@ -282,7 +271,7 @@ int NetSnoopServer::ProcessNextCommand()
         LOGW("no client ready.\n");
         return 0;
     }
-    return 0;
+
     LOGW("start command: %s (peer count = %ld)\n", command->cmd.c_str(), ready_peers->size());
     auto count = std::make_shared<int>(ready_peers->size());
 
@@ -308,8 +297,7 @@ int NetSnoopServer::ProcessNextCommand()
         result = peer->Start();
         ASSERT(result == 0);
         is_running_ = true;
-        return 0;
     }
 
-    return -1;
+    return 0;
 }

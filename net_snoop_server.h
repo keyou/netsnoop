@@ -24,7 +24,8 @@ public:
     int Run();
     int PushCommand(std::shared_ptr<Command> command);
 
-    std::function<void(Peer* peer)> OnAcceptNewPeer;
+    std::function<void(Peer*)> OnAcceptNewPeer;
+    std::function<void(Peer*)> OnClientDisconnect;
     std::function<void(NetSnoopServer* server)> OnServerStart;
 
 private:

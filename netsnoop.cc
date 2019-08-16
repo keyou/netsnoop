@@ -24,19 +24,12 @@ int main(int argc, char *argv[])
     {
         if (!strcmp(argv[1], "-s"))
         {
+            NetSnoopServer server(g_option);
             auto t = std::thread([&]() {
                 LOGV("init_server\n");
-                NetSnoopServer server(g_option);
                 server.Run();
             });
             t.detach();
-
-            int result;
-            std::string ip = g_option->ip_remote;
-            int port = g_option->port;
-            Udp udp;
-            result = udp.Initialize();
-            udp.Connect(ip, port);
 
             std::string cmd;
             while (true)
@@ -52,12 +45,7 @@ int main(int argc, char *argv[])
                         std::clog << "command finish: " << oldcommand->cmd << " >> " << (stat ? stat->ToString() : "NULL") << std::endl;
                     });
                 }
-                result = udp.Send(command->cmd.c_str(), command->cmd.length());
-                std::string cmd2(MAX_CMD_LENGTH, 0);
-                result = udp.Recv(&cmd2[0], cmd2.length());
-                ASSERT(result == cmd.length());
-                cmd2.resize(result);
-                LOGV("pushed cmd: %s\n", cmd2.c_str());
+                server.PushCommand(command);
             }
         }
         else if (!strcmp(argv[1], "-c"))
