@@ -134,7 +134,7 @@ int RecvCommandReceiver::Stop()
 }
 int RecvCommandReceiver::Recv()
 {
-    ASSERT_RETURN(!running_,-1,"RecvCommandReceiver recv unexpeted.\n");
+    ASSERT_RETURN(running_,-1,"RecvCommandReceiver recv unexpeted.\n");
     LOGV("RecvCommandReceiver Recv.\n");
     int result;
     if ((result = data_sock_->Recv(buf_, sizeof(buf_))) <= 0)

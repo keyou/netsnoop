@@ -12,6 +12,9 @@
 #include "peer.h"
 #include "command_sender.h"
 
+// time wait to give a chance for client receive all data
+#define STOP_WAIT_TIME 500 
+
 CommandSender::CommandSender(std::shared_ptr<CommandChannel> channel)
     : timeout_(-1), control_sock_(channel->control_sock_), data_sock_(channel->data_sock_),
       context_(channel->context_), command_(channel->command_),
@@ -44,8 +47,10 @@ int CommandSender::Stop()
     context_->ClrWriteFd(data_sock_->GetFd());
     context_->ClrReadFd(data_sock_->GetFd());
     // allow to send stop command
-    context_->SetWriteFd(control_sock_->GetFd());
-    timeout_ = -1;
+    //context_->SetWriteFd(control_sock_->GetFd());
+    //timeout_ = -1;
+    // wait to allow client receive all data
+    SetTimeout(STOP_WAIT_TIME);
     return 0;
 }
 
@@ -137,7 +142,14 @@ int CommandSender::Timeout(int timeout)
     ASSERT(timeout > 0);
     timeout_ -= timeout;
     if (timeout_ <= 0)
-        return OnTimeout();
+    {
+        if(is_stopping_)
+        {
+            // allow to send stop command
+            context_->SetWriteFd(control_sock_->GetFd());
+        }
+        else return OnTimeout();
+    }
     return 0;
 }
 
