@@ -67,7 +67,7 @@ void StartClient()
 {
     NetSnoopClient client(g_option);
     client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
-        LOGD << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL");
+        std::clog << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") <<std::endl;
     };
     auto t = std::thread([&client]() {
         LOGVP("client run.");
@@ -118,7 +118,7 @@ void StartServer()
         if (command)
         {
             command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                LOGI << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL");
+                std::clog << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL");
             });
         }
         server.PushCommand(command);

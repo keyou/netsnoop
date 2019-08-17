@@ -196,7 +196,7 @@ int NetSnoopServer::StartListen()
     result = listen_peers_sock_->Listen(MAX_CLINETS);
     ASSERT(result >= 0);
 
-    LOGWP("listen on %s:%d", option_->ip_local, option_->port);
+    LOGDP("listen on %s:%d", option_->ip_local, option_->port);
 
     context_->control_fd = listen_peers_sock_->GetFd();
     context_->SetReadFd(listen_peers_sock_->GetFd());
