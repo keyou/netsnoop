@@ -46,15 +46,7 @@ public:
             out_ = &std::cout;
             *out_<<"[INF]";
         }
-    }
-    Logger &operator<<(const std::string &log)
-    {
-        *out_<<log;
-        return *this;
-    }
 
-    Logger& Print(const char* fmt,...)
-    {
         using namespace std::chrono;
 
         auto tp = high_resolution_clock::now();
@@ -66,7 +58,17 @@ public:
         }
 
         *out_<<"["<<std::this_thread::get_id()<<"] ";
-        
+    }
+    Logger &operator<<(const std::string &log)
+    {
+        *out_<<log;
+        return *this;
+    }
+
+    Logger& Print(const char* fmt,...)
+    {
+        char buf[1024]={0};
+
         va_list args;
         va_start(args, fmt);
         vsprintf(buf,fmt,args);
@@ -86,13 +88,14 @@ private:
 
 #define TAG "NETSNOOP"
 #ifdef _DEBUG
-    #define LOGV(...) Logger(LLVERBOSE).Print(__VA_ARGS__);
-    #define LOGW(...) Logger(LLWARN).Print(__VA_ARGS__);
-    #define LOGE(...) Logger(LLERROR).Print(__VA_ARGS__);
+    #define LOG(level) Logger(level)
+    #define LOGV(...) Logger(LLVERBOSE).Print(__VA_ARGS__)
+    #define LOGW(...) Logger(LLWARN).Print(__VA_ARGS__)
+    #define LOGE(...) Logger(LLERROR).Print(__VA_ARGS__)
 #else // NO _DEBUG
-    #define LOGV(...) //Logger(LLVERBOSE).Print(__VA_ARGS__);
-    #define LOGW(...) Logger(LLWARN).Print(__VA_ARGS__);
-    #define LOGE(...) Logger(LLERROR).Print(__VA_ARGS__);
+    #define LOGV(...) //Logger(LLVERBOSE).Print(__VA_ARGS__)
+    #define LOGW(...) Logger(LLWARN).Print(__VA_ARGS__)
+    #define LOGE(...) Logger(LLERROR).Print(__VA_ARGS__)
 #endif // _DEBUG
 
 #ifdef _DEBUG
