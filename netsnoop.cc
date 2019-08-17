@@ -16,7 +16,12 @@ int main(int argc, char *argv[])
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
 
-    if (argc > 2)
+    if(argc>2)
+    {
+        g_option->port = atoi(argv[2]);
+    }
+
+    if (argc > 3)
     {
         strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote));
         strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local));

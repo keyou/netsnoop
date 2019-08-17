@@ -273,17 +273,25 @@ int NetSnoopServer::ProcessNextCommand()
     }
 
     LOGW("start command: %s (peer count = %ld)", command->cmd.c_str(), ready_peers->size());
-    auto count = std::make_shared<int>(ready_peers->size());
-    auto stat = std::make_shared<NetStat>();
-
+    auto peers_count = std::make_shared<int>(ready_peers->size());
+    auto peers_failed = std::make_shared<int>(0);
+    
     for (auto &peer : *ready_peers)
     {
         result = peer->SetCommand(command);
         ASSERT(result == 0);
-        peer->OnStopped = [&, command, ready_peers, count,stat](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
+        peer->OnStopped = [&, command, ready_peers, peers_count,peers_failed](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
-            LOGV("stop command (%ld/%d): %s (%s)", (*count - ready_peers->size()), *count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
-            if(netstat) *stat+=*netstat;
+            LOGV("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            if(netstat)
+            {
+                if(!netstat_) netstat_ = netstat;
+                else *netstat_+=*netstat;
+            }
+            else
+            {
+                (*peers_failed)++;
+            }
             if (ready_peers->size() > 0)
             {
                 //release lambdma resource
@@ -292,8 +300,10 @@ int NetSnoopServer::ProcessNextCommand()
             }
             is_running_ = false;
             LOGW("finish command: %s (%s)", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            netstat_->peers_count = *peers_count;
+            netstat_->peers_failed = *peers_failed;
             //TODO: stat all netstat
-            command->InvokeCallback(stat);
+            command->InvokeCallback(netstat_);
             p->OnStopped = NULL;
         };
         result = peer->Start();

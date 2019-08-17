@@ -156,6 +156,17 @@ struct NetStat
     long long min_recv_speed;
     long long max_recv_speed;
 
+    /**
+     * @brief the peers count when the command start
+     * 
+     */
+    int peers_count;
+    /**
+     * @brief the peers count without the faled peers.
+     * 
+     */
+    int peers_failed;
+
     double errors;
     int retransmits;
 
@@ -182,6 +193,8 @@ struct NetStat
         RLL(recv_speed);
         RLL(max_recv_speed);
         RLL(min_recv_speed);
+        RI(peers_count);
+        RI(peers_failed);
 #undef RI
 #undef RLL
 #undef RF
@@ -210,6 +223,8 @@ struct NetStat
         W(recv_bytes);
         W(send_time);
         W(recv_time);
+        W(peers_count);
+        W(peers_failed);
 #undef W
         return ss.str();
     }
@@ -236,6 +251,8 @@ struct NetStat
         A(recv_bytes);
         AI(send_time);
         AI(recv_time);
+        A(peers_count);
+        A(peers_failed);
         #undef AI
         #undef AF
         return *this;

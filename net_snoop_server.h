@@ -41,6 +41,7 @@ private:
     std::shared_ptr<Udp> command_sock_;
     std::queue<std::shared_ptr<Command>> commands_;
     std::list<std::shared_ptr<Peer>> ready_peers_;
+    std::shared_ptr<NetStat> netstat_;
     bool is_running_;
     std::mutex mtx;
     int pipefd_[2];
