@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
         StartClients(MAX_CLIENT_COUNT, false);
     };
     auto server_thread = std::thread([&server] {
-        LOGV("init_server\n");
+        LOGV("init_server");
         server.Run();
     });
     server_thread.detach();
@@ -104,7 +104,7 @@ void RunTest(NetSnoopServer *server, int cmd_count)
         auto command = CommandFactory::New(cmd);
         if (!command)
         {
-            LOGE("error command: %s\n", cmd.c_str());
+            LOGE("error command: %s", cmd.c_str());
             continue;
         }
         command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
@@ -139,10 +139,10 @@ void StartServer()
         std::clog << "peer disconnect: [" << count <<"]: "<<ip.c_str()<<":"<<port<< std::endl;
     };
     auto thread = std::thread([&] {
-        LOGV("start server.\n");
+        LOGV("start server.");
         server->Run();
     });
-
+    
     while (true)
     {
         std::cout << "Press Enter to start." << std::endl;
@@ -163,14 +163,14 @@ void StartServer()
 
 void StartClients(int count, bool join)
 {
-    LOGV("start clients.(count=%d)\n", count);
+    LOGV("start clients.(count=%d)", count);
     std::mutex mtx;
 
     std::vector<std::thread> threads;
     for (int i = 0; i < count; i++)
     {
         auto client_thread = std::thread([&, i]() {
-            LOGV("init_client %d\n", i);
+            LOGV("init_client %d", i);
             NetSnoopClient client(g_option);
             client.OnStopped = [&,i](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
                 std::unique_lock<std::mutex> lock(mtx);

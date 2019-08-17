@@ -12,7 +12,7 @@ CommandReceiver::CommandReceiver(std::shared_ptr<CommandChannel> channel)
 
 int CommandReceiver::RecvPrivateCommand(std::shared_ptr<Command> command)
 {
-    ASSERT_RETURN(0,-1,"CommandReceiver recv unexpected command: %s\n",command->cmd.c_str());
+    ASSERT_RETURN(0,-1,"CommandReceiver recv unexpected command: %s",command->cmd.c_str());
 }
 
 EchoCommandReceiver::EchoCommandReceiver(std::shared_ptr<CommandChannel> channel)
@@ -23,17 +23,17 @@ EchoCommandReceiver::EchoCommandReceiver(std::shared_ptr<CommandChannel> channel
 
 int EchoCommandReceiver::Start()
 {
-    ASSERT_RETURN(!running_,-1,"EchoCommandReceiver start unexpeted.\n");
+    ASSERT_RETURN(!running_,-1,"EchoCommandReceiver start unexpeted.");
     running_ = true;
-    LOGV("EchoCommandReceiver Start.\n");
+    LOGV("EchoCommandReceiver Start.");
     context_->SetReadFd(context_->data_fd);
     return 0;
 }
 int EchoCommandReceiver::Stop()
 {
-    ASSERT_RETURN(running_,-1,"EchoCommandReceiver stop unexpeted.\n");
+    ASSERT_RETURN(running_,-1,"EchoCommandReceiver stop unexpeted.");
     running_ = false;
-    LOGV("EchoCommandReceiver Stop.\n");
+    LOGV("EchoCommandReceiver Stop.");
     context_->ClrReadFd(context_->data_fd);
     context_->ClrWriteFd(context_->data_fd);
     // allow send result
@@ -42,8 +42,8 @@ int EchoCommandReceiver::Stop()
 }
 int EchoCommandReceiver::Send()
 {
-    ASSERT_RETURN(running_,-1,"EchoCommandReceiver send unexpeted.\n");
-    LOGV("EchoCommandReceiver Send.\n");
+    ASSERT_RETURN(running_,-1,"EchoCommandReceiver send unexpeted.");
+    LOGV("EchoCommandReceiver Send.");
     int result=0;
     context_->ClrWriteFd(context_->data_fd);
     ASSERT(data_queue_.size()>0);
@@ -63,8 +63,8 @@ int EchoCommandReceiver::Send()
 }
 int EchoCommandReceiver::Recv()
 {
-    ASSERT_RETURN(running_,-1,"EchoCommandReceiver recv unexpeted.\n");
-    LOGV("EchoCommandReceiver Recv.\n");
+    ASSERT_RETURN(running_,-1,"EchoCommandReceiver recv unexpeted.");
+    LOGV("EchoCommandReceiver Recv.");
     int result;
     ASSERT(running_);
     std::string buf(1024*64,0);
@@ -87,7 +87,7 @@ int EchoCommandReceiver::SendPrivateCommand()
 
     if(data_queue_.size()>0)
     {
-        LOGW("echo stop: drop %ld data.\n",data_queue_.size());
+        LOGW("echo stop: drop %ld data.",data_queue_.size());
         ASSERT(0);
     }
 
@@ -111,9 +111,9 @@ RecvCommandReceiver::RecvCommandReceiver(std::shared_ptr<CommandChannel> channel
 
 int RecvCommandReceiver::Start()
 {
-    ASSERT_RETURN(!running_,-1,"RecvCommandReceiver start unexpeted.\n");
+    ASSERT_RETURN(!running_,-1,"RecvCommandReceiver start unexpeted.");
     running_ = true;
-    LOGV("RecvCommandReceiver Start.\n");
+    LOGV("RecvCommandReceiver Start.");
     context_->SetReadFd(context_->data_fd);
     start_ = high_resolution_clock::now();
     begin_ = high_resolution_clock::now();
@@ -122,9 +122,9 @@ int RecvCommandReceiver::Start()
 }
 int RecvCommandReceiver::Stop()
 {
-    ASSERT_RETURN(running_,-1,"RecvCommandReceiver stop unexpeted.\n");
+    ASSERT_RETURN(running_,-1,"RecvCommandReceiver stop unexpeted.");
     running_ = false;
-    LOGV("RecvCommandReceiver Stop.\n");
+    LOGV("RecvCommandReceiver Stop.");
     context_->ClrReadFd(context_->data_fd);
     context_->ClrWriteFd(context_->data_fd);
     //context_->ClrReadFd(context_->control_fd);
@@ -134,8 +134,8 @@ int RecvCommandReceiver::Stop()
 }
 int RecvCommandReceiver::Recv()
 {
-    ASSERT_RETURN(running_,-1,"RecvCommandReceiver recv unexpeted.\n");
-    LOGV("RecvCommandReceiver Recv.\n");
+    ASSERT_RETURN(running_,-1,"RecvCommandReceiver recv unexpeted.");
+    LOGV("RecvCommandReceiver Recv.");
     int result;
     if ((result = data_sock_->Recv(buf_, sizeof(buf_))) <= 0)
     {

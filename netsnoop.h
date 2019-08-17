@@ -5,44 +5,101 @@
 #include <iostream>
 #include <cassert>
 #include <thread>
+#include <chrono>
+#include <cstdarg>
+#include <stdarg.h>
+#include <sstream>
+
+enum LogLevel
+{
+    LLVERBOSE = 0,
+    LLDEBUG = 1,
+    LLINFO = 2,
+    LLWARN = 3,
+    LLERROR = 4
+};
 
 class Logger
 {
 public:
-    Logger(const std::string &level)
+    Logger(LogLevel level=LLDEBUG)
     {
-        level_ = level;
+        switch (level)
+        {
+        case LLVERBOSE:
+            out_ = &std::cout;
+            *out_<<"[VER]";
+            break;
+        case LLDEBUG:
+            out_ = &std::cout;
+            *out_<<"[DBG]";
+            break;
+        case LLWARN:
+            out_ = &std::cout;
+            *out_<<"[WAR]";
+            break;
+        case LLERROR:
+            out_ = &std::cerr;
+            *out_<<"[ERR]";
+            break;
+        default:
+            out_ = &std::cout;
+            *out_<<"[INF]";
+        }
     }
     Logger &operator<<(const std::string &log)
     {
-        log_ += log;
+        *out_<<log;
+        return *this;
     }
 
-private:
-    std::string level_;
-    std::string log_;
+    Logger& Print(const char* fmt,...)
+    {
+        using namespace std::chrono;
+
+        auto tp = high_resolution_clock::now();
+        auto tm = system_clock::to_time_t(tp);
+        auto ms = duration_cast<milliseconds>(tp.time_since_epoch()).count()%1000;
+        char buf[1024]={0};
+        if (std::strftime(buf, sizeof(buf), "%m/%d %T", std::localtime(&tm))) {
+            *out_ << "[" << buf <<"."<< ms <<"]";
+        }
+
+        *out_<<"["<<std::this_thread::get_id()<<"] ";
+        
+        va_list args;
+        va_start(args, fmt);
+        vsprintf(buf,fmt,args);
+        va_end(args);
+
+        *out_<<buf;
+        return *this;
+    }
+    
     ~Logger()
     {
-        std::clog << log_ << std::endl;
+        *out_ << std::endl;
     }
+private:
+    std::ostream* out_;
 };
 
 #define TAG "NETSNOOP"
 #ifdef _DEBUG
-    #define LOGV(...) {std::cout<<"["<<std::this_thread::get_id()<<"]";fprintf(stdout, "[LOGV] " __VA_ARGS__);}
-    #define LOGW(...) {std::cout<<"["<<std::this_thread::get_id()<<"]";fprintf(stdout, "[WARN] " __VA_ARGS__);}
-    #define LOGE(...) {std::cerr<<"["<<std::this_thread::get_id()<<"]";fprintf(stderr, "[ERRO] " __VA_ARGS__);}
+    #define LOGV(...) Logger(LLVERBOSE).Print(__VA_ARGS__);
+    #define LOGW(...) Logger(LLWARN).Print(__VA_ARGS__);
+    #define LOGE(...) Logger(LLERROR).Print(__VA_ARGS__);
 #else // NO _DEBUG
-    #define LOGV(...) //{std::cout<<"["<<std::this_thread::get_id()<<"]";fprintf(stdout, "[LOGV] " __VA_ARGS__);}
-    #define LOGW(...) {std::cout<<"["<<std::this_thread::get_id()<<"]";fprintf(stdout, "[WARN] " __VA_ARGS__);}
-    #define LOGE(...) {std::cerr<<"["<<std::this_thread::get_id()<<"]";fprintf(stderr, "[ERRO] " __VA_ARGS__);}
+    #define LOGV(...) //Logger(LLVERBOSE).Print(__VA_ARGS__);
+    #define LOGW(...) Logger(LLWARN).Print(__VA_ARGS__);
+    #define LOGE(...) Logger(LLERROR).Print(__VA_ARGS__);
 #endif // _DEBUG
 
 #ifdef _DEBUG
     #define ASSERT(expr) assert(expr)
     //#define ASSERT_RETURN(expr,...) ASSERT(expr,__VA_ARGS__)
 #else // NO _DEBUG
-    #define ASSERT(expr) {if(!(expr)) {LOGE("assert failed: " #expr "\n");}}
+    #define ASSERT(expr) {if(!(expr)) {LOGE("assert failed: " #expr "");}}
 #endif //_DEBUG
 #define __ASSERT_RETURN1(expr) {ASSERT(expr);return;}
 #define __ASSERT_RETURN2(expr,result) {ASSERT(expr);if(!(expr)){return (result);}}

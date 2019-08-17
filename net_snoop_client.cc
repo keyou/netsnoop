@@ -24,13 +24,13 @@ int NetSnoopClient::Run()
         memcpy(&read_fds, &context->read_fds, sizeof(read_fds));
         memcpy(&write_fds, &context->write_fds, sizeof(write_fds));
 
-        LOGV("client[%d] selecting\n",context->control_fd);
+        LOGV("client[%d] selecting",context->control_fd);
         result = select(context->max_fd + 1, &read_fds, &write_fds, NULL, NULL);
-        LOGV("client[%d] selected\n",context->control_fd);
+        LOGV("client[%d] selected",context->control_fd);
         ASSERT(result>0);
         if (result <= 0)
         {
-            LOGE("select error: %d,%d\n", result, errno);
+            LOGE("select error: %d,%d", result, errno);
             return -1;
         }
         if (FD_ISSET(context->data_fd, &read_fds))
@@ -47,7 +47,7 @@ int NetSnoopClient::Run()
         {
             if ((result = SendCommand()) < 0)
             {
-                LOGE("client send cmd error.\n");
+                LOGE("client send cmd error.");
                 break;
             }
         }
@@ -55,12 +55,12 @@ int NetSnoopClient::Run()
         {
             if ((result = RecvCommand()) == ERR_DEFAULT)
             {
-                LOGE("client recv cmd error.\n");
+                LOGE("client recv cmd error.");
                 break;
             }
             else if(result == ERR_SOCKET_CLOSED)
             {
-                LOGW("client control socket closed.\n");
+                LOGW("client control socket closed.");
                 break;
             }
         }

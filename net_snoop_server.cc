@@ -73,7 +73,7 @@ int NetSnoopServer::Run()
                 timeout.tv_nsec = (time_millseconds % 1000) * 1000 * 1000;
                 timeout_ptr = &timeout;
                 start = high_resolution_clock::now();
-                LOGV("Set timeout: %ld\n", timeout.tv_sec * 1000 + timeout.tv_nsec / 1000 / 1000);
+                LOGV("Set timeout: %ld", timeout.tv_sec * 1000 + timeout.tv_nsec / 1000 / 1000);
             }
         }
 
@@ -82,40 +82,40 @@ int NetSnoopServer::Run()
         {
             if (FD_ISSET(i, &context_->read_fds))
             {
-                LOGV("want read: %d\n", i);
+                LOGV("want read: %d", i);
             }
             if (FD_ISSET(i, &context_->write_fds))
             {
-                LOGV("want write: %d\n", i);
+                LOGV("want write: %d", i);
             }
         }
 #endif
-        LOGV("selecting...\n");
+        LOGV("selecting...");
         result = pselect(context_->max_fd + 1, &read_fdsets, &write_fdsets, NULL, timeout_ptr, NULL);
-        LOGV("selected---------------\n");
+        LOGV("selected---------------");
 #ifdef _DEBUG
         for (int i = 0; i < context_->max_fd + 1; i++)
         {
             if (FD_ISSET(i, &read_fdsets))
             {
-                LOGV("can read: %d\n", i);
+                LOGV("can read: %d", i);
             }
             if (FD_ISSET(i, &write_fdsets))
             {
-                LOGV("can write: %d\n", i);
+                LOGV("can write: %d", i);
             }
         }
 #endif
         if (result < 0)
         {
             // Todo: close socket
-            LOGE("select error: %s(errno: %d)\n", strerror(errno), errno);
+            LOGE("select error: %s(errno: %d)", strerror(errno), errno);
             return -1;
         }
 
         if (result == 0)
         {
-            LOGV("time out: %d\n", time_millseconds);
+            LOGV("time out: %d", time_millseconds);
             continue;
         }
         if (FD_ISSET(pipefd_[0], &read_fdsets))
@@ -154,7 +154,7 @@ int NetSnoopServer::Run()
             }
             if (result < 0)
             {
-                LOGW("client removed: %s\n", peer->GetCookie().c_str());
+                LOGW("client removed: %s", peer->GetCookie().c_str());
                 context_->ClrReadFd(peer->GetControlFd());
                 context_->ClrWriteFd(peer->GetControlFd());
                 if (peer->GetDataFd() > 0)
@@ -196,7 +196,7 @@ int NetSnoopServer::StartListen()
     result = listen_peers_sock_->Listen(MAX_CLINETS);
     ASSERT(result >= 0);
 
-    LOGW("listen on %s:%d\n", option_->ip_local, option_->port);
+    LOGW("listen on %s:%d", option_->ip_local, option_->port);
 
     context_->control_fd = listen_peers_sock_->GetFd();
     context_->SetReadFd(listen_peers_sock_->GetFd());
@@ -268,11 +268,11 @@ int NetSnoopServer::ProcessNextCommand()
             commands_.pop();
             command->InvokeCallback(NULL);
         }
-        LOGW("no client ready.\n");
+        LOGW("no client ready.");
         return 0;
     }
 
-    LOGW("start command: %s (peer count = %ld)\n", command->cmd.c_str(), ready_peers->size());
+    LOGW("start command: %s (peer count = %ld)", command->cmd.c_str(), ready_peers->size());
     auto count = std::make_shared<int>(ready_peers->size());
     auto stat = std::make_shared<NetStat>();
 
@@ -282,7 +282,7 @@ int NetSnoopServer::ProcessNextCommand()
         ASSERT(result == 0);
         peer->OnStopped = [&, command, ready_peers, count,stat](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
-            LOGV("stop command (%ld/%d): %s (%s)\n", (*count - ready_peers->size()), *count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            LOGV("stop command (%ld/%d): %s (%s)", (*count - ready_peers->size()), *count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             if(netstat) *stat+=*netstat;
             if (ready_peers->size() > 0)
             {
@@ -291,7 +291,7 @@ int NetSnoopServer::ProcessNextCommand()
                 return;
             }
             is_running_ = false;
-            LOGW("finish command: %s (%s)\n", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            LOGW("finish command: %s (%s)", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             //TODO: stat all netstat
             command->InvokeCallback(stat);
             p->OnStopped = NULL;

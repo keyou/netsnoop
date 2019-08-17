@@ -70,14 +70,14 @@ int Peer::Auth()
     std::string buf(1024, '\0');
     if ((result = control_sock_->Recv(&buf[0], buf.length())) <= 0)
     {
-        LOGE("Disconnect.\n");
+        LOGE("Disconnect.");
         return -1;
     }
     buf.resize(result);
 
     if (buf.rfind("cookie:", 0) != 0)
     {
-        LOGE("Bad client.\n");
+        LOGE("Bad client.");
         return -1;
     }
     cookie_ = buf;
@@ -101,7 +101,7 @@ int Peer::Auth()
 
     if (OnAuthSuccess)
         OnAuthSuccess(this);
-    LOGW("connect new client: %s:%d (%s)\n", ip.c_str(), port, cookie_.c_str());
+    LOGW("connect new client: %s:%d (%s)", ip.c_str(), port, cookie_.c_str());
     return 0;
 }
 

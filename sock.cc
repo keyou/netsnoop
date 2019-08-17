@@ -37,17 +37,17 @@
 int Sock::CreateSocket(int type, int protocol)
 {
     int sockfd;
-    LOGV("create socket.\n");
+    LOGV("create socket.");
     if ((sockfd = socket(AF_INET, type, protocol)) < 0)
     {
-        LOGE("create socket error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("create socket error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
 
     int opt = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
     {
-        LOGE("setsockopt SO_REUSEADDR error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("setsockopt SO_REUSEADDR error: %s(errno: %d)", strerror(errno), errno);
         close(sockfd);
         return -1;
     }
@@ -66,14 +66,14 @@ int Sock::Bind(int fd_, std::string ip, int port)
 
     if (inet_pton(AF_INET, ip.c_str(), &localaddr.sin_addr) <= 0)
     {
-        LOGE("inet_pton local error for %s\n", ip.c_str());
+        LOGE("inet_pton local error for %s", ip.c_str());
         return ERR_ILLEGAL_PARAM;
     }
 
-    LOGV("bind %s:%d\n", ip.c_str(), port);
+    LOGV("bind %s:%d", ip.c_str(), port);
     if (bind(fd_, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
     {
-        LOGE("bind error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("bind error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
     return 0;
@@ -92,14 +92,14 @@ int Sock::Connect(int fd_, std::string ip, int port)
 
     if (inet_pton(AF_INET, ip.c_str(), &remoteaddr.sin_addr) <= 0)
     {
-        LOGE("inet_pton remote error for %s\n", ip.c_str());
+        LOGE("inet_pton remote error for %s", ip.c_str());
         return ERR_ILLEGAL_PARAM;
     }
 
-    LOGV("connect %s:%d\n", ip.c_str(), port);
+    LOGV("connect %s:%d", ip.c_str(), port);
     if (connect(fd_, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
     {
-        LOGE("connect error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("connect error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
     return 0;
@@ -112,14 +112,14 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
     ssize_t result;
     if ((result = send(fd_, buf, size, 0)) < 0 || result != size)
     {
-        LOGE("send error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("send error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
 
 #ifdef _DEBUG
     char tmp[64] = {};
     strncpy(tmp, buf, sizeof(tmp));
-    LOGV("send(%ld): %s\n", result, tmp);
+    LOGV("send(%ld): %s", result, tmp);
 #endif // _DEBUG
     return result;
 }
@@ -133,16 +133,16 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
     {
         if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
         {
-            LOGE("recv error: %s(errno: %d)\n", strerror(errno), errno);
+            LOGE("recv error: %s(errno: %d)", strerror(errno), errno);
             return -1;
         }
-        LOGE("recv timeout.\n");
+        LOGE("recv timeout.");
         return ERR_TIMEOUT;
     }
 #ifdef _DEBUG
     char tmp[64] = {};
     strncpy(tmp, buf, sizeof(tmp));
-    LOGV("recv(%ld): %s\n", result, tmp);
+    LOGV("recv(%ld): %s", result, tmp);
 #endif // _DEBUG
     return result;
 }
@@ -202,7 +202,7 @@ int Sock::GetLocalAddress(int fd_, std::string &ip, int &port)
     socklen_t localaddr_length = sizeof(localaddr);
     if (getsockname(fd_, (sockaddr *)&localaddr, &localaddr_length) < 0)
     {
-        LOGE("getsockname error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("getsockname error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
     ip = inet_ntoa(localaddr.sin_addr);
@@ -217,7 +217,7 @@ int Sock::GetPeerAddress(int fd_, std::string &ip, int &port)
     socklen_t peeraddr_length = sizeof(peeraddr);
     if (getpeername(fd_, (sockaddr *)&peeraddr, &peeraddr_length) < 0)
     {
-        LOGE("getpeername error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("getpeername error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
     ip = inet_ntoa(peeraddr.sin_addr);
@@ -246,7 +246,7 @@ int Sock::StrToSockAddr(const std::string& ip,int port,sockaddr_in* sockaddr)
 
     if (inet_pton(AF_INET, ip.c_str(), &sockaddr->sin_addr) <= 0)
     {
-        LOGE("inet_pton remote error for %s\n", ip.c_str());
+        LOGE("inet_pton remote error for %s", ip.c_str());
         return ERR_ILLEGAL_PARAM;
     }
     return 0;
@@ -258,7 +258,7 @@ int Sock::GetSockAddr(const std::string &ip, in_addr *addr)
     hostent *record = gethostbyname(ip.c_str());
     if (record == NULL)
     {
-        LOGE("gethostbyname error: %s(errno: %d)\n", strerror(errno), errno);
+        LOGE("gethostbyname error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
     // TODO: in multi(100) thread,it crash here sometimes.
@@ -275,7 +275,7 @@ Sock::~Sock()
 {
     if (fd_ > 0)
     {
-        LOGV("close socket: fd = %d\n", fd_);
+        LOGV("close socket: fd = %d", fd_);
         close(fd_);
         fd_ = -1;
     }

@@ -44,7 +44,7 @@ void StartClient()
         std::clog << "client finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&client]() {
-        LOGV("init_client\n");
+        LOGV("init_client");
         client.Run();
     });
     t.join();
@@ -69,7 +69,7 @@ void StartServer()
         std::clog << "peer disconnect: [" << count << "]: " << ip.c_str() << ":" << port << std::endl;
     };
     auto t = std::thread([&]() {
-        LOGV("init_server\n");
+        LOGV("init_server");
         server.Run();
     });
     t.detach();
@@ -108,5 +108,5 @@ void StartServer()
 //         LOGE("IP_ADD_MEMBERSHIP error");
 //     }
 
-//     LOGV("multicast group joined\n");
+//     LOGV("multicast group joined");
 // }

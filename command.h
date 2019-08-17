@@ -44,7 +44,7 @@ public:
         ss >> name;
         if (Container().find(name) == Container().end())
         {
-            LOGE("illegal command: %s\n",cmd.c_str());
+            LOGE("illegal command: %s",cmd.c_str());
             return NULL;
         }
         while (ss >> key)
@@ -79,7 +79,7 @@ public:
     CommandRegister(const std::string &name, bool is_private) : name_(name), is_private_(is_private)
     {
         ASSERT(Container().find(name) == Container().end());
-        LOGV("register command: %s\n", name.c_str());
+        LOGV("register command: %s", name.c_str());
         Container()[name] = this;
     }
     std::shared_ptr<Command> NewCommand(const std::string &cmd, CommandArgs args) override
@@ -88,10 +88,10 @@ public:
         command->is_private = is_private_;
         if (command->ResolveArgs(args))
         {
-            LOGV("new command: %s:%s\n", name_.c_str(), cmd.c_str());
+            LOGV("new command: %s:%s", name_.c_str(), cmd.c_str());
             return command;
         }
-        LOGV("new command error: %s:%s\n", name_.c_str(), cmd.c_str());
+        LOGV("new command error: %s:%s", name_.c_str(), cmd.c_str());
         return NULL;
     }
 
@@ -327,7 +327,7 @@ public:
         }
         catch (const std::exception &e)
         {
-            LOGE("EchoCommand resolve args error: %s\n", e.what());
+            LOGE("EchoCommand resolve args error: %s", e.what());
         }
         return false;
     }
@@ -383,7 +383,7 @@ public:
         }
         catch (const std::exception &e)
         {
-            LOGE("RecvCommand resolve args error: %s\n", e.what());
+            LOGE("RecvCommand resolve args error: %s", e.what());
         }
         return false;
     }
