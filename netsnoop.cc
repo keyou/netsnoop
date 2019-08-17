@@ -10,21 +10,42 @@ void StartClient();
 void StartServer();
 
 auto g_option = std::make_shared<Option>();
+
+/**
+ * @brief usage: 
+ *      start server: netsnoop -s 0.0.0.0 4000 -vv
+ *      start client: netsnoop -c 127.0.0.1 4000 -vv
+ * 
+ */
 int main(int argc, char *argv[])
 {
+    if(argc < 2)
+    {
+        std::cout<< "usage: \n"
+                    "   start server: netsnoop -s 0.0.0.0 4000 -vv\n"
+                    "   start client: netsnoop -c 127.0.0.1 4000 -vv\n";
+        return 0;
+    }
+
+    Logger::SetGlobalLogLevel(LLINFO);
     strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
 
-    if(argc>2)
+    if (argc > 2)
     {
-        g_option->port = atoi(argv[2]);
+        strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote));
+        strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local));
     }
 
     if (argc > 3)
     {
-        strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote));
-        strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local));
+        g_option->port = atoi(argv[3]);
+    }
+
+    if (argc > 4)
+    {
+        Logger::SetGlobalLogLevel(LogLevel(LLERROR - strlen(argv[4]) + 1));
     }
 
     if (argc > 1)
@@ -46,10 +67,10 @@ void StartClient()
 {
     NetSnoopClient client(g_option);
     client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
-        std::clog << "client finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+        LOGD << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL");
     };
     auto t = std::thread([&client]() {
-        LOGV("init_client");
+        LOGVP("client run.");
         client.Run();
     });
     t.join();
@@ -59,22 +80,29 @@ void StartServer()
 {
     static int count = 0;
     NetSnoopServer server(g_option);
-    server.OnAcceptNewPeer = [&](Peer *peer) {
+    server.OnPeerConnected = [&](const Peer *peer) {
         count++;
         std::string ip;
         int port;
         peer->GetControlSock()->GetPeerAddress(ip, port);
-        std::clog << "peer connect: [" << count << "]: " << ip.c_str() << ":" << port << std::endl;
+        LOGD << "peer connect: [" << count << "]: " << ip.c_str() << ":" << port;
     };
-    server.OnClientDisconnect = [&](Peer *peer) {
+    server.OnPeerDisconnected = [&](const Peer *peer) {
         count--;
         std::string ip;
         int port;
         peer->GetControlSock()->GetPeerAddress(ip, port);
-        std::clog << "peer disconnect: [" << count << "]: " << ip.c_str() << ":" << port << std::endl;
+        LOGD << "peer disconnect: [" << count << "]: " << ip.c_str() << ":" << port;
+    };
+    server.OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
+        std::string ip;
+        int port;
+        peer->GetControlSock()->GetPeerAddress(ip, port);
+        LOGD << "peer stoped: (" << ip.c_str() << ":" << port << ") " << peer->GetCommand()->cmd.c_str()
+             << " || " << (netstat ? netstat->ToString() : "NULL");
     };
     auto t = std::thread([&]() {
-        LOGV("init_server");
+        LOGVP("server run.");
         server.Run();
     });
     t.detach();
@@ -90,7 +118,7 @@ void StartServer()
         if (command)
         {
             command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                std::clog << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+                LOGI << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL");
             });
         }
         server.PushCommand(command);
@@ -110,8 +138,8 @@ void StartServer()
 //     mreq.imr_interface.s_addr = htonl(INADDR_ANY); /* need way to change */
 //     if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == -1)
 //     {
-//         LOGE("IP_ADD_MEMBERSHIP error");
+//         LOGEP("IP_ADD_MEMBERSHIP error");
 //     }
 
-//     LOGV("multicast group joined");
+//     LOGVP("multicast group joined");
 // }

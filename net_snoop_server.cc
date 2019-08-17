@@ -73,7 +73,7 @@ int NetSnoopServer::Run()
                 timeout.tv_nsec = (time_millseconds % 1000) * 1000 * 1000;
                 timeout_ptr = &timeout;
                 start = high_resolution_clock::now();
-                LOGV("Set timeout: %ld", timeout.tv_sec * 1000 + timeout.tv_nsec / 1000 / 1000);
+                LOGVP("Set timeout: %ld", timeout.tv_sec * 1000 + timeout.tv_nsec / 1000 / 1000);
             }
         }
 
@@ -82,40 +82,40 @@ int NetSnoopServer::Run()
         {
             if (FD_ISSET(i, &context_->read_fds))
             {
-                LOGV("want read: %d", i);
+                LOGVP("want read: %d", i);
             }
             if (FD_ISSET(i, &context_->write_fds))
             {
-                LOGV("want write: %d", i);
+                LOGVP("want write: %d", i);
             }
         }
 #endif
-        LOGV("selecting...");
+        LOGVP("selecting...");
         result = pselect(context_->max_fd + 1, &read_fdsets, &write_fdsets, NULL, timeout_ptr, NULL);
-        LOGV("selected---------------");
+        LOGVP("selected---------------");
 #ifdef _DEBUG
         for (int i = 0; i < context_->max_fd + 1; i++)
         {
             if (FD_ISSET(i, &read_fdsets))
             {
-                LOGV("can read: %d", i);
+                LOGVP("can read: %d", i);
             }
             if (FD_ISSET(i, &write_fdsets))
             {
-                LOGV("can write: %d", i);
+                LOGVP("can write: %d", i);
             }
         }
 #endif
         if (result < 0)
         {
             // Todo: close socket
-            LOGE("select error: %s(errno: %d)", strerror(errno), errno);
+            LOGEP("select error: %s(errno: %d)", strerror(errno), errno);
             return -1;
         }
 
         if (result == 0)
         {
-            LOGV("time out: %d", time_millseconds);
+            LOGVP("time out: %d", time_millseconds);
             continue;
         }
         if (FD_ISSET(pipefd_[0], &read_fdsets))
@@ -154,7 +154,7 @@ int NetSnoopServer::Run()
             }
             if (result < 0)
             {
-                LOGW("client removed: %s", peer->GetCookie().c_str());
+                LOGWP("client removed: %s", peer->GetCookie().c_str());
                 context_->ClrReadFd(peer->GetControlFd());
                 context_->ClrWriteFd(peer->GetControlFd());
                 if (peer->GetDataFd() > 0)
@@ -164,8 +164,8 @@ int NetSnoopServer::Run()
                 }
                 peer->Stop();
                 it = peers_.erase(it);
-                if(OnClientDisconnect)
-                    OnClientDisconnect(peer.get());
+                if(OnPeerDisconnected)
+                    OnPeerDisconnected(peer.get());
             }
             else
                 it++;
@@ -196,7 +196,7 @@ int NetSnoopServer::StartListen()
     result = listen_peers_sock_->Listen(MAX_CLINETS);
     ASSERT(result >= 0);
 
-    LOGW("listen on %s:%d", option_->ip_local, option_->port);
+    LOGWP("listen on %s:%d", option_->ip_local, option_->port);
 
     context_->control_fd = listen_peers_sock_->GetFd();
     context_->SetReadFd(listen_peers_sock_->GetFd());
@@ -223,7 +223,7 @@ int NetSnoopServer::AceeptNewConnect()
 
     auto tcp = std::make_shared<Tcp>(fd);
     auto peer = std::make_shared<Peer>(tcp, context_);
-    peer->OnAuthSuccess = OnAcceptNewPeer;
+    peer->OnAuthSuccess = OnPeerConnected;
     peers_.push_back(peer);
     return 0;
 }
@@ -268,21 +268,23 @@ int NetSnoopServer::ProcessNextCommand()
             commands_.pop();
             command->InvokeCallback(NULL);
         }
-        LOGW("no client ready.");
+        LOGDP("no client ready.");
         return 0;
     }
 
-    LOGW("start command: %s (peer count = %ld)", command->cmd.c_str(), ready_peers->size());
+    LOGDP("start command: %s (peer count = %ld)", command->cmd.c_str(), ready_peers->size());
     auto peers_count = std::make_shared<int>(ready_peers->size());
     auto peers_failed = std::make_shared<int>(0);
+    netstat_ = NULL;
     
     for (auto &peer : *ready_peers)
     {
         result = peer->SetCommand(command);
         ASSERT(result == 0);
-        peer->OnStopped = [&, command, ready_peers, peers_count,peers_failed](Peer *p, std::shared_ptr<NetStat> netstat) mutable {
+        peer->OnStopped = [&, command, ready_peers, peers_count,peers_failed](const Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
-            LOGV("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            LOGVP("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            if(OnPeerStopped) OnPeerStopped(p,netstat);
             if(netstat)
             {
                 if(!netstat_) netstat_ = netstat;
@@ -294,17 +296,15 @@ int NetSnoopServer::ProcessNextCommand()
             }
             if (ready_peers->size() > 0)
             {
-                //release lambdma resource
-                p->OnStopped = NULL;
                 return;
             }
             is_running_ = false;
-            LOGW("finish command: %s (%s)", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            LOGVP("command finish: %s (%s)", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             netstat_->peers_count = *peers_count;
             netstat_->peers_failed = *peers_failed;
+            netstat_->recv_avg_spped = (netstat_->recv_speed+(*peers_count)/2)/(*peers_count);
             //TODO: stat all netstat
             command->InvokeCallback(netstat_);
-            p->OnStopped = NULL;
         };
         result = peer->Start();
         ASSERT(result == 0);

@@ -25,7 +25,7 @@ int EchoCommandReceiver::Start()
 {
     ASSERT_RETURN(!running_,-1,"EchoCommandReceiver start unexpeted.");
     running_ = true;
-    LOGV("EchoCommandReceiver Start.");
+    LOGVP("EchoCommandReceiver Start.");
     context_->SetReadFd(context_->data_fd);
     return 0;
 }
@@ -33,7 +33,7 @@ int EchoCommandReceiver::Stop()
 {
     ASSERT_RETURN(running_,-1,"EchoCommandReceiver stop unexpeted.");
     running_ = false;
-    LOGV("EchoCommandReceiver Stop.");
+    LOGVP("EchoCommandReceiver Stop.");
     context_->ClrReadFd(context_->data_fd);
     context_->ClrWriteFd(context_->data_fd);
     // allow send result
@@ -43,7 +43,7 @@ int EchoCommandReceiver::Stop()
 int EchoCommandReceiver::Send()
 {
     ASSERT_RETURN(running_,-1,"EchoCommandReceiver send unexpeted.");
-    LOGV("EchoCommandReceiver Send.");
+    LOGVP("EchoCommandReceiver Send.");
     int result=0;
     context_->ClrWriteFd(context_->data_fd);
     ASSERT(data_queue_.size()>0);
@@ -64,7 +64,7 @@ int EchoCommandReceiver::Send()
 int EchoCommandReceiver::Recv()
 {
     ASSERT_RETURN(running_,-1,"EchoCommandReceiver recv unexpeted.");
-    LOGV("EchoCommandReceiver Recv.");
+    LOGVP("EchoCommandReceiver Recv.");
     int result;
     ASSERT(running_);
     std::string buf(1024*64,0);
@@ -87,7 +87,7 @@ int EchoCommandReceiver::SendPrivateCommand()
 
     if(data_queue_.size()>0)
     {
-        LOGW("echo stop: drop %ld data.",data_queue_.size());
+        LOGWP("echo stop: drop %ld data.",data_queue_.size());
         ASSERT(0);
     }
 
@@ -113,7 +113,7 @@ int RecvCommandReceiver::Start()
 {
     ASSERT_RETURN(!running_,-1,"RecvCommandReceiver start unexpeted.");
     running_ = true;
-    LOGV("RecvCommandReceiver Start.");
+    LOGVP("RecvCommandReceiver Start.");
     context_->SetReadFd(context_->data_fd);
     start_ = high_resolution_clock::now();
     begin_ = high_resolution_clock::now();
@@ -124,7 +124,7 @@ int RecvCommandReceiver::Stop()
 {
     ASSERT_RETURN(running_,-1,"RecvCommandReceiver stop unexpeted.");
     running_ = false;
-    LOGV("RecvCommandReceiver Stop.");
+    LOGVP("RecvCommandReceiver Stop.");
     context_->ClrReadFd(context_->data_fd);
     context_->ClrWriteFd(context_->data_fd);
     //context_->ClrReadFd(context_->control_fd);
@@ -135,7 +135,7 @@ int RecvCommandReceiver::Stop()
 int RecvCommandReceiver::Recv()
 {
     ASSERT_RETURN(running_,-1,"RecvCommandReceiver recv unexpeted.");
-    LOGV("RecvCommandReceiver Recv.");
+    LOGVP("RecvCommandReceiver Recv.");
     int result;
     if ((result = data_sock_->Recv(buf_, sizeof(buf_))) <= 0)
     {

@@ -44,7 +44,7 @@ public:
         ss >> name;
         if (Container().find(name) == Container().end())
         {
-            LOGE("illegal command: %s",cmd.c_str());
+            LOGEP("illegal command: %s",cmd.c_str());
             return NULL;
         }
         while (ss >> key)
@@ -79,7 +79,7 @@ public:
     CommandRegister(const std::string &name, bool is_private) : name_(name), is_private_(is_private)
     {
         ASSERT(Container().find(name) == Container().end());
-        LOGV("register command: %s", name.c_str());
+        LOGVP("register command: %s", name.c_str());
         Container()[name] = this;
     }
     std::shared_ptr<Command> NewCommand(const std::string &cmd, CommandArgs args) override
@@ -88,10 +88,10 @@ public:
         command->is_private = is_private_;
         if (command->ResolveArgs(args))
         {
-            LOGV("new command: %s:%s", name_.c_str(), cmd.c_str());
+            LOGVP("new command: %s:%s", name_.c_str(), cmd.c_str());
             return command;
         }
-        LOGV("new command error: %s:%s", name_.c_str(), cmd.c_str());
+        LOGVP("new command error: %s:%s", name_.c_str(), cmd.c_str());
         return NULL;
     }
 
@@ -157,6 +157,11 @@ struct NetStat
     long long max_recv_speed;
 
     /**
+     * @brief average recv speed
+     * 
+     */
+    long long recv_avg_spped;
+    /**
      * @brief the peers count when the command start
      * 
      */
@@ -170,36 +175,6 @@ struct NetStat
     double errors;
     int retransmits;
 
-    void FromCommandArgs(CommandArgs &args)
-    {
-#define RI(p) p = atoi(args[#p].c_str())
-#define RLL(p) p = atoll(args[#p].c_str())
-#define RF(p) p = atof(args[#p].c_str())
-
-        RI(delay);
-        RI(min_delay);
-        RI(max_delay);
-        RI(jitter);
-        RF(loss);
-        RLL(send_packets);
-        RLL(send_bytes);
-        RLL(recv_packets);
-        RLL(recv_bytes);
-        RI(send_time);
-        RI(recv_time);
-        RLL(send_speed);
-        RLL(max_send_speed);
-        RLL(min_send_speed);
-        RLL(recv_speed);
-        RLL(max_recv_speed);
-        RLL(min_recv_speed);
-        RI(peers_count);
-        RI(peers_failed);
-#undef RI
-#undef RLL
-#undef RF
-    }
-
     std::string ToString() const
     {
         std::stringstream ss;
@@ -208,26 +183,59 @@ struct NetStat
     ss << #p " " << p << " "
         W(loss);
         W(send_speed);
-        W(max_send_speed);
-        W(min_send_speed);
         W(recv_speed);
+        W(recv_avg_spped);
+        W(max_send_speed);
         W(max_recv_speed);
+        W(min_send_speed);
         W(min_recv_speed);
+        W(send_packets);
+        W(recv_packets);
+        W(send_bytes);
+        W(recv_bytes);
+        W(send_time);
+        W(recv_time);
         W(delay);
         W(min_delay);
         W(max_delay);
         W(jitter);
-        W(send_packets);
-        W(send_bytes);
-        W(recv_packets);
-        W(recv_bytes);
-        W(send_time);
-        W(recv_time);
         W(peers_count);
         W(peers_failed);
 #undef W
         return ss.str();
     }
+
+    void FromCommandArgs(CommandArgs &args)
+    {
+#define RI(p) p = atoi(args[#p].c_str())
+#define RLL(p) p = atoll(args[#p].c_str())
+#define RF(p) p = atof(args[#p].c_str())
+
+        RF(loss);
+        RLL(send_speed);
+        RLL(recv_speed);
+        RLL(recv_avg_spped);
+        RLL(max_send_speed);
+        RLL(max_recv_speed);
+        RLL(min_send_speed);
+        RLL(min_recv_speed);
+        RLL(send_packets);
+        RLL(recv_packets);
+        RLL(send_bytes);
+        RLL(recv_bytes);
+        RI(send_time);
+        RI(recv_time);
+        RI(delay);
+        RI(min_delay);
+        RI(max_delay);
+        RI(jitter);
+        RI(peers_count);
+        RI(peers_failed);
+#undef RI
+#undef RLL
+#undef RF
+    }
+
 
     NetStat& operator+=(const NetStat& stat)
     {
@@ -236,19 +244,20 @@ struct NetStat
         #define A(p)  p=p+stat.p
         AF(loss);
         A(send_speed);
-        A(max_send_speed);
-        A(min_send_speed);
         A(recv_speed);
+        AI(recv_avg_spped);
+        A(max_send_speed);
         A(max_recv_speed);
+        A(min_send_speed);
         A(min_recv_speed);
+        A(send_packets);
+        A(recv_packets);
+        A(send_bytes);
+        A(recv_bytes);
         AI(delay);
         AI(min_delay);
         AI(max_delay);
         AI(jitter);
-        A(send_packets);
-        A(send_bytes);
-        A(recv_packets);
-        A(recv_bytes);
         AI(send_time);
         AI(recv_time);
         A(peers_count);
@@ -344,7 +353,7 @@ public:
         }
         catch (const std::exception &e)
         {
-            LOGE("EchoCommand resolve args error: %s", e.what());
+            LOGEP("EchoCommand resolve args error: %s", e.what());
         }
         return false;
     }
@@ -400,7 +409,7 @@ public:
         }
         catch (const std::exception &e)
         {
-            LOGE("RecvCommand resolve args error: %s", e.what());
+            LOGEP("RecvCommand resolve args error: %s", e.what());
         }
         return false;
     }

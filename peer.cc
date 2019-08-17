@@ -70,14 +70,14 @@ int Peer::Auth()
     std::string buf(1024, '\0');
     if ((result = control_sock_->Recv(&buf[0], buf.length())) <= 0)
     {
-        LOGE("Disconnect.");
+        LOGEP("Disconnect.");
         return -1;
     }
     buf.resize(result);
 
     if (buf.rfind("cookie:", 0) != 0)
     {
-        LOGE("Bad client.");
+        LOGEP("Bad client.");
         return -1;
     }
     cookie_ = buf;
@@ -101,7 +101,7 @@ int Peer::Auth()
 
     if (OnAuthSuccess)
         OnAuthSuccess(this);
-    LOGW("connect new client: %s:%d (%s)", ip.c_str(), port, cookie_.c_str());
+    LOGDP("connect new client: %s:%d (%s)", ip.c_str(), port, cookie_.c_str());
     return 0;
 }
 
@@ -115,6 +115,7 @@ int Peer::Timeout(int timeout)
 int Peer::SetCommand(std::shared_ptr<Command> command)
 {
     ASSERT_RETURN(data_sock_,-1);
+    command_ = command;
     std::shared_ptr<CommandChannel> channel(new CommandChannel{command, context_, control_sock_, data_sock_});
     commandsender_ = command->CreateCommandSender(channel);
     ASSERT_RETURN(commandsender_, -1);

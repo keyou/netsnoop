@@ -28,18 +28,19 @@ public:
     int RecvData();
     int Timeout(int timeout);
     
-    int GetControlFd() { return control_sock_->GetFd(); }
-    int GetDataFd() { return data_sock_ ? data_sock_->GetFd() : -1; }
-    std::shared_ptr<Sock> GetControlSock(){return control_sock_;}
-    std::shared_ptr<Sock> GetDataSock(){return data_sock_;}
-    std::shared_ptr<Context> GetContext(){return context_;}
+    int GetControlFd() const{ return control_sock_->GetFd(); }
+    int GetDataFd() const{ return data_sock_ ? data_sock_->GetFd() : -1; }
+    std::shared_ptr<Sock> GetControlSock() const{return control_sock_;}
+    std::shared_ptr<Sock> GetDataSock() const{return data_sock_;}
+    std::shared_ptr<Context> GetContext() const{return context_;}
     int SetCommand(std::shared_ptr<Command> command);
+    std::shared_ptr<Command> GetCommand() const{return command_;};
     const std::string &GetCookie() { return cookie_; }
-    int GetTimeout() { return commandsender_?commandsender_->GetTimeout():-1; }
-    bool IsReady() {return !!data_sock_;}
+    int GetTimeout() const{ return commandsender_?commandsender_->GetTimeout():-1; }
+    bool IsReady() const{return !!data_sock_;}
 
-    std::function<void(Peer*,std::shared_ptr<NetStat>)> OnStopped;
-    std::function<void(Peer*)> OnAuthSuccess;
+    std::function<void(const Peer*,std::shared_ptr<NetStat>)> OnStopped;
+    std::function<void(const Peer*)> OnAuthSuccess;
 
     bool operator==(const Peer &peer)
     {

@@ -70,10 +70,10 @@ int CommandSender::SendCommand()
     {
         is_starting_ = false;
         is_waiting_ack_ = true;
-        LOGV("CommandSender send command: %s", command_->cmd.c_str());
+        LOGVP("CommandSender send command: %s", command_->cmd.c_str());
         if ((result = control_sock_->Send(command_->cmd.c_str(), command_->cmd.length())) < 0)
         {
-            LOGE("CommandSender send command error.");
+            LOGEP("CommandSender send command error.");
             return -1;
         }
         return result;
@@ -84,7 +84,7 @@ int CommandSender::SendCommand()
         ASSERT(!is_waiting_result_);
         is_stopping_ = false;
         is_waiting_result_ = true;
-        LOGV("CommandSender send stop for: %s", command_->cmd.c_str());
+        LOGVP("CommandSender send stop for: %s", command_->cmd.c_str());
         auto stop_command = std::make_shared<StopCommand>();
         result = control_sock_->Send(stop_command->cmd.c_str(), stop_command->cmd.length());
         if(result <= 0) return -1;
@@ -111,7 +111,7 @@ int CommandSender::RecvCommand()
     {
         is_waiting_result_ = false;
         is_stopped_ = true;
-        LOGV("CommandSender recv result command.");
+        LOGVP("CommandSender recv result command.");
         auto result_command = std::dynamic_pointer_cast<ResultCommand>(command);
         ASSERT_RETURN(result_command, -1, "CommandSender expect recv result command: %s", command->cmd.c_str());
         // should not clear control sock,keep control sock readable for detecting client disconnect
@@ -128,7 +128,7 @@ int CommandSender::RecvCommand()
         return OnStart();
     }
 
-    LOGV("CommandSender recv private command.");
+    LOGVP("CommandSender recv private command.");
     return OnRecvCommand(command);
 }
 
@@ -326,7 +326,7 @@ int RecvCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     stat->max_recv_speed = netstat->max_recv_speed;
     stat->loss = 1 - 1.0 * stat->recv_bytes / stat->send_bytes;
 
-    LOGV("Run OnStop");
+    LOGVP("Run OnStop");
     OnStopped(stat);
     return 0;
 }

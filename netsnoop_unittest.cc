@@ -64,18 +64,18 @@ int main(int argc, char *argv[])
     std::condition_variable cv;
 
     NetSnoopServer server(g_option);
-    server.OnAcceptNewPeer = [&](Peer *peer) {
+    server.OnPeerConnected = [&](const Peer *peer) {
         std::unique_lock<std::mutex> lock;
         client_count++;
         // All client has connected.
         if (client_count == MAX_CLIENT_COUNT)
             cv.notify_all();
     };
-    server.OnServerStart = [&](NetSnoopServer *server) {
+    server.OnServerStart = [&](const NetSnoopServer *server) {
         StartClients(MAX_CLIENT_COUNT, false);
     };
     auto server_thread = std::thread([&server] {
-        LOGV("init_server");
+        LOGVP("init_server");
         server.Run();
     });
     server_thread.detach();
@@ -104,7 +104,7 @@ void RunTest(NetSnoopServer *server, int cmd_count)
         auto command = CommandFactory::New(cmd);
         if (!command)
         {
-            LOGE("error command: %s", cmd.c_str());
+            LOGEP("error command: %s", cmd.c_str());
             continue;
         }
         command->RegisterCallback([&, i](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
@@ -124,14 +124,14 @@ void StartServer()
 {
     static int count = 0;
     std::shared_ptr<NetSnoopServer> server = std::make_shared<NetSnoopServer>(g_option);
-    server->OnAcceptNewPeer = [&](Peer *peer) {
+    server->OnPeerConnected = [&](const Peer *peer) {
         count++;
         std::string ip;
         int port;
         peer->GetControlSock()->GetPeerAddress(ip,port);
         std::clog << "peer connect: [" << count <<"]: "<<ip.c_str()<<":"<<port<< std::endl;
     };
-    server->OnClientDisconnect = [&](Peer* peer){
+    server->OnPeerDisconnected = [&](const Peer* peer){
         count--;
         std::string ip;
         int port;
@@ -139,7 +139,7 @@ void StartServer()
         std::clog << "peer disconnect: [" << count <<"]: "<<ip.c_str()<<":"<<port<< std::endl;
     };
     auto thread = std::thread([&] {
-        LOGV("start server.");
+        LOGVP("start server.");
         server->Run();
     });
     
@@ -163,14 +163,14 @@ void StartServer()
 
 void StartClients(int count, bool join)
 {
-    LOGV("start clients.(count=%d)", count);
+    LOGVP("start clients.(count=%d)", count);
     std::mutex mtx;
 
     std::vector<std::thread> threads;
     for (int i = 0; i < count; i++)
     {
         auto client_thread = std::thread([&, i]() {
-            LOGV("init_client %d", i);
+            LOGVP("init_client %d", i);
             NetSnoopClient client(g_option);
             client.OnStopped = [&,i](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
                 std::unique_lock<std::mutex> lock(mtx);
