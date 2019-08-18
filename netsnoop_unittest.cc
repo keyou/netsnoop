@@ -24,12 +24,14 @@ std::vector<std::string> cmds{
     "echo count 10 interval 200 size 1024",
     "echo count 10 interval 200 size 10240",
     "recv count 1000 interval 1 size 1024",
-    "recv count 1000 interval 1 size 10240",
+    "recv count 1000 interval 0 size 8096",
+    "recv count 10000 interval 0 size 12024",
     "recv count 1000 interval 1 size 20240"};
 
 std::shared_ptr<Option> g_option;
 int main(int argc, char *argv[])
 {
+    Logger::SetGlobalLogLevel(LLDEBUG);
     std::cout << "netsnoop test begin." << std::endl;
     g_option = std::make_shared<Option>();
     strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
@@ -146,7 +148,8 @@ void StartServer()
     while (true)
     {
         std::cout << "Press Enter to start." << std::endl;
-        getchar();
+        //getchar();
+        std::this_thread::sleep_for(std::chrono::seconds(90));
         int i = 0;
         for (auto &cmd : cmds)
         {

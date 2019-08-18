@@ -18,8 +18,7 @@ enum LogLevel
     LLDEBUG = 1,
     LLINFO = 2,
     LLWARN = 3,
-    LLERROR = 4,
-    LLFATAL = 5
+    LLERROR = 4
 };
 
 class Logger
@@ -27,14 +26,12 @@ class Logger
 public:
     Logger(LogLevel level=LLDEBUG):out_(NULL)
     {
-        if(GetGlobalLogLevel()>level) return;
         switch (level)
         {
         case LLVERBOSE:out_ = &std::cout;*out_<<"[VER]";break;
         case LLDEBUG:out_ = &std::cout;*out_<<"[DBG]";break;
         case LLWARN:out_ = &std::cout;*out_<<"[WAR]";break;
         case LLERROR:out_ = &std::cerr;*out_<<"[ERR]";break;
-        case LLFATAL:out_ = &std::cerr;*out_<<"[FAT]";break;
         default:out_ = &std::cout;*out_<<"[INF]";
         }
 
@@ -50,24 +47,23 @@ public:
 
         *out_<<"["<<std::this_thread::get_id()<<"] ";
     }
+
     // TODO: optimize the << behavior to accept all ostream supported types.
     Logger &operator<<(const std::string &log)
     {
-        if(out_ == NULL) return *this;
-        *out_<<log;
-        return *this;
-    }
-    template<typename T>
-    Logger &operator<<(const T &log)
-    {
-        if(out_ == NULL) return *this;
         *out_<<log;
         return *this;
     }
 
+    template<typename T>
+    std::ostream &operator<<(const T &log)
+    {
+        *out_<<log;
+        return *out_;
+    }
+
     void Print(const char* fmt,...)
     {
-        if(out_ == NULL) return;
         char buf[1024]={0};
 
         va_list args;
@@ -94,29 +90,32 @@ public:
         return global_level;
     }
 
+    static bool ShouldPrintLog(LogLevel level)
+    {
+        return GetGlobalLogLevel()<=level;
+    }
+
     ~Logger()
     {
-        if(out_ != NULL) *out_ << std::endl;
+        *out_ << std::endl;
     }
 private:
     std::ostream* out_;
 };
 
-#define LOG(level) Logger(level)
+#define LOG(level) if(Logger::ShouldPrintLog(level))Logger(level)
 
 #define LOGV LOG(LLVERBOSE)
 #define LOGD LOG(LLDEBUG)
 #define LOGI LOG(LLINFO)
 #define LOGW LOG(LLWARN)
 #define LOGE LOG(LLERROR)
-#define LOGF LOG(LLFATAL)
 
 #define LOGVP(...) LOGV.Print(__VA_ARGS__)
 #define LOGDP(...) LOGD.Print(__VA_ARGS__)
 #define LOGIP(...) LOGI.Print(__VA_ARGS__)
 #define LOGWP(...) LOGW.Print(__VA_ARGS__)
 #define LOGEP(...) LOGE.Print(__VA_ARGS__)
-#define LOGFP(...) LOGF.Print(__VA_ARGS__)
 
 #ifdef _DEBUG
     #define ASSERT(expr) assert(expr)
