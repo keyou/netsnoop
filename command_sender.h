@@ -83,8 +83,8 @@ private:
     int64_t delay_;
     int64_t min_delay_;
     int64_t max_delay_;
-    ssize_t send_count_;
-    ssize_t recv_count_;
+    ssize_t send_packets_;
+    ssize_t recv_packets_;
     std::string data_buf_;
 };
 
@@ -113,7 +113,7 @@ private:
     double delay_;
     double min_delay_;
     double max_delay_;
-    ssize_t send_count_;
+    ssize_t send_packets_;
     ssize_t send_bytes_;
     std::string data_buf_;
 };

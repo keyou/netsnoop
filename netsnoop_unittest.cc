@@ -31,7 +31,12 @@ std::vector<std::string> cmds{
 std::shared_ptr<Option> g_option;
 int main(int argc, char *argv[])
 {
+#ifdef _DEBUG
     Logger::SetGlobalLogLevel(LLDEBUG);
+#else
+    Logger::SetGlobalLogLevel(LLERROR);
+#endif // _DEBUG
+
     std::cout << "netsnoop test begin." << std::endl;
     g_option = std::make_shared<Option>();
     strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
@@ -149,7 +154,6 @@ void StartServer()
     {
         std::cout << "Press Enter to start." << std::endl;
         //getchar();
-        std::this_thread::sleep_for(std::chrono::seconds(90));
         int i = 0;
         for (auto &cmd : cmds)
         {
@@ -160,6 +164,7 @@ void StartServer()
             });
             server->PushCommand(command);
         }
+        std::this_thread::sleep_for(std::chrono::seconds(300));
     }
     thread.join();
 }

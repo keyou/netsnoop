@@ -22,12 +22,16 @@ int main(int argc, char *argv[])
     if(argc < 2)
     {
         std::cout<< "usage: \n"
-                    "   start server: netsnoop -s 0.0.0.0 4000 -vv\n"
-                    "   start client: netsnoop -c 127.0.0.1 4000 -vv\n";
+                    "   start server: netsnoop -s 0.0.0.0 4000 -vvv\n"
+                    "   start client: netsnoop -c 127.0.0.1 4000 -vvv\n";
         return 0;
     }
+#ifdef _DEBUG
+    Logger::SetGlobalLogLevel(LLDEBUG);
+#else
+    Logger::SetGlobalLogLevel(LLERROR);
+#endif // _DEBUG
 
-    Logger::SetGlobalLogLevel(LLINFO);
     strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
@@ -120,8 +124,8 @@ void StartServer()
             command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
                 std::clog << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL");
             });
+            server.PushCommand(command);
         }
-        server.PushCommand(command);
     }
 }
 

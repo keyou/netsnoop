@@ -196,7 +196,7 @@ int NetSnoopServer::StartListen()
     result = listen_peers_sock_->Listen(MAX_CLINETS);
     ASSERT(result >= 0);
 
-    LOGDP("listen on %s:%d", option_->ip_local, option_->port);
+    LOGIP("listen on %s:%d", option_->ip_local, option_->port);
 
     context_->control_fd = listen_peers_sock_->GetFd();
     context_->SetReadFd(listen_peers_sock_->GetFd());
@@ -272,7 +272,7 @@ int NetSnoopServer::ProcessNextCommand()
         return 0;
     }
 
-    LOGDP("start command: %s (peer count = %ld)", command->cmd.c_str(), ready_peers->size());
+    LOGIP("start command: %s (peer count = %ld)", command->cmd.c_str(), ready_peers->size());
     auto peers_count = std::make_shared<int>(ready_peers->size());
     auto peers_failed = std::make_shared<int>(0);
     netstat_ = NULL;
@@ -283,12 +283,26 @@ int NetSnoopServer::ProcessNextCommand()
         ASSERT(result == 0);
         peer->OnStopped = [&, command, ready_peers, peers_count,peers_failed](const Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
-            LOGVP("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            LOGDP("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             if(OnPeerStopped) OnPeerStopped(p,netstat);
             if(netstat)
             {
-                if(!netstat_) netstat_ = netstat;
-                else *netstat_+=*netstat;
+                if(!netstat_)
+                {
+                    netstat_ = netstat;
+                    netstat_->max_send_time = netstat->send_time;
+                    netstat_->max_recv_time = netstat->recv_time;
+                    netstat_->min_send_time = netstat->send_time;
+                    netstat_->min_recv_time = netstat->recv_time;
+                }
+                else 
+                {
+                    *netstat_+=*netstat;
+                    netstat_->max_send_time = std::max(netstat_->max_send_time,netstat->send_time);
+                    netstat_->max_recv_time = std::max(netstat_->max_recv_time,netstat->recv_time);
+                    netstat_->min_send_time = std::min(netstat_->min_send_time,netstat->send_time);
+                    netstat_->min_recv_time = std::min(netstat_->min_recv_time,netstat->recv_time);
+                }
             }
             else
             {
@@ -299,11 +313,23 @@ int NetSnoopServer::ProcessNextCommand()
                 return;
             }
             is_running_ = false;
-            LOGVP("command finish: %s (%s)", command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
-            netstat_->peers_count = *peers_count;
-            netstat_->peers_failed = *peers_failed;
-            netstat_->recv_avg_spped = (netstat_->recv_speed+(*peers_count)/2)/(*peers_count);
-            //TODO: stat all netstat
+            if(netstat_!=NULL)
+            {
+                auto success_count = *peers_count - *peers_failed;
+                ASSERT(success_count>0);
+                netstat_->loss /= success_count;
+                netstat_->send_time /= success_count;
+                netstat_->recv_time /= success_count;
+                netstat_->delay /= success_count;
+                netstat_->max_delay /= success_count;
+                netstat_->min_delay /= success_count;
+                netstat_->jitter /= success_count;
+                netstat_->recv_avg_spped = netstat_->recv_speed/success_count;
+
+                netstat_->peers_count = *peers_count;
+                netstat_->peers_failed = *peers_failed;
+            }
+            LOGIP("command finish: %s || %s", command->cmd.c_str(), netstat_ ? netstat_->ToString().c_str() : "NULL");
             command->InvokeCallback(netstat_);
         };
         result = peer->Start();

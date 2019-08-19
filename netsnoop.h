@@ -9,6 +9,7 @@
 #include <cstdarg>
 #include <stdarg.h>
 #include <sstream>
+#include <fstream>
 
 #define TAG "NETSNOOP"
 
@@ -45,24 +46,23 @@ public:
             *out_ << "[" << buf <<"."<< ms <<"]";
         }
 
-        *out_<<"["<<std::this_thread::get_id()<<"] ";
+        *out_<<"["<<std::this_thread::get_id()<<"]";
     }
 
-    // TODO: optimize the << behavior to accept all ostream supported types.
-    Logger &operator<<(const std::string &log)
+    // TODO: allow set output stream
+
+    Logger& Tag(const std::string& log)
     {
         *out_<<log;
         return *this;
     }
 
-    template<typename T>
-    std::ostream &operator<<(const T &log)
+    std::ostream &GetStream()
     {
-        *out_<<log;
         return *out_;
     }
 
-    void Print(const char* fmt,...)
+    std::ostream& Print(const char* fmt,...)
     {
         char buf[1024]={0};
 
@@ -72,8 +72,14 @@ public:
         va_end(args);
 
         *out_<<buf;
+        return *out_;
     }
     
+    static bool ShouldPrintLog(LogLevel level)
+    {
+        return GetGlobalLogLevel()<=level;
+    }
+
     /**
      * @brief Set the Global Log Level object,should called before any log be printed.
      * 
@@ -90,9 +96,16 @@ public:
         return global_level;
     }
 
-    static bool ShouldPrintLog(LogLevel level)
+    // TODO: support thread name setting
+    static std::string& GetThreadName()
     {
-        return GetGlobalLogLevel()<=level;
+        thread_local static std::string thread_name = "NULL";
+        return thread_name;
+    }
+
+    static void SetThreadName(const std::string& name)
+    {
+        GetThreadName() = name;
     }
 
     ~Logger()
@@ -102,20 +115,21 @@ public:
 private:
     std::ostream* out_;
 };
+#define __S1(x) #x
+#define __S(x) __S1(x)
+#define LOG(level) if(Logger::ShouldPrintLog(level))Logger(level).Tag("[" __FILE__ ":" __S(__LINE__) "] ")
 
-#define LOG(level) if(Logger::ShouldPrintLog(level))Logger(level)
+#define LOGV LOG(LLVERBOSE).GetStream()
+#define LOGD LOG(LLDEBUG).GetStream()
+#define LOGI LOG(LLINFO).GetStream()
+#define LOGW LOG(LLWARN).GetStream()
+#define LOGE LOG(LLERROR).GetStream()
 
-#define LOGV LOG(LLVERBOSE)
-#define LOGD LOG(LLDEBUG)
-#define LOGI LOG(LLINFO)
-#define LOGW LOG(LLWARN)
-#define LOGE LOG(LLERROR)
-
-#define LOGVP(...) LOGV.Print(__VA_ARGS__)
-#define LOGDP(...) LOGD.Print(__VA_ARGS__)
-#define LOGIP(...) LOGI.Print(__VA_ARGS__)
-#define LOGWP(...) LOGW.Print(__VA_ARGS__)
-#define LOGEP(...) LOGE.Print(__VA_ARGS__)
+#define LOGVP(...) LOG(LLVERBOSE).Print(__VA_ARGS__)
+#define LOGDP(...) LOG(LLDEBUG).Print(__VA_ARGS__)
+#define LOGIP(...) LOG(LLINFO).Print(__VA_ARGS__)
+#define LOGWP(...) LOG(LLWARN).Print(__VA_ARGS__)
+#define LOGEP(...) LOG(LLERROR).Print(__VA_ARGS__)
 
 #ifdef _DEBUG
     #define ASSERT(expr) assert(expr)

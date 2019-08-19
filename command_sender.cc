@@ -12,9 +12,6 @@
 #include "peer.h"
 #include "command_sender.h"
 
-// time wait to give a chance for client receive all data
-#define STOP_WAIT_TIME 500 
-
 CommandSender::CommandSender(std::shared_ptr<CommandChannel> channel)
     : timeout_(-1), control_sock_(channel->control_sock_), data_sock_(channel->data_sock_),
       context_(channel->context_), command_(channel->command_),
@@ -25,6 +22,7 @@ CommandSender::CommandSender(std::shared_ptr<CommandChannel> channel)
 
 int CommandSender::Start()
 {
+    LOGDP("CommandSender start command.");
     is_starting_ = true;
     // allow control channel send command
     context_->SetWriteFd(control_sock_->GetFd());
@@ -41,6 +39,7 @@ int CommandSender::OnStart()
  */
 int CommandSender::Stop()
 {
+    LOGDP("CommandSender stop command.");
     ASSERT(!is_stopping_);
     is_stopping_ = true;
     // stop data channel
@@ -49,8 +48,9 @@ int CommandSender::Stop()
     // allow to send stop command
     //context_->SetWriteFd(control_sock_->GetFd());
     //timeout_ = -1;
+    ASSERT(command_);
     // wait to allow client receive all data
-    SetTimeout(STOP_WAIT_TIME);
+    SetTimeout(command_->GetWait());
     return 0;
 }
 
@@ -70,7 +70,7 @@ int CommandSender::SendCommand()
     {
         is_starting_ = false;
         is_waiting_ack_ = true;
-        LOGVP("CommandSender send command: %s", command_->cmd.c_str());
+        LOGDP("CommandSender send command: %s", command_->cmd.c_str());
         if ((result = control_sock_->Send(command_->cmd.c_str(), command_->cmd.length())) < 0)
         {
             LOGEP("CommandSender send command error.");
@@ -84,7 +84,7 @@ int CommandSender::SendCommand()
         ASSERT(!is_waiting_result_);
         is_stopping_ = false;
         is_waiting_result_ = true;
-        LOGVP("CommandSender send stop for: %s", command_->cmd.c_str());
+        LOGDP("CommandSender send stop for: %s", command_->cmd.c_str());
         auto stop_command = std::make_shared<StopCommand>();
         result = control_sock_->Send(stop_command->cmd.c_str(), stop_command->cmd.length());
         if(result <= 0) return -1;
@@ -111,7 +111,7 @@ int CommandSender::RecvCommand()
     {
         is_waiting_result_ = false;
         is_stopped_ = true;
-        LOGVP("CommandSender recv result command.");
+        LOGDP("CommandSender recv result command.");
         auto result_command = std::dynamic_pointer_cast<ResultCommand>(command);
         ASSERT_RETURN(result_command, -1, "CommandSender expect recv result command: %s", command->cmd.c_str());
         // should not clear control sock,keep control sock readable for detecting client disconnect
@@ -128,7 +128,7 @@ int CommandSender::RecvCommand()
         return OnStart();
     }
 
-    LOGVP("CommandSender recv private command.");
+    LOGDP("CommandSender recv private command.");
     return OnRecvCommand(command);
 }
 
@@ -157,13 +157,14 @@ EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)),
       data_buf_(command_->GetSize(), 0),
       delay_(0), max_delay_(0), min_delay_(INT64_MAX),
-      send_count_(0), recv_count_(0),
+      send_packets_(0), recv_packets_(0),
       CommandSender(channel)
 {
 }
 
 int EchoCommandSender::OnStart()
 {
+    LOGDP("EchoCommandSender start payload.");
     start_ = high_resolution_clock::now();
     context_->SetWriteFd(data_sock_->GetFd());
     context_->ClrReadFd(data_sock_->GetFd());
@@ -173,7 +174,7 @@ int EchoCommandSender::OnStart()
 
 int EchoCommandSender::SendData()
 {
-    send_count_++;
+    send_packets_++;
     context_->SetReadFd(data_sock_->GetFd());
     context_->ClrWriteFd(data_sock_->GetFd());
     
@@ -189,31 +190,28 @@ int EchoCommandSender::SendData()
 
 int EchoCommandSender::RecvData()
 {
-    recv_count_++;
-    //context_->SetWriteFd(data_fd_);
-    //context_->ClrReadFd(data_sock_->GetFd());
     end_ = high_resolution_clock::now();
     int result = data_sock_->Recv(&data_buf_[0], data_buf_.length());
     if(result>=sizeof(int64_t))
     {
+        recv_packets_++;
         int64_t* buf = (int64_t*)&data_buf_[0];
         auto delay = end_.time_since_epoch().count() - *buf;
         max_delay_ = std::max(max_delay_, delay);
         min_delay_ = std::min(min_delay_, delay);
-        if(recv_count_ == 1) delay_ = delay;
+        if(recv_packets_ == 1) delay_ = delay;
         delay_ = (delay_ + delay + 1)/2;
     }
     else
     {
-        ASSERT(0);
-        return ERR_DEFAULT;
+        ASSERT_RETURN(0,ERR_DEFAULT,"EchoCommandSender recv unexpected data.");
     }
     return result;
 }
 
 int EchoCommandSender::OnTimeout()
 {
-    if (send_count_ >= command_->GetCount())
+    if (send_packets_ >= command_->GetCount())
     {
         stop_ = high_resolution_clock::now();
         return Stop();
@@ -225,6 +223,7 @@ int EchoCommandSender::OnTimeout()
 
 int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 {
+    LOGDP("EchoCommandSender stop payload.");
     if (!OnStopped)
         return 0;
     
@@ -233,10 +232,12 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     stat->max_delay = max_delay_/(1000*1000);
     stat->min_delay = min_delay_/(1000*1000);
     stat->jitter = stat->max_delay - stat->min_delay;
-    stat->send_bytes = send_count_ * data_buf_.size();
-    stat->send_packets = send_count_;
-    stat->recv_packets = recv_count_;
-    stat->loss = 1 - 1.0 * send_count_ / recv_count_;
+    stat->send_bytes = send_packets_ * data_buf_.size();
+    stat->send_packets = send_packets_;
+    stat->recv_packets = recv_packets_;
+    stat->send_pps = send_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
+    stat->recv_pps = recv_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
+    stat->loss = 1 - 1.0 * recv_packets_ / send_packets_;
     stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
     stat->send_speed = stat->send_bytes / duration_cast<duration<double>>(stop_ - start_).count();
     OnStopped(stat);
@@ -247,14 +248,14 @@ RecvCommandSender::RecvCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<RecvCommandClazz>(channel->command_)),
       data_buf_(command_->GetSize(), 0),
       delay_(0), max_delay_(0), min_delay_(INT32_MAX),
-      send_count_(0), send_bytes_(0),
-      is_stoping_(false),
+      send_packets_(0), send_bytes_(0),
       CommandSender(channel)
 {
 }
 
 int RecvCommandSender::OnStart()
 {
+    LOGDP("RecvCommandSender start payload.");
     start_ = high_resolution_clock::now();
     context_->SetWriteFd(data_sock_->GetFd());
     context_->ClrReadFd(data_sock_->GetFd());
@@ -268,7 +269,7 @@ int RecvCommandSender::SendData()
     {
         return Stop();
     }
-    send_count_++;
+    send_packets_++;
     if (command_->GetInterval() > 0)
         context_->ClrWriteFd(data_sock_->GetFd());
     auto result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
@@ -295,7 +296,7 @@ int RecvCommandSender::OnTimeout()
 }
 bool RecvCommandSender::TryStop()
 {
-    if (send_count_ >= command_->GetCount())
+    if (send_packets_ >= command_->GetCount())
     {
         stop_ = high_resolution_clock::now();
         return true;
@@ -304,13 +305,14 @@ bool RecvCommandSender::TryStop()
 }
 int RecvCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 {
-    is_stoping_ = false;
+    LOGDP("RecvCommandSender stop payload.");
     if (!OnStopped)
         return 0;
 
     auto stat = std::make_shared<NetStat>();
     stat->send_bytes = send_bytes_;
-    stat->send_packets = send_count_;
+    stat->send_packets = send_packets_;
+    stat->send_pps = send_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
     stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
     auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
     if (seconds > 0.001)
@@ -324,9 +326,9 @@ int RecvCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     stat->recv_speed = netstat->recv_speed;
     stat->min_recv_speed = netstat->min_recv_speed;
     stat->max_recv_speed = netstat->max_recv_speed;
+    stat->recv_pps = netstat->recv_pps;
     stat->loss = 1 - 1.0 * stat->recv_bytes / stat->send_bytes;
 
-    LOGVP("Run OnStop");
     OnStopped(stat);
     return 0;
 }

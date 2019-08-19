@@ -11,6 +11,8 @@
 #include "netsnoop.h"
 
 #define MAX_CMD_LENGTH 1024
+// time wait to give a chance for client receive all data
+#define STOP_WAIT_TIME 500
 
 class CommandFactory;
 class Command;
@@ -44,7 +46,7 @@ public:
         ss >> name;
         if (Container().find(name) == Container().end())
         {
-            LOGEP("illegal command: %s",cmd.c_str());
+            LOGEP("illegal command: %s", cmd.c_str());
             return NULL;
         }
         while (ss >> key)
@@ -145,7 +147,7 @@ struct NetStat
     int send_time;
     int recv_time;
     /**
-     * @brief Send speed in Byte/s
+     * @brief send/recv speed in Byte/s
      * 
      */
     long long send_speed;
@@ -157,10 +159,23 @@ struct NetStat
     long long max_recv_speed;
 
     /**
+     * @brief send/recv packets per second
+     * 
+     */
+    long long send_pps;
+    long long recv_pps;
+
+    /*******************************************************************/
+    /********** The below properties are arithmetic property. **********/
+    /**
      * @brief average recv speed
      * 
      */
     long long recv_avg_spped;
+    int max_send_time;
+    int min_send_time;
+    int max_recv_time;
+    int min_recv_time;
     /**
      * @brief the peers count when the command start
      * 
@@ -191,10 +206,16 @@ struct NetStat
         W(min_recv_speed);
         W(send_packets);
         W(recv_packets);
+        W(send_pps);
+        W(recv_pps);
         W(send_bytes);
         W(recv_bytes);
         W(send_time);
         W(recv_time);
+        W(max_send_time);
+        W(max_recv_time);
+        W(min_send_time);
+        W(min_recv_time);
         W(delay);
         W(min_delay);
         W(max_delay);
@@ -221,10 +242,16 @@ struct NetStat
         RLL(min_recv_speed);
         RLL(send_packets);
         RLL(recv_packets);
+        RLL(send_pps);
+        RLL(recv_pps);
         RLL(send_bytes);
         RLL(recv_bytes);
         RI(send_time);
         RI(recv_time);
+        RI(max_send_time);
+        RI(max_recv_time);
+        RI(min_send_time);
+        RI(min_recv_time);
         RI(delay);
         RI(min_delay);
         RI(max_delay);
@@ -236,37 +263,43 @@ struct NetStat
 #undef RF
     }
 
-
-    NetStat& operator+=(const NetStat& stat)
+    // TODO: refactor the code to simplify the logic of 'arithmetic property'.
+    NetStat &operator+=(const NetStat &stat)
     {
-        #define AI(p) p=(p+stat.p+1)/2
-        #define AF(p) p=(p+stat.p)/2
-        #define A(p)  p=p+stat.p
-        AF(loss);
+#define AI(p) p = (p + stat.p + 1) / 2
+#define AF(p) p = (p + stat.p) / 2
+#define A(p) p = p + stat.p
+        A(loss);
         A(send_speed);
         A(recv_speed);
-        AI(recv_avg_spped);
+        A(recv_avg_spped);
         A(max_send_speed);
         A(max_recv_speed);
         A(min_send_speed);
         A(min_recv_speed);
         A(send_packets);
         A(recv_packets);
+        A(send_pps);
+        A(recv_pps);
         A(send_bytes);
         A(recv_bytes);
-        AI(delay);
-        AI(min_delay);
-        AI(max_delay);
-        AI(jitter);
-        AI(send_time);
-        AI(recv_time);
+        A(delay);
+        A(min_delay);
+        A(max_delay);
+        A(jitter);
+        A(send_time);
+        A(recv_time);
+        A(max_send_time);
+        A(max_recv_time);
+        A(min_send_time);
+        A(min_recv_time);
         A(peers_count);
         A(peers_failed);
-        #undef AI
-        #undef AF
+#undef AI
+#undef AF
+#undef A
         return *this;
     }
-
 };
 
 struct CommandChannel
@@ -284,7 +317,7 @@ struct CommandChannel
 class Command
 {
 public:
-    Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false) 
+    Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false)
     {
     }
     void RegisterCallback(CommandCallback callback)
@@ -305,6 +338,9 @@ public:
     virtual std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) { return NULL; };
     virtual std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) { return NULL; };
 
+    // TODO: optimize command structure to simplify sub command.
+    virtual int GetWait() { return STOP_WAIT_TIME; }
+
     std::string name;
     std::string cmd;
     bool is_private;
@@ -317,7 +353,7 @@ private:
 
 #define ECHO_DEFAULT_COUNT 5
 #define ECHO_DEFAULT_INTERVAL 200
-#define ECHO_DEFAULT_TIME 1
+#define ECHO_DEFAULT_WAIT 500
 #define ECHO_DEFAULT_SIZE 32
 #define ECHO_DEFAULT_SPEED 0
 /**
@@ -331,7 +367,7 @@ public:
     // example: echo count 10 interval 100
     EchoCommand(std::string cmd)
         : count_(ECHO_DEFAULT_COUNT),
-          time_(ECHO_DEFAULT_TIME),
+          time_(ECHO_DEFAULT_WAIT),
           interval_(ECHO_DEFAULT_INTERVAL),
           size_(ECHO_DEFAULT_SIZE),
           speed_(0),
@@ -340,22 +376,16 @@ public:
     }
     bool ResolveArgs(CommandArgs args) override
     {
-        try
-        {
-            count_ = args["count"].empty() ? ECHO_DEFAULT_COUNT : std::stoi(args["count"]);
-            interval_ = args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stoi(args["interval"]);
-            size_ = args["size"].empty() ? ECHO_DEFAULT_SIZE : std::stoi(args["size"]);
-            time_ = args["time"].empty() ? ECHO_DEFAULT_TIME : std::stoi(args["time"]);
-            speed_ = args["speed"].empty() ? ECHO_DEFAULT_SPEED : std::stoi(args["speed"]);
-            // echo can not have zero delay
-            if(interval_<=0) interval_ = ECHO_DEFAULT_INTERVAL;
-            return true;
-        }
-        catch (const std::exception &e)
-        {
-            LOGEP("EchoCommand resolve args error: %s", e.what());
-        }
-        return false;
+        // TODO: optimize these assign.
+        count_ = args["count"].empty() ? ECHO_DEFAULT_COUNT : std::stoi(args["count"]);
+        interval_ = args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stoi(args["interval"]);
+        size_ = args["size"].empty() ? ECHO_DEFAULT_SIZE : std::stoi(args["size"]);
+        speed_ = args["speed"].empty() ? ECHO_DEFAULT_SPEED : std::stoi(args["speed"]);
+        wait_ = args["wait"].empty() ? ECHO_DEFAULT_WAIT : std::stoi(args["wait"]);
+        // echo can not have zero delay
+        if (interval_ <= 0)
+            interval_ = ECHO_DEFAULT_INTERVAL;
+        return true;
     }
 
     std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) override
@@ -371,6 +401,7 @@ public:
     int GetInterval() { return interval_; }
     int GetTime() { return time_; }
     int GetSize() { return size_; }
+    int GetWait() override { return wait_; }
 
 private:
     int count_;
@@ -378,15 +409,16 @@ private:
     int interval_;
     int size_;
     int speed_;
+    int wait_;
 
     DISALLOW_COPY_AND_ASSIGN(EchoCommand);
 };
 
 #define RECV_DEFAULT_COUNT 10
 #define RECV_DEFAULT_INTERVAL 100
-#define RECV_DEFAULT_TIME 1
 #define RECV_DEFAULT_SIZE 1024 * 10
 #define RECV_DEFAULT_SPEED 0
+#define RECV_DEFAULT_WAIT 500
 /**
  * @brief a main command, server send data only and client recv only.
  * 
@@ -398,20 +430,13 @@ public:
 
     bool ResolveArgs(CommandArgs args) override
     {
-        try
-        {
-            count_ = args["count"].empty() ? RECV_DEFAULT_COUNT : std::stoi(args["count"]);
-            interval_ = args["interval"].empty() ? RECV_DEFAULT_INTERVAL : std::stoi(args["interval"]);
-            size_ = args["size"].empty() ? RECV_DEFAULT_SIZE : std::stoi(args["size"]);
-            time_ = args["time"].empty() ? RECV_DEFAULT_TIME : std::stoi(args["time"]);
-            speed_ = args["speed"].empty() ? RECV_DEFAULT_SPEED : std::stoi(args["speed"]);
-            return true;
-        }
-        catch (const std::exception &e)
-        {
-            LOGEP("RecvCommand resolve args error: %s", e.what());
-        }
-        return false;
+        // TODO: optimize these assign.
+        count_ = args["count"].empty() ? RECV_DEFAULT_COUNT : std::stoi(args["count"]);
+        interval_ = args["interval"].empty() ? RECV_DEFAULT_INTERVAL : std::stoi(args["interval"]);
+        size_ = args["size"].empty() ? RECV_DEFAULT_SIZE : std::stoi(args["size"]);
+        wait_ = args["wait"].empty() ? RECV_DEFAULT_WAIT : std::stoi(args["wait"]);
+        speed_ = args["speed"].empty() ? RECV_DEFAULT_SPEED : std::stoi(args["speed"]);
+        return true;
     }
 
     std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) override
@@ -427,6 +452,7 @@ public:
     int GetInterval() { return interval_; }
     int GetTime() { return time_; }
     int GetSize() { return size_; }
+    int GetWait() override { return wait_; }
 
 private:
     int count_;
@@ -434,6 +460,7 @@ private:
     int time_;
     int size_;
     int speed_;
+    int wait_;
 
     DISALLOW_COPY_AND_ASSIGN(RecvCommand);
 };

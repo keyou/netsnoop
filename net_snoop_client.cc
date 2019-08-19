@@ -76,7 +76,7 @@ int NetSnoopClient::Connect()
     result = control_sock_->Initialize();
     ASSERT(result > 0);
     result = control_sock_->Connect(option_->ip_remote, option_->port);
-    ASSERT_RETURN(result >= 0,-1);
+    ASSERT_RETURN(result >= 0,-1,"connect server error.");
 
     data_sock_ = std::make_shared<Udp>();
     data_sock_->Initialize();
@@ -115,6 +115,7 @@ int NetSnoopClient::RecvCommand()
     auto command = CommandFactory::New(cmd);
     if (!command)
         return ERR_ILLEGAL_DATA;
+    LOGIP("recv new command: %s",command->cmd.c_str());
     if(receiver_ && command->is_private)
     {
         auto stop_command = std::dynamic_pointer_cast<StopCommand>(command);
