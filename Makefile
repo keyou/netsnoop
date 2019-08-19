@@ -14,12 +14,13 @@ netsnoop: $(OBJ) netsnoop.o
 %.o: %.cc %.h $(DEPS)
 	$(CXX) $(CXXFLAGS) -c -o $@ $< 
 
-netsnoop_unittest: $(OBJ) netsnoop_unittest.o
+netsnoop_test: $(OBJ) netsnoop_test.o
 	$(CXX) $(CXXFLAGS) $(LIBS) -o $@ $^ 
 
 .PHONY: test
-test: netsnoop_unittest
+test: netsnoop_test
 
 .PHONY: clean
 clean:
 	rm -rf *.o
+	rm netsnoop netsnoop_test
