@@ -244,8 +244,8 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     return 0;
 }
 
-RecvCommandSender::RecvCommandSender(std::shared_ptr<CommandChannel> channel)
-    : command_(std::dynamic_pointer_cast<RecvCommandClazz>(channel->command_)),
+SendCommandSender::SendCommandSender(std::shared_ptr<CommandChannel> channel)
+    : command_(std::dynamic_pointer_cast<SendCommandClazz>(channel->command_)),
       data_buf_(command_->GetSize(), 0),
       delay_(0), max_delay_(0), min_delay_(INT32_MAX),
       send_packets_(0), send_bytes_(0),
@@ -253,9 +253,9 @@ RecvCommandSender::RecvCommandSender(std::shared_ptr<CommandChannel> channel)
 {
 }
 
-int RecvCommandSender::OnStart()
+int SendCommandSender::OnStart()
 {
-    LOGDP("RecvCommandSender start payload.");
+    LOGDP("SendCommandSender start payload.");
     start_ = high_resolution_clock::now();
     context_->SetWriteFd(data_sock_->GetFd());
     context_->ClrReadFd(data_sock_->GetFd());
@@ -263,7 +263,7 @@ int RecvCommandSender::OnStart()
     return 0;
 }
 
-int RecvCommandSender::SendData()
+int SendCommandSender::SendData()
 {
     if (TryStop())
     {
@@ -277,12 +277,12 @@ int RecvCommandSender::SendData()
     send_bytes_+=result;
     return result;
 }
-int RecvCommandSender::RecvData()
+int SendCommandSender::RecvData()
 {
     // we don't expect recv any data
-    ASSERT_RETURN(0,-1,"RecvCommandSender don't expect recv any data.");
+    ASSERT_RETURN(0,-1,"SendCommandSender don't expect recv any data.");
 }
-int RecvCommandSender::OnTimeout()
+int SendCommandSender::OnTimeout()
 {
     if (TryStop())
     {
@@ -294,7 +294,7 @@ int RecvCommandSender::OnTimeout()
 
     return 0;
 }
-bool RecvCommandSender::TryStop()
+bool SendCommandSender::TryStop()
 {
     if (send_packets_ >= command_->GetCount())
     {
@@ -303,9 +303,9 @@ bool RecvCommandSender::TryStop()
     }
     return false;
 }
-int RecvCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
+int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 {
-    LOGDP("RecvCommandSender stop payload.");
+    LOGDP("SendCommandSender stop payload.");
     if (!OnStopped)
         return 0;
 

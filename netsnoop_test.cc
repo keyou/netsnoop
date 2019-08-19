@@ -18,15 +18,15 @@ void StartServer();
 
 std::vector<std::string> cmds{
     "echo",
-    "recv",
-    "recv count 100 interval 1 size 1024",
-    "recv count 10000 interval 0 size 1024",
+    "send",
+    "send count 100 interval 1 size 1024",
+    "send count 10000 interval 0 size 1024",
     "echo count 10 interval 200 size 1024",
     "echo count 10 interval 200 size 10240",
-    "recv count 1000 interval 1 size 1024",
-    "recv count 1000 interval 0 size 8096",
-    "recv count 10000 interval 0 size 12024",
-    "recv count 1000 interval 1 size 20240"};
+    "send count 1000 interval 1 size 1024",
+    "send count 1000 interval 0 size 8096",
+    "send count 10000 interval 0 size 12024",
+    "send count 1000 interval 1 size 20240"};
 
 std::shared_ptr<Option> g_option;
 int main(int argc, char *argv[])
@@ -150,10 +150,10 @@ void StartServer()
         server->Run();
     });
     
+    std::cout << "Press Enter to start." << std::endl;
+    getchar();
     while (true)
     {
-        std::cout << "Press Enter to start." << std::endl;
-        //getchar();
         int i = 0;
         for (auto &cmd : cmds)
         {

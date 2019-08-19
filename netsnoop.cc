@@ -23,7 +23,10 @@ int main(int argc, char *argv[])
     {
         std::cout<< "usage: \n"
                     "   start server: netsnoop -s 0.0.0.0 4000 -vvv\n"
-                    "   start client: netsnoop -c 127.0.0.1 4000 -vvv\n";
+                    "   start client: netsnoop -c 127.0.0.1 4000 -vvv\n"
+                    "   test delay: echo count 10\n"
+                    "   test thoughput: recv count 1000 interval 0"
+                    ;
         return 0;
     }
 #ifdef _DEBUG

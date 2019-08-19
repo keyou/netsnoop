@@ -11,7 +11,7 @@ using namespace std::chrono;
 class Command;
 class CommandChannel;
 class EchoCommand;
-class RecvCommand;
+class SendCommand;
 class NetStat;
 
 class CommandReceiver
@@ -55,10 +55,10 @@ private:
     std::queue<std::string> data_queue_;
 };
 
-class RecvCommandReceiver : public CommandReceiver
+class SendCommandReceiver : public CommandReceiver
 {
 public:
-    RecvCommandReceiver(std::shared_ptr<CommandChannel> channel);
+    SendCommandReceiver(std::shared_ptr<CommandChannel> channel);
 
     int Start() override;
     int Stop() override;
@@ -70,7 +70,7 @@ private:
     int length_;
     bool running_;
     bool is_stopping_;
-    std::shared_ptr<RecvCommand> command_;
+    std::shared_ptr<SendCommand> command_;
 
     high_resolution_clock::time_point start_;
     high_resolution_clock::time_point stop_;

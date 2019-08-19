@@ -20,14 +20,6 @@ class NetStat;
 
 typedef std::function<void(const Command *, std::shared_ptr<NetStat>)> CommandCallback;
 
-enum CommandType : char
-{
-    CMD_NULL = 0,
-    CMD_ECHO = 1,
-    CMD_RECV = 2,
-    CMD_SEND = 3,
-};
-
 extern std::map<std::string, int> g_cmd_map;
 
 using CommandArgs = std::map<std::string, std::string>;
@@ -414,38 +406,36 @@ private:
     DISALLOW_COPY_AND_ASSIGN(EchoCommand);
 };
 
-#define RECV_DEFAULT_COUNT 10
-#define RECV_DEFAULT_INTERVAL 100
-#define RECV_DEFAULT_SIZE 1024 * 10
-#define RECV_DEFAULT_SPEED 0
-#define RECV_DEFAULT_WAIT 500
+#define SEND_DEFAULT_COUNT 10
+#define SEND_DEFAULT_INTERVAL 0
+#define SEND_DEFAULT_SIZE 1024
+#define SEND_DEFAULT_WAIT 500
 /**
  * @brief a main command, server send data only and client recv only.
  * 
  */
-class RecvCommand : public Command
+class SendCommand : public Command
 {
 public:
-    RecvCommand(std::string cmd) : Command("recv", cmd) {}
+    SendCommand(std::string cmd) : Command("send", cmd) {}
 
     bool ResolveArgs(CommandArgs args) override
     {
         // TODO: optimize these assign.
-        count_ = args["count"].empty() ? RECV_DEFAULT_COUNT : std::stoi(args["count"]);
-        interval_ = args["interval"].empty() ? RECV_DEFAULT_INTERVAL : std::stoi(args["interval"]);
-        size_ = args["size"].empty() ? RECV_DEFAULT_SIZE : std::stoi(args["size"]);
-        wait_ = args["wait"].empty() ? RECV_DEFAULT_WAIT : std::stoi(args["wait"]);
-        speed_ = args["speed"].empty() ? RECV_DEFAULT_SPEED : std::stoi(args["speed"]);
+        count_ = args["count"].empty() ? SEND_DEFAULT_COUNT : std::stoi(args["count"]);
+        interval_ = args["interval"].empty() ? SEND_DEFAULT_INTERVAL : std::stoi(args["interval"]);
+        size_ = args["size"].empty() ? SEND_DEFAULT_SIZE : std::stoi(args["size"]);
+        wait_ = args["wait"].empty() ? SEND_DEFAULT_WAIT : std::stoi(args["wait"]);
         return true;
     }
 
     std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) override
     {
-        return std::make_shared<RecvCommandSender>(channel);
+        return std::make_shared<SendCommandSender>(channel);
     }
     std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) override
     {
-        return std::make_shared<RecvCommandReceiver>(channel);
+        return std::make_shared<SendCommandReceiver>(channel);
     }
 
     int GetCount() { return count_; }
@@ -459,10 +449,9 @@ private:
     int interval_;
     int time_;
     int size_;
-    int speed_;
     int wait_;
 
-    DISALLOW_COPY_AND_ASSIGN(RecvCommand);
+    DISALLOW_COPY_AND_ASSIGN(SendCommand);
 };
 
 // #define DEFINE_COMMAND(name,typename) \

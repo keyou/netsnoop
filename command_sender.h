@@ -13,10 +13,10 @@ class Peer;
 class Command;
 class CommandChannel;
 class EchoCommand;
-class RecvCommand;
+class SendCommand;
 class NetStat;
 
-using RecvCommandClazz = class RecvCommand;
+using SendCommandClazz = class SendCommand;
 
 class CommandSender
 {
@@ -88,10 +88,10 @@ private:
     std::string data_buf_;
 };
 
-class RecvCommandSender : public CommandSender
+class SendCommandSender : public CommandSender
 {
 public:
-    RecvCommandSender(std::shared_ptr<CommandChannel> channel);
+    SendCommandSender(std::shared_ptr<CommandChannel> channel);
     
     int SendData() override;
     int RecvData() override;
@@ -102,7 +102,7 @@ private:
     int OnStop(std::shared_ptr<NetStat> netstat) override;
     inline bool TryStop();
 
-    std::shared_ptr<RecvCommandClazz> command_;
+    std::shared_ptr<SendCommandClazz> command_;
     bool is_stoping_;
 
     high_resolution_clock::time_point start_;

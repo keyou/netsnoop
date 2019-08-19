@@ -8,7 +8,7 @@ static CommandRegister<T> __command_##name(#name,true)
 
 
 REGISER_COMMAND(echo,EchoCommand);
-REGISER_COMMAND(recv,RecvCommand);
+REGISER_COMMAND(send,SendCommand);
 REGISER_PRIVATE_COMMAND(ack,AckCommand);
 REGISER_PRIVATE_COMMAND(stop,StopCommand);
 REGISER_PRIVATE_COMMAND(result,ResultCommand);

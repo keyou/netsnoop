@@ -105,15 +105,15 @@ int EchoCommandReceiver::SendPrivateCommand()
     return result;
 }
 
-RecvCommandReceiver::RecvCommandReceiver(std::shared_ptr<CommandChannel> channel)
+SendCommandReceiver::SendCommandReceiver(std::shared_ptr<CommandChannel> channel)
     : length_(0), recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0), 
       running_(false),is_stopping_(false),
-      command_(std::dynamic_pointer_cast<RecvCommand>(channel->command_)), CommandReceiver(channel) {}
+      command_(std::dynamic_pointer_cast<SendCommand>(channel->command_)), CommandReceiver(channel) {}
 
-int RecvCommandReceiver::Start()
+int SendCommandReceiver::Start()
 {
-    LOGDP("RecvCommandReceiver start command.");
-    ASSERT_RETURN(!running_,-1,"RecvCommandReceiver start unexpeted.");
+    LOGDP("SendCommandReceiver start command.");
+    ASSERT_RETURN(!running_,-1,"SendCommandReceiver start unexpeted.");
     running_ = true;
     context_->SetReadFd(context_->data_fd);
     start_ = high_resolution_clock::now();
@@ -121,10 +121,10 @@ int RecvCommandReceiver::Start()
     recv_count_ = 0;
     return 0;
 }
-int RecvCommandReceiver::Stop()
+int SendCommandReceiver::Stop()
 {
-    LOGDP("RecvCommandReceiver stop command.");
-    ASSERT_RETURN(running_,-1,"RecvCommandReceiver stop unexpeted.");
+    LOGDP("SendCommandReceiver stop command.");
+    ASSERT_RETURN(running_,-1,"SendCommandReceiver stop unexpeted.");
     running_ = false;
     context_->ClrReadFd(context_->data_fd);
     context_->ClrWriteFd(context_->data_fd);
@@ -133,10 +133,10 @@ int RecvCommandReceiver::Stop()
     context_->SetWriteFd(context_->control_fd);
     return 0;
 }
-int RecvCommandReceiver::Recv()
+int SendCommandReceiver::Recv()
 {
-    LOGVP("RecvCommandReceiver recv payload.");
-    ASSERT_RETURN(running_,-1,"RecvCommandReceiver recv unexpeted.");
+    LOGVP("SendCommandReceiver recv payload.");
+    ASSERT_RETURN(running_,-1,"SendCommandReceiver recv unexpeted.");
     int result;
     if ((result = data_sock_->Recv(buf_, sizeof(buf_))) <= 0)
     {
@@ -157,9 +157,9 @@ int RecvCommandReceiver::Recv()
     return result;
 }
 
-int RecvCommandReceiver::SendPrivateCommand()
+int SendCommandReceiver::SendPrivateCommand()
 {
-    LOGDP("RecvCommandReceiver send stop");
+    LOGDP("SendCommandReceiver send stop");
     int result;
     context_->ClrWriteFd(context_->control_fd);
     auto stat = std::make_shared<NetStat>();
