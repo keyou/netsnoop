@@ -7,6 +7,7 @@ GTAGS
 *.log
 *.swp
 netsnoop
-netsnoop_unittest
+netsnoop_test
+netsnoop_*
 data/
 
