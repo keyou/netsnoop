@@ -162,6 +162,13 @@ int SendCommandReceiver::SendPrivateCommand()
     LOGDP("SendCommandReceiver send stop");
     int result;
     context_->ClrWriteFd(context_->control_fd);
+
+    // TODO: try read
+    // if ((result = data_sock_->Recv(buf_, sizeof(buf_))) <= 0)
+    // {
+    //     return -1;
+    // }
+
     auto stat = std::make_shared<NetStat>();
     stat->recv_bytes = recv_bytes_;
     stat->recv_packets = recv_count_;

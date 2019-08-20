@@ -287,21 +287,18 @@ int NetSnoopServer::ProcessNextCommand()
             if(OnPeerStopped) OnPeerStopped(p,netstat);
             if(netstat)
             {
+                netstat->max_send_time = netstat->send_time;
+                netstat->max_recv_time = netstat->recv_time;
+                netstat->min_send_time = netstat->send_time;
+                netstat->min_recv_time = netstat->recv_time;
+                netstat->recv_avg_spped = netstat->recv_speed;
                 if(!netstat_)
                 {
                     netstat_ = netstat;
-                    netstat_->max_send_time = netstat->send_time;
-                    netstat_->max_recv_time = netstat->recv_time;
-                    netstat_->min_send_time = netstat->send_time;
-                    netstat_->min_recv_time = netstat->recv_time;
                 }
                 else 
                 {
                     *netstat_+=*netstat;
-                    netstat_->max_send_time = std::max(netstat_->max_send_time,netstat->send_time);
-                    netstat_->max_recv_time = std::max(netstat_->max_recv_time,netstat->recv_time);
-                    netstat_->min_send_time = std::min(netstat_->min_send_time,netstat->send_time);
-                    netstat_->min_recv_time = std::min(netstat_->min_recv_time,netstat->recv_time);
                 }
             }
             else
@@ -317,14 +314,23 @@ int NetSnoopServer::ProcessNextCommand()
             {
                 auto success_count = *peers_count - *peers_failed;
                 ASSERT(success_count>0);
-                netstat_->loss /= success_count;
-                netstat_->send_time /= success_count;
-                netstat_->recv_time /= success_count;
-                netstat_->delay /= success_count;
-                netstat_->max_delay /= success_count;
-                netstat_->min_delay /= success_count;
-                netstat_->jitter /= success_count;
-                netstat_->recv_avg_spped = netstat_->recv_speed/success_count;
+                // netstat_->loss /= success_count;
+                // netstat_->send_time /= success_count;
+                // netstat_->recv_time /= success_count;
+                // netstat_->delay /= success_count;
+                // netstat_->max_delay /= success_count;
+                // netstat_->min_delay /= success_count;
+                // netstat_->jitter /= success_count;
+                // netstat_->recv_avg_spped = netstat_->recv_speed/success_count;
+                *netstat_ /= success_count;
+                netstat_->send_speed *= success_count;
+                netstat_->recv_speed *= success_count;
+                netstat_->send_bytes *= success_count;
+                netstat_->recv_bytes *= success_count;
+                netstat_->send_packets *= success_count;
+                netstat_->recv_packets *= success_count;
+                netstat_->send_pps *= success_count;
+                netstat_->recv_pps *= success_count;
 
                 netstat_->peers_count = *peers_count;
                 netstat_->peers_failed = *peers_failed;

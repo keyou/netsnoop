@@ -258,38 +258,78 @@ struct NetStat
     // TODO: refactor the code to simplify the logic of 'arithmetic property'.
     NetStat &operator+=(const NetStat &stat)
     {
-#define AI(p) p = (p + stat.p + 1) / 2
-#define AF(p) p = (p + stat.p) / 2
-#define A(p) p = p + stat.p
-        A(loss);
-        A(send_speed);
-        A(recv_speed);
-        A(recv_avg_spped);
-        A(max_send_speed);
-        A(max_recv_speed);
-        A(min_send_speed);
-        A(min_recv_speed);
-        A(send_packets);
-        A(recv_packets);
-        A(send_pps);
-        A(recv_pps);
-        A(send_bytes);
-        A(recv_bytes);
-        A(delay);
-        A(min_delay);
-        A(max_delay);
-        A(jitter);
-        A(send_time);
-        A(recv_time);
-        A(max_send_time);
-        A(max_recv_time);
-        A(min_send_time);
-        A(min_recv_time);
-        A(peers_count);
-        A(peers_failed);
-#undef AI
-#undef AF
-#undef A
+#define INT(p) p = p + stat.p
+#define DOU(p) INT(p)
+#define MAX(p) p = std::max(p,stat.p)
+#define MIN(p) p = std::min(p,stat.p)
+        DOU(loss);
+        INT(send_speed);
+        INT(recv_speed);
+        INT(recv_avg_spped);
+        MAX(max_send_speed);
+        MAX(max_recv_speed);
+        MIN(min_send_speed);
+        MIN(min_recv_speed);
+        INT(send_packets);
+        INT(recv_packets);
+        INT(send_pps);
+        INT(recv_pps);
+        INT(send_bytes);
+        INT(recv_bytes);
+        INT(delay);
+        MIN(min_delay);
+        MAX(max_delay);
+        INT(jitter);
+        INT(send_time);
+        INT(recv_time);
+        MAX(max_send_time);
+        MAX(max_recv_time);
+        MIN(min_send_time);
+        MIN(min_recv_time);
+        INT(peers_count);
+        INT(peers_failed);
+#undef INT
+#undef DOU
+#undef MAX
+#undef MIN
+        return *this;
+    }
+        NetStat &operator/=(int num)
+    {
+#define INT(p) p /= num
+#define DOU(p) INT(p)
+#define MAX(p) p = p*1
+#define MIN(p) p = p*1
+        DOU(loss);
+        INT(send_speed);
+        INT(recv_speed);
+        INT(recv_avg_spped);
+        MAX(max_send_speed);
+        MAX(max_recv_speed);
+        MIN(min_send_speed);
+        MIN(min_recv_speed);
+        INT(send_packets);
+        INT(recv_packets);
+        INT(send_pps);
+        INT(recv_pps);
+        INT(send_bytes);
+        INT(recv_bytes);
+        INT(delay);
+        MIN(min_delay);
+        MAX(max_delay);
+        INT(jitter);
+        INT(send_time);
+        INT(recv_time);
+        MAX(max_send_time);
+        MAX(max_recv_time);
+        MIN(min_send_time);
+        MIN(min_recv_time);
+        INT(peers_count);
+        INT(peers_failed);
+#undef INT
+#undef DOU
+#undef MAX
+#undef MIN
         return *this;
     }
 };
