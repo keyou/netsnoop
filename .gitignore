@@ -8,6 +8,6 @@ GTAGS
 *.swp
 netsnoop
 netsnoop_test
-netsnoop_*
+netsnoop_select
 data/
 
