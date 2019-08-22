@@ -158,6 +158,14 @@ int NetSnoopClient::RecvCommand()
         }
         return receiver_->RecvPrivateCommand(command);
     }
+    
+    // clear data socket data.
+    std::string buf(MAX_UDP_LENGTH,0);
+    while ((result = recv(data_sock_->GetFd(),&buf[0],buf.length(),MSG_DONTWAIT))>0)
+    {
+        LOGDP("illegal data recved(%d).",result);
+    }
+
     auto ack_command = std::make_shared<AckCommand>();
     result = control_sock_->Send(ack_command->cmd.c_str(),ack_command->cmd.length());
     ASSERT_RETURN(result>0,ERR_DEFAULT,"send ack command error.");

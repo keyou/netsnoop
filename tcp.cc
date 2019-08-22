@@ -65,5 +65,35 @@ int Tcp::InitializeEx(int fd) const
         close(fd);
         return -1;
     }
+    opt = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&opt, sizeof(opt)) < 0)
+    {
+        LOGEP("setsockopt TCP_NODELAY error: %s(errno: %d)", strerror(errno), errno);
+        close(fd);
+        return -1;
+    }
+
+    int keepcnt = 3;
+    int keepidle = 20;
+    int keepintvl = 20;
+
+    if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int))<0)
+    {
+        LOGEP("setsocketopt TCP_KEEPCNT error: %s(errno: %d)",strerror(errno),errno);
+        close(fd);
+        return -1;
+    }
+    if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(int))<0)
+    {
+        LOGEP("setsocketopt TCP_KEEPIDLE error: %s(errno: %d)",strerror(errno),errno);
+        close(fd);
+        return -1;
+    }
+    if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(int))<0)
+    {
+        LOGEP("setsocketopt TCP_KEEPINTVL error: %s(errno: %d)",strerror(errno),errno);
+        close(fd);
+        return -1;
+    }
     return fd;
 }

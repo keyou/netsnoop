@@ -201,19 +201,6 @@ int NetSnoopServer::StartListen()
     context_->control_fd = listen_peers_sock_->GetFd();
     context_->SetReadFd(listen_peers_sock_->GetFd());
 
-    result = multicast_sock_->Initialize();
-    result = multicast_sock_->Bind(option_->ip_local,option_->port);
-    ASSERT_RETURN(result>=0,-1,"multicast socket bind error.");
-    //only recv the target's multicast packets
-    result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
-    ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
-    LOGVP("multicast fd=%d",multicast_sock_->GetFd());
-    // while(true)
-    // {
-    //     std::string data(100,0);
-    //     multicast_sock_->Recv(&data[0],100);
-    // }
-
     // result = command_sock_->Initialize();
     // result = command_sock_->Bind(option_->ip_local, option_->port);
     // result = command_sock_->Listen(MAX_SENDERS);
@@ -235,8 +222,7 @@ int NetSnoopServer::AceeptNewConnect()
     }
 
     auto tcp = std::make_shared<Tcp>(fd);
-    auto peer = std::make_shared<Peer>(tcp, context_);
-    peer->multicast_sock_ = multicast_sock_;
+    auto peer = std::make_shared<Peer>(tcp, option_,context_);
     peer->OnAuthSuccess = OnPeerConnected;
     peers_.push_back(peer);
     return 0;

@@ -68,7 +68,7 @@ public:
     int SendPrivateCommand() override;
 
 private:
-    char buf_[1024 * 64];
+    char buf_[MAX_UDP_LENGTH];
     int length_;
     bool running_;
     bool is_stopping_;

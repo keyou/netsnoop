@@ -5,6 +5,8 @@
 #include <string>
 #include "netsnoop.h"
 
+#define MAX_UDP_LENGTH 64*1024
+
 class Sock
 {
 public:

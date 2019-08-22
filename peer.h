@@ -16,8 +16,7 @@ class CommandSender;
 class Peer final
 {
 public:
-    Peer(std::shared_ptr<Sock> control_sock, std::shared_ptr<Context> context);
-    Peer(std::shared_ptr<Sock> control_sock, const std::string cookie, std::shared_ptr<Context> context);
+    Peer(std::shared_ptr<Sock> control_sock,std::shared_ptr<Option> option, std::shared_ptr<Context> context);
 
     int Start();
     int Stop();
@@ -58,6 +57,7 @@ private:
 
     int Auth();
 
+    std::shared_ptr<Option> option_;
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
     std::string cookie_;

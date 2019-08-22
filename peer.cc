@@ -7,13 +7,8 @@
 #include "context2.h"
 #include "peer.h"
 
-Peer::Peer(std::shared_ptr<Sock> control_sock, std::shared_ptr<Context> context)
-    : Peer(control_sock, "", context)
-{
-}
-
-Peer::Peer(std::shared_ptr<Sock> control_sock, const std::string cookie, std::shared_ptr<Context> context)
-    : cookie_(cookie), context_(context), control_sock_(control_sock)
+Peer::Peer(std::shared_ptr<Sock> control_sock, std::shared_ptr<Option> option, std::shared_ptr<Context> context)
+    : context_(context),option_(option), control_sock_(control_sock)
 {
     // keep control channel readable even no any data want to read,
     // because we use read to detect client disconnect.
@@ -92,12 +87,14 @@ int Peer::Auth()
     result = data_sock_->Bind(ip, port);
     ASSERT(result >= 0);
 
-    // multicast_sock_ = std::make_shared<Udp>();
-    // result = multicast_sock_->Initialize();
-    // result = multicast_sock_->Bind(option_->ip_remote,option_->port);
-    // //only recv the target's multicast packets
-    // result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
-    // ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
+    multicast_sock_ = std::make_shared<Udp>();
+    result = multicast_sock_->Initialize();
+    result = multicast_sock_->Bind(option_->ip_local,option_->port);
+    ASSERT_RETURN(result>=0,-1,"multicast socket bind error.");
+    //only recv the target's multicast packets
+    result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
+    ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
+    LOGVP("multicast fd=%d",multicast_sock_->GetFd());
 
     buf = buf.substr(sizeof("cookie:") - 1);
     int index = buf.find(':');
