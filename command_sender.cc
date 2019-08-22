@@ -270,7 +270,6 @@ int SendCommandSender::SendData()
     if (TryStop())
     {
         LOGDP("SendCommandSender stop from send data.");
-        context_->ClrWriteFd(data_sock_->GetFd());
         return Stop();
     }
     //static int index = 0;
@@ -291,8 +290,6 @@ int SendCommandSender::OnTimeout()
     if (TryStop())
     {
         LOGDP("SendCommandSender stop from timeout.");
-        // stop data channel
-        context_->ClrWriteFd(data_sock_->GetFd());
         return Stop();
     }
 
@@ -305,6 +302,8 @@ bool SendCommandSender::TryStop()
 {
     if (send_packets_ >= command_->GetCount())
     {
+        // stop data channel
+        context_->ClrWriteFd(data_sock_->GetFd());
         stop_ = high_resolution_clock::now();
         return true;
     }
