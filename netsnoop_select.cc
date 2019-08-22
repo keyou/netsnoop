@@ -13,12 +13,6 @@ void StartServer();
 
 auto g_option = std::make_shared<Option>();
 
-/**
- * @brief usage: 
- *      start server: netsnoop -s 0.0.0.0 4000 -vv
- *      start client: netsnoop -c 127.0.0.1 4000 -vv
- * 
- */
 int main(int argc, char *argv[])
 {
     if (argc < 2)
@@ -29,14 +23,14 @@ int main(int argc, char *argv[])
     }
     Logger::SetGlobalLogLevel(LLERROR);
 
-    strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
-    strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
+    strncpy(g_option->ip_remote, "0.0.0.0", sizeof(g_option->ip_remote)-1);
+    strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local)-1);
     g_option->port = 4000;
 
     if (argc > 2)
     {
-        strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote));
-        strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local));
+        strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote)-1);
+        strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local)-1);
     }
 
     if (argc > 3)

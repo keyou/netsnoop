@@ -92,6 +92,13 @@ int Peer::Auth()
     result = data_sock_->Bind(ip, port);
     ASSERT(result >= 0);
 
+    // multicast_sock_ = std::make_shared<Udp>();
+    // result = multicast_sock_->Initialize();
+    // result = multicast_sock_->Bind(option_->ip_remote,option_->port);
+    // //only recv the target's multicast packets
+    // result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
+    // ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
+
     buf = buf.substr(sizeof("cookie:") - 1);
     int index = buf.find(':');
     ip = buf.substr(0, index);
@@ -116,7 +123,8 @@ int Peer::SetCommand(std::shared_ptr<Command> command)
 {
     ASSERT_RETURN(data_sock_,-1);
     command_ = command;
-    std::shared_ptr<CommandChannel> channel(new CommandChannel{command, context_, control_sock_, data_sock_});
+    std::shared_ptr<CommandChannel> channel(new CommandChannel{
+        command, context_, control_sock_, command->is_multicast?multicast_sock_:data_sock_});
     commandsender_ = command->CreateCommandSender(channel);
     ASSERT_RETURN(commandsender_, -1);
     commandsender_->OnStopped = [&](std::shared_ptr<NetStat> netstat) {

@@ -117,3 +117,33 @@ private:
     ssize_t send_bytes_;
     std::string data_buf_;
 };
+
+class MulticastSendCommandSender : public SendCommandSender
+{
+public:
+    MulticastSendCommandSender(std::shared_ptr<CommandChannel> channel);
+
+    int SendData() override;
+    int RecvData() override;
+    int OnTimeout() override;
+    
+private:
+    int OnStart() override;
+    int OnStop(std::shared_ptr<NetStat> netstat) override;
+    inline bool TryStop();
+
+    std::shared_ptr<SendCommandClazz> command_;
+    bool is_stoping_;
+
+    high_resolution_clock::time_point start_;
+    high_resolution_clock::time_point stop_;
+    high_resolution_clock::time_point begin_;
+    high_resolution_clock::time_point end_;
+
+    double delay_;
+    double min_delay_;
+    double max_delay_;
+    ssize_t send_packets_;
+    ssize_t send_bytes_;
+    std::string data_buf_;
+};

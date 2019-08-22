@@ -29,7 +29,11 @@ public:
     int Timeout(int timeout);
     
     int GetControlFd() const{ return control_sock_->GetFd(); }
-    int GetDataFd() const{ return data_sock_ ? data_sock_->GetFd() : -1; }
+    int GetDataFd() const
+    {
+        if(command_&&command_->is_multicast) return multicast_sock_->GetFd(); 
+        return data_sock_ ? data_sock_->GetFd() : -1; 
+    }
     std::shared_ptr<Sock> GetControlSock() const{return control_sock_;}
     std::shared_ptr<Sock> GetDataSock() const{return data_sock_;}
     std::shared_ptr<Context> GetContext() const{return context_;}
@@ -46,6 +50,9 @@ public:
     {
         return std::addressof(*this) == std::addressof(peer);
     }
+
+    // TODO: optimize multicast logic
+    std::shared_ptr<Sock> multicast_sock_;
 
 private:
 

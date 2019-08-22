@@ -28,38 +28,42 @@ std::vector<std::string> cmds{
     "send count 10000 interval 0 size 12024",
     "send count 1000 interval 1 size 20240"};
 
-std::shared_ptr<Option> g_option;
+std::shared_ptr<Option> g_option = std::make_shared<Option>();
 int main(int argc, char *argv[])
 {
-#ifdef _DEBUG
-    Logger::SetGlobalLogLevel(LLDEBUG);
-#else
-    Logger::SetGlobalLogLevel(LLERROR);
-#endif // _DEBUG
+    Logger::SetGlobalLogLevel(LogLevel::LLDEBUG);
+    strncpy(g_option->ip_remote, "0.0.0.0", sizeof(g_option->ip_remote) - 1);
+    strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local) - 1);
+    strncpy(g_option->ip_multicast, "239.3.3.3", sizeof(g_option->ip_multicast) - 1);
 
-    std::cout << "netsnoop test begin." << std::endl;
-    g_option = std::make_shared<Option>();
-    strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
-    strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
     g_option->port = 4000;
 
-    if (argc > 1 && strncmp("-s", argv[1], 2) == 0)
+    if (argc > 2)
     {
-        StartServer();
-        return 0;
+        strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote) - 1);
+        strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local) - 1);
     }
-    else if (argc > 1 && strncmp("-c", argv[1], 2) == 0)
+
+    if (argc > 3)
     {
-        int count = 1;
-        if (argc > 2)
+        g_option->port = atoi(argv[3]);
+    }
+
+    if (argc > 4)
+    {
+        Logger::SetGlobalLogLevel(LogLevel(LLERROR - strlen(argv[4]) + 1));
+    }
+
+    if (argc > 1)
+    {
+        if (!strcmp(argv[1], "-s"))
         {
-            count = atoi(argv[2]);
+            StartServer();
         }
-        if (argc > 3)
+        else if (!strcmp(argv[1], "-c"))
         {
-            strncpy(g_option->ip_remote, argv[3], sizeof(g_option->ip_remote));
+            StartClients(2,true);
         }
-        StartClients(count, true);
         return 0;
     }
 

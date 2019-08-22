@@ -18,12 +18,13 @@ class CommandFactory;
 class Command;
 class NetStat;
 
-typedef std::function<void(const Command *, std::shared_ptr<NetStat>)> CommandCallback;
-
 extern std::map<std::string, int> g_cmd_map;
 
+using CommandCallback = std::function<void(const Command *, std::shared_ptr<NetStat>)>;
+
+#pragma region CommandFactory
+
 using CommandArgs = std::map<std::string, std::string>;
-//using Ctor = std::shared_ptr<Command>(*)(std::string);
 using Ctor = CommandFactory *;
 using CommandContainer = std::map<std::string, Ctor>;
 
@@ -80,12 +81,15 @@ public:
     {
         auto command = std::make_shared<DerivedType>(cmd);
         command->is_private = is_private_;
+        command->is_multicast = !args["multicast"].empty();
+        if(command->is_multicast)
+            LOGDP("new multicast command: %s",cmd.c_str());
         if (command->ResolveArgs(args))
         {
-            LOGVP("new command: %s:%s", name_.c_str(), cmd.c_str());
+            LOGVP("new command: %s", cmd.c_str());
             return command;
         }
-        LOGVP("new command error: %s:%s", name_.c_str(), cmd.c_str());
+        LOGVP("new command error: %s", cmd.c_str());
         return NULL;
     }
 
@@ -93,6 +97,10 @@ private:
     const std::string name_;
     bool is_private_;
 };
+
+#pragma endregion
+
+#pragma region NetStat
 
 /**
  * @brief Network State
@@ -334,6 +342,8 @@ struct NetStat
     }
 };
 
+#pragma endregion
+
 struct CommandChannel
 {
     std::shared_ptr<Command> command_;
@@ -349,6 +359,7 @@ struct CommandChannel
 class Command
 {
 public:
+    // TODO: optimize command structure to simplify sub command.
     Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false)
     {
     }
@@ -366,16 +377,16 @@ public:
         }
     }
 
-    virtual bool ResolveArgs(CommandArgs args) { return true; };
-    virtual std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) { return NULL; };
-    virtual std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) { return NULL; };
+    virtual bool ResolveArgs(CommandArgs args) {return true;}
+    virtual std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) { return NULL; }
+    virtual std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) { return NULL; }
 
-    // TODO: optimize command structure to simplify sub command.
     virtual int GetWait() { return STOP_WAIT_TIME; }
 
     std::string name;
     std::string cmd;
     bool is_private;
+    bool is_multicast;
 
 private:
     std::vector<CommandCallback> callbacks_;
@@ -550,4 +561,29 @@ public:
     std::shared_ptr<NetStat> netstat;
 
     DISALLOW_COPY_AND_ASSIGN(ResultCommand);
+};
+
+class ModeCommand : public Command 
+{
+public:
+
+    enum class ModeType
+    {
+        None,UDP,Multicast //TODO: TCP
+    };
+
+    ModeCommand() : ModeCommand("mode"){}
+    ModeCommand(std::string cmd) : mode_(ModeType::None), Command("mode",cmd){}
+    bool ResolveArgs(CommandArgs args) override
+    {
+        mode_ = !args["udp"].empty()?ModeType::UDP:
+                !args["multicast"].empty()?ModeType::Multicast:ModeType::None;
+        return mode_ != ModeType::None;
+    }
+    ModeType GetModeType()
+    {
+        return mode_;
+    }
+private:
+    ModeType mode_;
 };

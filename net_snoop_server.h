@@ -18,7 +18,7 @@ public:
         :option_(option),
         context_(std::make_shared<Context>()),
         listen_peers_sock_(std::make_shared<Tcp>()),
-        command_sock_(std::make_shared<Udp>()),
+        multicast_sock_(std::make_shared<Udp>()),
         is_running_(false)
         {}
     int Run();
@@ -38,8 +38,9 @@ private:
     std::shared_ptr<Option> option_;
     std::shared_ptr<Context> context_;
     std::shared_ptr<Sock> listen_peers_sock_;
+    //std::shared_ptr<Udp> command_sock_;
+    std::shared_ptr<Sock> multicast_sock_;
     std::list<std::shared_ptr<Peer>> peers_;
-    std::shared_ptr<Udp> command_sock_;
     std::queue<std::shared_ptr<Command>> commands_;
     std::list<std::shared_ptr<Peer>> ready_peers_;
     std::shared_ptr<NetStat> netstat_;

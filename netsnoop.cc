@@ -19,14 +19,13 @@ auto g_option = std::make_shared<Option>();
  */
 int main(int argc, char *argv[])
 {
-    if(argc < 2)
+    if (argc < 2)
     {
-        std::cout<< "usage: \n"
-                    "   start server: netsnoop -s 0.0.0.0 4000 -vvv\n"
-                    "   start client: netsnoop -c 127.0.0.1 4000 -vvv\n"
-                    "   test delay: echo count 10\n"
-                    "   test thoughput: send count 1000 interval 0"
-                    ;
+        std::cout << "usage: \n"
+                     "   start server: netsnoop -s 0.0.0.0 4000 -vvv\n"
+                     "   start client: netsnoop -c 0.0.0.0 4000 -vvv\n"
+                     "   test delay: echo count 10\n"
+                     "   test thoughput: send count 1000 interval 0";
         return 0;
     }
 #ifdef _DEBUG
@@ -35,14 +34,16 @@ int main(int argc, char *argv[])
     Logger::SetGlobalLogLevel(LLERROR);
 #endif // _DEBUG
 
-    strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote));
-    strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local));
+    strncpy(g_option->ip_remote, "0.0.0.0", sizeof(g_option->ip_remote) - 1);
+    strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local) - 1);
+    strncpy(g_option->ip_multicast, "239.3.3.3", sizeof(g_option->ip_multicast) - 1);
+
     g_option->port = 4000;
 
     if (argc > 2)
     {
-        strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote));
-        strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local));
+        strncpy(g_option->ip_remote, argv[2], sizeof(g_option->ip_remote) - 1);
+        strncpy(g_option->ip_local, argv[2], sizeof(g_option->ip_local) - 1);
     }
 
     if (argc > 3)
@@ -74,7 +75,7 @@ void StartClient()
 {
     NetSnoopClient client(g_option);
     client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
-        std::clog << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") <<std::endl;
+        std::clog << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&client]() {
         LOGVP("client run.");
@@ -125,28 +126,9 @@ void StartServer()
         if (command)
         {
             command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                std::clog << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL");
+                std::clog << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
             });
             server.PushCommand(command);
         }
     }
 }
-
-// void join_mcast(int fd, struct sockaddr_in *sin)
-// {
-//     u_long inaddr;
-//     struct ip_mreq mreq;
-
-//     inaddr = sin->sin_addr.s_addr;
-//     if (IN_MULTICAST(ntohl(inaddr)) == 0)
-//         return;
-
-//     mreq.imr_multiaddr.s_addr = inaddr;
-//     mreq.imr_interface.s_addr = htonl(INADDR_ANY); /* need way to change */
-//     if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == -1)
-//     {
-//         LOGEP("IP_ADD_MEMBERSHIP error");
-//     }
-
-//     LOGVP("multicast group joined");
-// }

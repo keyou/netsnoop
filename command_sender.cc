@@ -42,9 +42,6 @@ int CommandSender::Stop()
     LOGDP("CommandSender stop command.");
     ASSERT(!is_stopping_);
     is_stopping_ = true;
-    // stop data channel
-    context_->ClrWriteFd(data_sock_->GetFd());
-    context_->ClrReadFd(data_sock_->GetFd());
     // allow to send stop command
     //context_->SetWriteFd(control_sock_->GetFd());
     //timeout_ = -1;
@@ -111,9 +108,9 @@ int CommandSender::RecvCommand()
     {
         is_waiting_result_ = false;
         is_stopped_ = true;
-        LOGDP("CommandSender recv result command.");
         auto result_command = std::dynamic_pointer_cast<ResultCommand>(command);
         ASSERT_RETURN(result_command, -1, "CommandSender expect recv result command: %s", command->cmd.c_str());
+        LOGDP("CommandSender recv result: %s",result_command->netstat->ToString().c_str());
         // should not clear control sock,keep control sock readable for detecting client disconnect
         //context_->ClrReadFd(control_sock_->GetFd());
         return OnStop(result_command->netstat);
@@ -214,6 +211,9 @@ int EchoCommandSender::OnTimeout()
     if (send_packets_ >= command_->GetCount())
     {
         stop_ = high_resolution_clock::now();
+        // stop data channel
+        context_->ClrWriteFd(data_sock_->GetFd());
+        context_->ClrReadFd(data_sock_->GetFd());
         return Stop();
     }
     context_->SetWriteFd(data_sock_->GetFd());
@@ -265,15 +265,19 @@ int SendCommandSender::OnStart()
 
 int SendCommandSender::SendData()
 {
-    if (TryStop())
-    {
-        return Stop();
-    }
-    send_packets_++;
     if (command_->GetInterval() > 0)
         context_->ClrWriteFd(data_sock_->GetFd());
+    if (TryStop())
+    {
+        LOGDP("SendCommandSender stop from send data.");
+        context_->ClrWriteFd(data_sock_->GetFd());
+        return Stop();
+    }
+    //static int index = 0;
+    //data_buf_ = std::to_string(index++);
     auto result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
     ASSERT_RETURN(result>0,-1);
+    send_packets_++;
     send_bytes_+=result;
     return result;
 }
@@ -286,6 +290,9 @@ int SendCommandSender::OnTimeout()
 {
     if (TryStop())
     {
+        LOGDP("SendCommandSender stop from timeout.");
+        // stop data channel
+        context_->ClrWriteFd(data_sock_->GetFd());
         return Stop();
     }
 
@@ -306,6 +313,102 @@ bool SendCommandSender::TryStop()
 int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 {
     LOGDP("SendCommandSender stop payload.");
+    if (!OnStopped)
+        return 0;
+
+    auto stat = std::make_shared<NetStat>();
+    stat->send_bytes = send_bytes_;
+    stat->send_packets = send_packets_;
+    stat->send_pps = send_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
+    stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
+    auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
+    if (seconds > 0.001)
+    {
+        stat->send_speed = stat->send_bytes / seconds;
+    }
+
+    stat->recv_bytes = netstat->recv_bytes;
+    stat->recv_packets = netstat->recv_packets;
+    stat->recv_time = netstat->recv_time;
+    stat->recv_speed = netstat->recv_speed;
+    stat->min_recv_speed = netstat->min_recv_speed;
+    stat->max_recv_speed = netstat->max_recv_speed;
+    stat->recv_pps = netstat->recv_pps;
+    stat->loss = 1 - 1.0 * stat->recv_bytes / stat->send_bytes;
+
+    OnStopped(stat);
+    return 0;
+}
+
+
+MulticastSendCommandSender::MulticastSendCommandSender(std::shared_ptr<CommandChannel> channel)
+    : command_(std::dynamic_pointer_cast<SendCommandClazz>(channel->command_)),
+      data_buf_(command_->GetSize(), 0),
+      delay_(0), max_delay_(0), min_delay_(INT32_MAX),
+      send_packets_(0), send_bytes_(0),
+      SendCommandSender(channel)
+{
+}
+
+int MulticastSendCommandSender::OnStart()
+{
+    LOGDP("MulticastSendCommandSender start payload.");
+    start_ = high_resolution_clock::now();
+    context_->SetWriteFd(data_sock_->GetFd());
+    context_->ClrReadFd(data_sock_->GetFd());
+    SetTimeout(command_->GetInterval());
+    return 0;
+}
+
+int MulticastSendCommandSender::SendData()
+{
+    if (command_->GetInterval() > 0)
+        context_->ClrWriteFd(data_sock_->GetFd());
+    if (TryStop())
+    {
+        LOGDP("MulticastSendCommandSender stop from send data.");
+        context_->ClrWriteFd(data_sock_->GetFd());
+        return Stop();
+    }
+    auto result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
+    ASSERT_RETURN(result>0,-1);
+    send_packets_++;
+    send_bytes_+=result;
+    return result;
+    return 0;
+}
+int MulticastSendCommandSender::RecvData()
+{
+    // we don't expect recv any data
+    ASSERT_RETURN(0,-1,"MulticastSendCommandSender don't expect recv any data.");
+}
+int MulticastSendCommandSender::OnTimeout()
+{
+    if (TryStop())
+    {
+        LOGDP("MulticastSendCommandSender stop from timeout.");
+        // stop data channel
+        context_->ClrWriteFd(data_sock_->GetFd());
+        return Stop();
+    }
+
+    context_->SetWriteFd(data_sock_->GetFd());
+    SetTimeout(command_->GetInterval());
+
+    return 0;
+}
+bool MulticastSendCommandSender::TryStop()
+{
+    if (send_packets_ >= command_->GetCount())
+    {
+        stop_ = high_resolution_clock::now();
+        return true;
+    }
+    return false;
+}
+int MulticastSendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
+{
+    LOGDP("MulticastSendCommandSender stop payload.");
     if (!OnStopped)
         return 0;
 

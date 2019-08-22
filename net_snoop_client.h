@@ -28,6 +28,7 @@ private:
     std::shared_ptr<Context> context_;
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
+    std::shared_ptr<Sock> multicast_sock_;
     std::shared_ptr<CommandReceiver> receiver_;
 
     DISALLOW_COPY_AND_ASSIGN(NetSnoopClient);

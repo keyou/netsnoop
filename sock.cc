@@ -33,6 +33,27 @@
 
 #include "sock.h"
 
+
+int join_mcast(int fd, ulong groupaddr);
+int join_mcast(int fd, ulong groupaddr)
+{
+    struct ip_mreq mreq;
+
+    if (IN_MULTICAST(ntohl(groupaddr)) == 0)
+        return -1;
+
+    mreq.imr_multiaddr.s_addr = groupaddr;
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+    if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == -1)
+    {
+        LOGEP("IP_ADD_MEMBERSHIP error: %s(errno: %d)",strerror(errno),errno);
+        return -1;
+    }
+
+    LOGVP("multicast group joined");
+    return 0;
+}
+
 //static
 int Sock::CreateSocket(int type, int protocol)
 {
@@ -76,6 +97,10 @@ int Sock::Bind(int fd_, std::string ip, int port)
         LOGEP("bind error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
+
+    if (IN_MULTICAST(ntohl(localaddr.sin_addr.s_addr)))
+        return join_mcast(fd_,localaddr.sin_addr.s_addr);
+
     return 0;
 }
 
@@ -118,7 +143,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
 
 #ifdef _DEBUG
     char tmp[64] = {};
-    strncpy(tmp, buf, sizeof(tmp));
+    strncpy(tmp, buf, sizeof(tmp)-1);
     LOGVP("send(%ld): %s", result, tmp);
 #endif // _DEBUG
     return result;
@@ -141,7 +166,7 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
     }
 #ifdef _DEBUG
     char tmp[64] = {};
-    strncpy(tmp, buf, sizeof(tmp));
+    strncpy(tmp, buf, sizeof(tmp)-1);
     LOGVP("recv(%ld): %s", result, tmp);
 #endif // _DEBUG
     return result;

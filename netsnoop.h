@@ -169,11 +169,11 @@ private:
 #define MAX_CLINETS 500
 #define MAX_SENDERS 10
 
-void join_mcast(int fd, struct sockaddr_in *sin);
-
 struct Option
 {
+    Option():ip_local{0},ip_remote{0},ip_multicast{0},port{0}{}
     char ip_local[20];
     char ip_remote[20];
+    char ip_multicast[20];
     int port;
 };

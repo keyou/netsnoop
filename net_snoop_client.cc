@@ -24,6 +24,20 @@ int NetSnoopClient::Run()
         memcpy(&read_fds, &context->read_fds, sizeof(read_fds));
         memcpy(&write_fds, &context->write_fds, sizeof(write_fds));
 
+#ifdef _DEBUG
+        for (int i = 0; i < context_->max_fd + 1; i++)
+        {
+            if (FD_ISSET(i, &context_->read_fds))
+            {
+                LOGVP("want read: %d", i);
+            }
+            if (FD_ISSET(i, &context_->write_fds))
+            {
+                LOGVP("want write: %d", i);
+            }
+        }
+#endif
+
         LOGVP("client[%d] selecting",context->control_fd);
         result = select(context->max_fd + 1, &read_fds, &write_fds, NULL, NULL);
         LOGVP("client[%d] selected",context->control_fd);
@@ -79,15 +93,34 @@ int NetSnoopClient::Connect()
     ASSERT_RETURN(result >= 0,-1,"connect server error.");
 
     data_sock_ = std::make_shared<Udp>();
-    data_sock_->Initialize();
-    data_sock_->Connect(option_->ip_remote, option_->port);
+    result = data_sock_->Initialize();
+    result = data_sock_->Connect(option_->ip_remote, option_->port);
+    ASSERT_RETURN(result >= 0,-1,"data socket connect server error.");
 
-    std::string ip;
-    int port;
-    result = data_sock_->GetLocalAddress(ip, port);
+    multicast_sock_ = std::make_shared<Udp>();
+    result = multicast_sock_->Initialize();
+    result = multicast_sock_->Bind(option_->ip_multicast,option_->port);
+    ASSERT_RETURN(result >= 0,-1,"multicast socket bind error: %s:%d",option_->ip_multicast,option_->port);
+    //only recv the target's multicast packets
+    result = multicast_sock_->Connect(option_->ip_remote, option_->port);
+    ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
+
+    std::string ip_local,ip_remote;
+    int port_local,port_remote;
+
+    result = multicast_sock_->GetLocalAddress(ip_local,port_local);
+    ASSERT(result>=0);
+    result = multicast_sock_->GetPeerAddress(ip_remote,port_remote);
+    ASSERT(result>=0);
+    LOGDP("multicast connection: %s:%d -> %s:%d",ip_local.c_str(),port_local,ip_remote.c_str(),port_remote);
+    // while(true){
+    // std::string data(100,0);
+    // result = multicast_sock_->Recv(&data[0],100);
+    // }
+
+    result = data_sock_->GetLocalAddress(ip_local, port_local);
     ASSERT(result >= 0);
-
-    std::string cookie("cookie:" + ip + ":" + std::to_string(port));
+    std::string cookie("cookie:" + ip_local + ":" + std::to_string(port_local));
     result = control_sock_->Send(cookie.c_str(), cookie.length());
     ASSERT_RETURN(result >= 0,-1);
 
@@ -129,8 +162,9 @@ int NetSnoopClient::RecvCommand()
     result = control_sock_->Send(ack_command->cmd.c_str(),ack_command->cmd.length());
     ASSERT_RETURN(result>0,ERR_DEFAULT,"send ack command error.");
 
+    context_->data_fd = command->is_multicast?multicast_sock_->GetFd():data_sock_->GetFd();
     auto channel = std::shared_ptr<CommandChannel>(new CommandChannel{
-        command,context_,control_sock_,data_sock_
+        command,context_,control_sock_,command->is_multicast?multicast_sock_:data_sock_
     });
     receiver_ = command->CreateCommandReceiver(channel);
     ASSERT(receiver_);
