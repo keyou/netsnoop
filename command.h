@@ -81,9 +81,6 @@ public:
     {
         auto command = std::make_shared<DerivedType>(cmd);
         command->is_private = is_private_;
-        command->is_multicast = !args["multicast"].empty();
-        if(command->is_multicast)
-            LOGDP("new multicast command: %s",cmd.c_str());
         if (command->ResolveArgs(args))
         {
             LOGVP("new command: %s", cmd.c_str());
@@ -360,7 +357,7 @@ class Command
 {
 public:
     // TODO: optimize command structure to simplify sub command.
-    Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false)
+    Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false),is_multicast(false)
     {
     }
     void RegisterCallback(CommandCallback callback)
@@ -387,7 +384,7 @@ public:
     std::string cmd;
     bool is_private;
     bool is_multicast;
-
+    //bool can_start;
 private:
     std::vector<CommandCallback> callbacks_;
 
@@ -468,7 +465,7 @@ private:
 class SendCommand : public Command
 {
 public:
-    SendCommand(std::string cmd) : Command("send", cmd) {}
+    SendCommand(std::string cmd) : is_finished(false), Command("send", cmd) {}
 
     bool ResolveArgs(CommandArgs args) override
     {
@@ -477,6 +474,9 @@ public:
         interval_ = args["interval"].empty() ? SEND_DEFAULT_INTERVAL : std::stoi(args["interval"]);
         size_ = args["size"].empty() ? SEND_DEFAULT_SIZE : std::stoi(args["size"]);
         wait_ = args["wait"].empty() ? SEND_DEFAULT_WAIT : std::stoi(args["wait"]);
+        is_multicast = !args["multicast"].empty();
+        if(is_multicast)
+            LOGDP("enable multicast.");
         return true;
     }
 
@@ -494,6 +494,8 @@ public:
     int GetTime() { return time_; }
     int GetSize() { return size_; }
     int GetWait() override { return wait_; }
+
+    bool is_finished;
 
 private:
     int count_;

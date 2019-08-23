@@ -107,7 +107,7 @@ begin:
     {
         times = 0;
         avgstat = NULL;
-        if(is_multicast) size = sprintf(&cmd[0], "send multicast true count 1 interval %d size 1472 wait 500", i);
+        if(is_multicast) size = sprintf(&cmd[0], "send multicast true count 100 interval %d size 1472 wait 500", i);
         else size = sprintf(&cmd[0], "send count 100 interval %d size 1472 wait 500", i);
         for (auto k = 0; k < MAX_TIMES; k++)
         {

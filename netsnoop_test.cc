@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
         }
         else if (!strcmp(argv[1], "-c"))
         {
-            StartClients(2,true);
+            StartClients(10,true);
         }
         return 0;
     }

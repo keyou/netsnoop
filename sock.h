@@ -23,8 +23,8 @@ public:
     int Initialize();
     int Bind(std::string ip, int port);
     int Connect(std::string ip,int port);
-    ssize_t Send(const char *buf, size_t size) const;
-    ssize_t Recv(char *buf, size_t size) const;
+    virtual ssize_t Send(const char *buf, size_t size) const;
+    virtual ssize_t Recv(char *buf, size_t size) const;
     int GetLocalAddress(std::string& ip,int& port);
     int GetPeerAddress(std::string& ip,int& port);
 
@@ -48,7 +48,7 @@ protected:
     std::string remote_ip_;
     int remote_port_;
 
-    ~Sock();
+    virtual ~Sock();
 
     DISALLOW_COPY_AND_ASSIGN(Sock);
 };

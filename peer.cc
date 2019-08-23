@@ -1,4 +1,6 @@
 
+#include <thread>
+
 #include "command.h"
 #include "netsnoop.h"
 #include "udp.h"
@@ -8,7 +10,7 @@
 #include "peer.h"
 
 Peer::Peer(std::shared_ptr<Sock> control_sock, std::shared_ptr<Option> option, std::shared_ptr<Context> context)
-    : context_(context),option_(option), control_sock_(control_sock)
+    : control_sock_(control_sock), option_(option), context_(context)
 {
     // keep control channel readable even no any data want to read,
     // because we use read to detect client disconnect.
@@ -17,7 +19,7 @@ Peer::Peer(std::shared_ptr<Sock> control_sock, std::shared_ptr<Option> option, s
 
 int Peer::Start()
 {
-    ASSERT_RETURN(commandsender_,-1);
+    ASSERT_RETURN(commandsender_, -1);
     return commandsender_->Start();
 }
 
@@ -28,12 +30,12 @@ int Peer::Stop()
     if (OnStopped)
         OnStopped(this, NULL);
     commandsender_ = NULL;
-    return 0;//commandsender_->Stop();
+    return 0; //commandsender_->Stop();
 }
 
 int Peer::SendCommand()
 {
-    ASSERT_RETURN(commandsender_,-1);
+    ASSERT_RETURN(commandsender_, -1);
     return commandsender_->SendCommand();
 }
 int Peer::RecvCommand()
@@ -43,19 +45,21 @@ int Peer::RecvCommand()
         return Auth();
     }
     // client closed.
-    if(!commandsender_) return -1;
+    if (!commandsender_)
+        return -1;
     return commandsender_->RecvCommand();
 }
 
 int Peer::SendData()
 {
-    ASSERT_RETURN(commandsender_,-1);
+    // TODO: optimize multicast logic
+    if(!commandsender_) return 0;
     return commandsender_->SendData();
 }
 
 int Peer::RecvData()
 {
-    ASSERT_RETURN(commandsender_,-1);
+    ASSERT_RETURN(commandsender_, -1);
     return commandsender_->RecvData();
 }
 
@@ -87,14 +91,14 @@ int Peer::Auth()
     result = data_sock_->Bind(ip, port);
     ASSERT(result >= 0);
 
-    multicast_sock_ = std::make_shared<Udp>();
-    result = multicast_sock_->Initialize();
-    result = multicast_sock_->Bind(option_->ip_local,option_->port);
-    ASSERT_RETURN(result>=0,-1,"multicast socket bind error.");
-    //only recv the target's multicast packets
-    result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
-    ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
-    LOGVP("multicast fd=%d",multicast_sock_->GetFd());
+    // multicast_sock_ = std::make_shared<Udp>();
+    // result = multicast_sock_->Initialize();
+    // result = multicast_sock_->Bind(option_->ip_local,option_->port);
+    // ASSERT_RETURN(result>=0,-1,"multicast socket bind error.");
+    // //only recv the target's multicast packets
+    // result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
+    // ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
+    // LOGVP("multicast fd=%d",multicast_sock_->GetFd());
 
     buf = buf.substr(sizeof("cookie:") - 1);
     int index = buf.find(':');
@@ -116,12 +120,74 @@ int Peer::Timeout(int timeout)
     return commandsender_->Timeout(timeout);
 }
 
+class MultiCastSock : public Udp
+{
+public:
+    MultiCastSock(std::shared_ptr<Sock> multicast_sock,std::shared_ptr<Sock> data_sock, std::shared_ptr<Command> command)
+        : multicast_sock_(multicast_sock), data_sock_(data_sock),command_(std::dynamic_pointer_cast<SendCommand>(command))
+    {
+        fd_ = data_sock->GetFd();
+    }
+    ssize_t Send(const char *buf, size_t size) const override
+    {
+        //auto that = const_cast<MultiCastSock*>(this);
+        if (count_ >= command_->GetCount())
+        {
+            return 0;
+        }
+        if (count_ == 0)
+        {
+            begin_ = std::chrono::high_resolution_clock::now();
+        }
+        else
+        {
+            auto interval = std::chrono::duration_cast<milliseconds>(std::chrono::high_resolution_clock::now() - begin_).count();
+            if (interval < command_->GetInterval())
+            {
+                return 0;
+            }
+        }
+        count_++;
+        command_->is_finished = count_>=command_->GetCount();
+        return multicast_sock_->Send(buf, size);
+    }
+    static void Start()
+    {
+        count_ = 0;
+    }
+
+    ~MultiCastSock() override
+    {
+        fd_ = -1;
+    }
+
+private:
+    static std::chrono::high_resolution_clock::time_point begin_;
+    static int count_;
+    std::shared_ptr<Sock> multicast_sock_;
+    std::shared_ptr<Sock> data_sock_;
+    std::shared_ptr<SendCommand> command_;
+};
+int MultiCastSock::count_ = 0;
+std::chrono::high_resolution_clock::time_point MultiCastSock::begin_;
+
+int Peer::GetDataFd() const
+{
+    return data_sock_ ? data_sock_->GetFd() : -1;
+}
+
 int Peer::SetCommand(std::shared_ptr<Command> command)
 {
-    ASSERT_RETURN(data_sock_,-1);
+    ASSERT_RETURN(data_sock_, -1);
     command_ = command;
+    current_sock_ = data_sock_;
+    if(command->is_multicast)
+    {
+        MultiCastSock::Start();
+        current_sock_ = std::make_shared<MultiCastSock>(multicast_sock_,data_sock_, command_);
+    }
     std::shared_ptr<CommandChannel> channel(new CommandChannel{
-        command, context_, control_sock_, command->is_multicast?multicast_sock_:data_sock_});
+        command, context_, control_sock_, current_sock_});
     commandsender_ = command->CreateCommandSender(channel);
     ASSERT_RETURN(commandsender_, -1);
     commandsender_->OnStopped = [&](std::shared_ptr<NetStat> netstat) {

@@ -28,6 +28,10 @@ int CommandSender::Start()
     context_->SetWriteFd(control_sock_->GetFd());
     return 0;
 }
+int CommandSender::StartPayload()
+{
+    OnStart();
+}
 int CommandSender::OnStart()
 {
     return 0;
@@ -101,7 +105,7 @@ int CommandSender::RecvCommand()
     char buf[MAX_CMD_LENGTH] = {0};
     result = control_sock_->Recv(buf, sizeof(buf));
     // client disconnected.
-    if(result <= 0 ) return -1;
+    if(result<=0) return -1;
     auto command = CommandFactory::New(buf);
     ASSERT_RETURN(command,-1);
     if (is_waiting_result_)
@@ -149,6 +153,8 @@ int CommandSender::Timeout(int timeout)
     }
     return 0;
 }
+
+#pragma region EchoCommandSender
 
 EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)),
@@ -244,11 +250,13 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     return 0;
 }
 
+#pragma endregion
+
 SendCommandSender::SendCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<SendCommandClazz>(channel->command_)),
       data_buf_(command_->GetSize(), 0),
       delay_(0), max_delay_(0), min_delay_(INT32_MAX),
-      send_packets_(0), send_bytes_(0),
+      send_packets_(0), send_bytes_(0),is_stoping_(false),
       CommandSender(channel)
 {
 }
@@ -256,26 +264,38 @@ SendCommandSender::SendCommandSender(std::shared_ptr<CommandChannel> channel)
 int SendCommandSender::OnStart()
 {
     LOGDP("SendCommandSender start payload.");
-    start_ = high_resolution_clock::now();
-    context_->SetWriteFd(data_sock_->GetFd());
     context_->ClrReadFd(data_sock_->GetFd());
-    SetTimeout(command_->GetInterval());
+    if(!command_->is_multicast)
+        context_->SetWriteFd(data_sock_->GetFd());
+    //SetTimeout(command_->GetInterval());
     return 0;
 }
 
 int SendCommandSender::SendData()
 {
-    if (command_->GetInterval() > 0)
-        context_->ClrWriteFd(data_sock_->GetFd());
+    LOGDP("SendCommandSender sending payload data: %d, %d",command_->is_multicast,is_stoping_);
+    if(command_->is_multicast && is_stoping_) return 0;
     if (TryStop())
     {
         LOGDP("SendCommandSender stop from send data.");
+        is_stoping_ = true;
+        // stop data channel
+        context_->ClrWriteFd(data_sock_->GetFd());
+        stop_ = high_resolution_clock::now();
         return Stop();
     }
+    LOGDP("SendCommandSender send payload data.");
+    if(start_.time_since_epoch().count() == 0)
+    {
+        start_ = high_resolution_clock::now();
+        SetTimeout(command_->GetInterval());
+    }
+    if (command_->GetInterval() > 0)
+        context_->ClrWriteFd(data_sock_->GetFd());
     //static int index = 0;
     //data_buf_ = std::to_string(index++);
-    auto result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
-    ASSERT_RETURN(result>0,-1);
+    int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
+    ASSERT_RETURN(result>=0,-1);
     send_packets_++;
     send_bytes_+=result;
     return result;
@@ -287,9 +307,14 @@ int SendCommandSender::RecvData()
 }
 int SendCommandSender::OnTimeout()
 {
+    if(is_stoping_) return 0;
     if (TryStop())
     {
         LOGDP("SendCommandSender stop from timeout.");
+        is_stoping_ = true;
+        // stop data channel
+        context_->ClrWriteFd(data_sock_->GetFd());
+        stop_ = high_resolution_clock::now();
         return Stop();
     }
 
@@ -300,11 +325,8 @@ int SendCommandSender::OnTimeout()
 }
 bool SendCommandSender::TryStop()
 {
-    if (send_packets_ >= command_->GetCount())
+    if (send_packets_ >= command_->GetCount()||command_->is_finished)
     {
-        // stop data channel
-        context_->ClrWriteFd(data_sock_->GetFd());
-        stop_ = high_resolution_clock::now();
         return true;
     }
     return false;
@@ -316,14 +338,17 @@ int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
         return 0;
 
     auto stat = std::make_shared<NetStat>();
-    stat->send_bytes = send_bytes_;
-    stat->send_packets = send_packets_;
-    stat->send_pps = send_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
-    stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
-    auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
-    if (seconds > 0.001)
+    if(send_packets_>0)
     {
-        stat->send_speed = stat->send_bytes / seconds;
+        stat->send_bytes = send_bytes_;
+        stat->send_packets = send_packets_;
+        stat->send_pps = send_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
+        stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
+        auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
+        if (seconds > 0.001)
+        {
+            stat->send_speed = stat->send_bytes / seconds;
+        }
     }
 
     stat->recv_bytes = netstat->recv_bytes;
@@ -333,7 +358,8 @@ int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     stat->min_recv_speed = netstat->min_recv_speed;
     stat->max_recv_speed = netstat->max_recv_speed;
     stat->recv_pps = netstat->recv_pps;
-    stat->loss = 1 - 1.0 * stat->recv_bytes / stat->send_bytes;
+    if(send_packets_>0)
+        stat->loss = 1 - 1.0 * stat->recv_bytes / stat->send_bytes;
 
     OnStopped(stat);
     return 0;

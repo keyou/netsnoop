@@ -23,6 +23,7 @@ class CommandSender
 public:
     CommandSender(std::shared_ptr<CommandChannel> channel);
 
+    int StartPayload();
     int Start();
     int Stop();
     int SendCommand();
@@ -56,6 +57,9 @@ private:
     bool is_started_;
     bool is_waiting_result_;
     bool is_waiting_ack_;
+    bool can_start_payload_;
+
+    friend class Peer;
 
     DISALLOW_COPY_AND_ASSIGN(CommandSender);
 };

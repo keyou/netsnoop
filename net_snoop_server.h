@@ -18,7 +18,7 @@ public:
         :option_(option),
         context_(std::make_shared<Context>()),
         listen_peers_sock_(std::make_shared<Tcp>()),
-        is_running_(false)
+        is_running_(false),is_multicast_started_(false)
         {}
     int Run();
     int PushCommand(std::shared_ptr<Command> command);
@@ -38,14 +38,17 @@ private:
     std::shared_ptr<Context> context_;
     std::shared_ptr<Sock> listen_peers_sock_;
     //std::shared_ptr<Udp> command_sock_;
-    //std::shared_ptr<Sock> multicast_sock_;
+    std::shared_ptr<Sock> multicast_sock_;
     std::list<std::shared_ptr<Peer>> peers_;
     std::queue<std::shared_ptr<Command>> commands_;
     std::list<std::shared_ptr<Peer>> ready_peers_;
     std::shared_ptr<NetStat> netstat_;
+    std::shared_ptr<Command> current_command_;
     bool is_running_;
     std::mutex mtx;
     int pipefd_[2];
+
+    bool is_multicast_started_;
 
     DISALLOW_COPY_AND_ASSIGN(NetSnoopServer);
 };

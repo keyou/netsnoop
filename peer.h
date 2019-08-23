@@ -13,7 +13,7 @@ using namespace std::chrono;
 class Peer;
 class CommandSender;
 
-class Peer final
+class Peer
 {
 public:
     Peer(std::shared_ptr<Sock> control_sock,std::shared_ptr<Option> option, std::shared_ptr<Context> context);
@@ -28,11 +28,7 @@ public:
     int Timeout(int timeout);
     
     int GetControlFd() const{ return control_sock_->GetFd(); }
-    int GetDataFd() const
-    {
-        if(command_&&command_->is_multicast) return multicast_sock_->GetFd(); 
-        return data_sock_ ? data_sock_->GetFd() : -1; 
-    }
+    int GetDataFd() const;
     std::shared_ptr<Sock> GetControlSock() const{return control_sock_;}
     std::shared_ptr<Sock> GetDataSock() const{return data_sock_;}
     std::shared_ptr<Context> GetContext() const{return context_;}
@@ -41,6 +37,7 @@ public:
     const std::string &GetCookie() { return cookie_; }
     int GetTimeout() const{ return commandsender_?commandsender_->GetTimeout():-1; }
     bool IsReady() const{return !!data_sock_;}
+    bool IsPayloadStarted() const {return commandsender_&&commandsender_->is_started_;}
 
     std::function<void(const Peer*,std::shared_ptr<NetStat>)> OnStopped;
     std::function<void(const Peer*)> OnAuthSuccess;
@@ -60,10 +57,11 @@ private:
     std::shared_ptr<Option> option_;
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
+    std::shared_ptr<Sock> current_sock_;
     std::string cookie_;
     std::shared_ptr<Command> command_;
     std::shared_ptr<CommandSender> commandsender_; 
-    char buf_[1024 * 64];
+    char buf_[MAX_UDP_LENGTH];
     std::shared_ptr<Context> context_;
 
     friend class CommandSender;
