@@ -34,11 +34,11 @@ int NetSnoopServer::Run()
     FD_ZERO(&write_fdsets);
 
     result = pipe(pipefd_);
-    ASSERT_RETURN(result == 0,-1,"create pipe failed.");
+    ASSERT_RETURN(result == 0, -1, "create pipe failed.");
     context_->SetReadFd(pipefd_[0]);
 
     result = StartListen();
-    ASSERT_RETURN(result >= 0,-1,"start server error.");
+    ASSERT_RETURN(result >= 0, -1, "start server error.");
 
     high_resolution_clock::time_point start, end;
     int64_t time_spend;
@@ -165,17 +165,17 @@ int NetSnoopServer::Run()
                 }
                 peer->Stop();
                 it = peers_.erase(it);
-                if(OnPeerDisconnected)
+                if (OnPeerDisconnected)
                     OnPeerDisconnected(peer.get());
             }
             else
             {
-                if(peer->GetCommand())
+                if (peer->GetCommand())
                     is_multicast_ready &= peer->IsPayloadStarted();
                 it++;
             }
         }
-        if(is_multicast_ready&&current_command_&&current_command_->is_multicast&&is_multicast_started_ == false) 
+        if (is_multicast_ready && current_command_ && current_command_->is_multicast && is_multicast_started_ == false)
         {
             is_multicast_started_ = true;
             for (auto &&peer : peers_)
@@ -185,7 +185,6 @@ int NetSnoopServer::Run()
                     context_->SetWriteFd(peer->GetDataFd());
                 }
             }
-            
         }
     }
 
@@ -196,10 +195,10 @@ int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
 {
     int result;
     std::unique_lock<std::mutex> lock(mtx);
-    ASSERT_RETURN(command,-1);
+    ASSERT_RETURN(command, -1);
     commands_.push(command);
-    result = write(pipefd_[1],command->cmd.c_str(),command->cmd.length());
-    ASSERT(result>0);
+    result = write(pipefd_[1], command->cmd.c_str(), command->cmd.length());
+    ASSERT(result > 0);
     return 0;
 }
 
@@ -213,19 +212,10 @@ int NetSnoopServer::StartListen()
     result = listen_peers_sock_->Listen(MAX_CLINETS);
     ASSERT(result >= 0);
 
-    LOGIP("listen on %s:%d", option_->ip_local, option_->port);
+    LOGDP("listen on(%d): %s:%d", listen_peers_sock_->GetFd(), option_->ip_local, option_->port);
 
     context_->control_fd = listen_peers_sock_->GetFd();
     context_->SetReadFd(listen_peers_sock_->GetFd());
-
-    multicast_sock_ = std::make_shared<Udp>();
-    result = multicast_sock_->Initialize();
-    result = multicast_sock_->Bind(option_->ip_local,option_->port);
-    ASSERT_RETURN(result>=0,-1,"multicast socket bind error.");
-    //only recv the target's multicast packets
-    result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
-    ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
-    LOGVP("multicast fd=%d",multicast_sock_->GetFd());
 
     if (OnServerStart)
         OnServerStart(this);
@@ -234,15 +224,36 @@ int NetSnoopServer::StartListen()
 }
 int NetSnoopServer::AceeptNewConnect()
 {
-    int fd;
+    int result;
 
-    if ((fd = listen_peers_sock_->Accept()) <= 0)
+    if ((result = listen_peers_sock_->Accept()) <= 0)
     {
         return -1;
     }
 
-    auto tcp = std::make_shared<Tcp>(fd);
-    auto peer = std::make_shared<Peer>(tcp, option_,context_);
+    auto tcp = std::make_shared<Tcp>(result);
+    auto peer = std::make_shared<Peer>(tcp, option_, context_);
+
+    if (!multicast_sock_)
+    {
+        std::string ip;
+        int port;
+        result = tcp->GetLocalAddress(ip, port);
+        ASSERT(result >= 0);
+        multicast_sock_ = std::make_shared<Udp>();
+        result = multicast_sock_->Initialize();
+        result = multicast_sock_->Bind(ip, port);
+        ASSERT_RETURN(result >= 0, -1, "multicast socket bind error.");
+        //only recv the target's multicast packets
+        result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
+        ASSERT_RETURN(result >= 0, -1, "multicast socket connect server error.");
+        LOGDP("bind multicast to(%d): %s:%d", multicast_sock_->GetFd(), ip.c_str(), port);
+        if(ip == std::string("127.0.0.1"))
+        {
+            LOGWP("bind multicast to 127.0.0.1 is weird, you must bind to a normal ip to make multicast valid.");
+        }
+    }
+
     peer->OnAuthSuccess = OnPeerConnected;
     peer->multicast_sock_ = multicast_sock_;
     peers_.push_back(peer);
@@ -252,9 +263,9 @@ int NetSnoopServer::AceeptNewConnect()
 int NetSnoopServer::AcceptNewCommand()
 {
     int result;
-    std::string cmd(MAX_CMD_LENGTH,0);
-    result = read(pipefd_[0],&cmd[0],cmd.length());
-    ASSERT_RETURN(result>0,-1);
+    std::string cmd(MAX_CMD_LENGTH, 0);
+    result = read(pipefd_[0], &cmd[0], cmd.length());
+    ASSERT_RETURN(result > 0, -1);
     cmd.resize(result);
     return ProcessNextCommand();
 }
@@ -303,30 +314,31 @@ int NetSnoopServer::ProcessNextCommand()
     auto peers_active = std::make_shared<int>(0);
     netstat_ = NULL;
     is_multicast_started_ = false;
-    
+
     for (auto &peer : *ready_peers)
     {
         result = peer->SetCommand(command);
         ASSERT(result == 0);
-        peer->OnStopped = [&, peer,command, ready_peers, peers_count,peers_failed,peers_active](const Peer *p, std::shared_ptr<NetStat> netstat) mutable {
+        peer->OnStopped = [&, peer, command, ready_peers, peers_count, peers_failed, peers_active](const Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
             LOGIP("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
-            if(OnPeerStopped) OnPeerStopped(p,netstat);
-            if(netstat)
+            if (OnPeerStopped)
+                OnPeerStopped(p, netstat);
+            if (netstat)
             {
                 netstat->max_send_time = netstat->send_time;
                 netstat->max_recv_time = netstat->recv_time;
                 netstat->min_send_time = netstat->send_time;
                 netstat->min_recv_time = netstat->recv_time;
                 netstat->recv_avg_spped = netstat->recv_speed;
-                if(!netstat_)
+                if (!netstat_)
                 {
                     netstat_ = netstat;
                 }
-                else 
+                else
                 {
-                    *netstat_+=*netstat;
-                    if(netstat->send_bytes >0)
+                    *netstat_ += *netstat;
+                    if (netstat->send_bytes > 0)
                     {
                         (*peers_active)++;
                     }
@@ -343,18 +355,18 @@ int NetSnoopServer::ProcessNextCommand()
             }
             LOGIP("command total : %s || %s", command->cmd.c_str(), netstat_ ? netstat_->ToString().c_str() : "NULL");
             is_running_ = false;
-            if(netstat_!=NULL)
+            if (netstat_ != NULL)
             {
                 auto success_count = *peers_count - *peers_failed;
-                ASSERT(success_count>0);
-                ASSERT(*peers_active>0);
+                ASSERT(success_count > 0);
+                ASSERT(*peers_active > 0);
                 netstat_->send_time /= *peers_active;
                 netstat_->loss /= *peers_active;
                 netstat_->recv_avg_spped /= success_count;
                 netstat_->recv_time /= success_count;
-                if(command->is_multicast)
+                if (command->is_multicast)
                 {
-                    netstat_->loss = 1 - 1.0 * netstat_->recv_bytes/(netstat_->send_bytes * success_count);
+                    netstat_->loss = 1 - 1.0 * netstat_->recv_bytes / (netstat_->send_bytes * success_count);
                 }
                 // *netstat_ /= success_count;
                 // netstat_->send_speed *= success_count;
