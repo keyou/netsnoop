@@ -148,7 +148,7 @@ int NetSnoopClient::RecvCommand()
     auto command = CommandFactory::New(cmd);
     if (!command)
         return ERR_ILLEGAL_DATA;
-    LOGIP("recv new command: %s",command->cmd.c_str());
+    LOGDP("recv new command: %s",command->cmd.c_str());
     if(receiver_ && command->is_private)
     {
         auto stop_command = std::dynamic_pointer_cast<StopCommand>(command);

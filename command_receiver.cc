@@ -107,7 +107,7 @@ int EchoCommandReceiver::SendPrivateCommand()
 
 SendCommandReceiver::SendCommandReceiver(std::shared_ptr<CommandChannel> channel)
     : length_(0), recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0), 
-      running_(false),is_stopping_(false),
+      running_(false),is_stopping_(false),latest_recv_bytes_(0),
       command_(std::dynamic_pointer_cast<SendCommand>(channel->command_)), CommandReceiver(channel) {}
 
 int SendCommandReceiver::Start()
@@ -149,12 +149,15 @@ int SendCommandReceiver::Recv()
     stop_ = high_resolution_clock::now();
     recv_bytes_ += result;
     recv_count_++;
+    latest_recv_bytes_ += result;
     auto seconds = duration_cast<duration<double>>(end_ - begin_).count();
     if (seconds >= 1)
     {
-        int64_t speed = recv_bytes_ / seconds;
+        int64_t speed = latest_recv_bytes_ / seconds;
         min_speed_ = min_speed_ == -1 ? speed : std::min(min_speed_, speed);
         max_speed_ = std::max(max_speed_, speed);
+        LOGIP("latest recv speed: recv_speed %d recv_bytes %ld recv_time %d",speed,latest_recv_bytes_,int(seconds*1000));
+        latest_recv_bytes_ = 0;
         begin_ = high_resolution_clock::now();
     }
     return result;
@@ -165,12 +168,6 @@ int SendCommandReceiver::SendPrivateCommand()
     LOGDP("SendCommandReceiver send stop");
     int result;
     context_->ClrWriteFd(control_sock_->GetFd());
-
-    // TODO: try read
-    // if ((result = data_sock_->Recv(buf_, sizeof(buf_))) <= 0)
-    // {
-    //     return -1;
-    // }
 
     auto stat = std::make_shared<NetStat>();
     stat->recv_bytes = recv_bytes_;
