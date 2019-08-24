@@ -116,8 +116,6 @@ int SendCommandReceiver::Start()
     ASSERT_RETURN(!running_,-1,"SendCommandReceiver start unexpeted.");
     running_ = true;
     context_->SetReadFd(data_sock_->GetFd());
-    start_ = high_resolution_clock::now();
-    begin_ = high_resolution_clock::now();
     recv_count_ = 0;
     return 0;
 }
@@ -137,6 +135,11 @@ int SendCommandReceiver::Recv()
 {
     LOGVP("SendCommandReceiver recv payload.");
     ASSERT_RETURN(running_,-1,"SendCommandReceiver recv unexpeted.");
+    if(recv_count_ == 0)
+    {
+        start_ = high_resolution_clock::now();
+        begin_ = high_resolution_clock::now();
+    }
     int result;
     if ((result = data_sock_->Recv(buf_, sizeof(buf_))) <= 0)
     {

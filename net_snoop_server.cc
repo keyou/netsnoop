@@ -294,18 +294,23 @@ int NetSnoopServer::ProcessNextCommand()
     }
 
     LOGIP("start command: %s (peer count = %ld)", command->cmd.c_str(), ready_peers->size());
+    // All the below variables should be captured by pointer value.
+    // The total ready peers count when we start a command.
     auto peers_count = std::make_shared<int>(ready_peers->size());
+    // The failed peers when the command is running.
     auto peers_failed = std::make_shared<int>(0);
+    // The actual peers that do send some data,only useful in multicast.
+    auto peers_active = std::make_shared<int>(0);
     netstat_ = NULL;
-    if(command->is_multicast) is_multicast_started_ = false;
+    is_multicast_started_ = false;
     
     for (auto &peer : *ready_peers)
     {
         result = peer->SetCommand(command);
         ASSERT(result == 0);
-        peer->OnStopped = [&, peer,command, ready_peers, peers_count,peers_failed](const Peer *p, std::shared_ptr<NetStat> netstat) mutable {
+        peer->OnStopped = [&, peer,command, ready_peers, peers_count,peers_failed,peers_active](const Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
-            LOGDP("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            LOGIP("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             if(OnPeerStopped) OnPeerStopped(p,netstat);
             if(netstat)
             {
@@ -321,6 +326,10 @@ int NetSnoopServer::ProcessNextCommand()
                 else 
                 {
                     *netstat_+=*netstat;
+                    if(netstat->send_bytes >0)
+                    {
+                        (*peers_active)++;
+                    }
                 }
             }
             else
@@ -332,20 +341,30 @@ int NetSnoopServer::ProcessNextCommand()
                 peer->OnStopped = NULL;
                 return;
             }
+            LOGIP("command total : %s || %s", command->cmd.c_str(), netstat_ ? netstat_->ToString().c_str() : "NULL");
             is_running_ = false;
             if(netstat_!=NULL)
             {
                 auto success_count = *peers_count - *peers_failed;
                 ASSERT(success_count>0);
-                *netstat_ /= success_count;
-                netstat_->send_speed *= success_count;
-                netstat_->recv_speed *= success_count;
-                netstat_->send_bytes *= success_count;
-                netstat_->recv_bytes *= success_count;
-                netstat_->send_packets *= success_count;
-                netstat_->recv_packets *= success_count;
-                netstat_->send_pps *= success_count;
-                netstat_->recv_pps *= success_count;
+                ASSERT(*peers_active>0);
+                netstat_->send_time /= *peers_active;
+                netstat_->loss /= *peers_active;
+                netstat_->recv_avg_spped /= success_count;
+                netstat_->recv_time /= success_count;
+                if(command->is_multicast)
+                {
+                    netstat_->loss = 1 - 1.0 * netstat_->recv_bytes/(netstat_->send_bytes * success_count);
+                }
+                // *netstat_ /= success_count;
+                // netstat_->send_speed *= success_count;
+                // netstat_->recv_speed *= success_count;
+                // netstat_->send_bytes *= success_count;
+                // netstat_->recv_bytes *= success_count;
+                // netstat_->send_packets *= success_count;
+                // netstat_->recv_packets *= success_count;
+                // netstat_->send_pps *= success_count;
+                // netstat_->recv_pps *= success_count;
 
                 netstat_->peers_count = *peers_count;
                 netstat_->peers_failed = *peers_failed;

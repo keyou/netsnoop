@@ -53,7 +53,8 @@ int Peer::RecvCommand()
 int Peer::SendData()
 {
     // TODO: optimize multicast logic
-    if(!commandsender_) return 0;
+    if (!commandsender_)
+        return 0;
     return commandsender_->SendData();
 }
 
@@ -123,8 +124,8 @@ int Peer::Timeout(int timeout)
 class MultiCastSock : public Udp
 {
 public:
-    MultiCastSock(std::shared_ptr<Sock> multicast_sock,std::shared_ptr<Sock> data_sock, std::shared_ptr<Command> command)
-        : multicast_sock_(multicast_sock), data_sock_(data_sock),command_(std::dynamic_pointer_cast<SendCommand>(command))
+    MultiCastSock(std::shared_ptr<Sock> multicast_sock, std::shared_ptr<Sock> data_sock, std::shared_ptr<Command> command)
+        : multicast_sock_(multicast_sock), data_sock_(data_sock), command_(std::dynamic_pointer_cast<SendCommand>(command))
     {
         fd_ = data_sock->GetFd();
     }
@@ -135,24 +136,21 @@ public:
         {
             return 0;
         }
-        if (count_ == 0)
+        auto interval = std::chrono::duration_cast<milliseconds>(std::chrono::high_resolution_clock::now() - begin_).count();
+
+        if (interval < command_->GetInterval())
         {
-            begin_ = std::chrono::high_resolution_clock::now();
+            return 0;
         }
-        else
-        {
-            auto interval = std::chrono::duration_cast<milliseconds>(std::chrono::high_resolution_clock::now() - begin_).count();
-            if (interval < command_->GetInterval())
-            {
-                return 0;
-            }
-        }
+
+        begin_ = std::chrono::high_resolution_clock::now();
         count_++;
-        command_->is_finished = count_>=command_->GetCount();
+        command_->is_finished = count_ >= command_->GetCount();
         return multicast_sock_->Send(buf, size);
     }
     static void Start()
     {
+        begin_ = std::chrono::high_resolution_clock::time_point();
         count_ = 0;
     }
 
@@ -181,10 +179,10 @@ int Peer::SetCommand(std::shared_ptr<Command> command)
     ASSERT_RETURN(data_sock_, -1);
     command_ = command;
     current_sock_ = data_sock_;
-    if(command->is_multicast)
+    if (command->is_multicast)
     {
         MultiCastSock::Start();
-        current_sock_ = std::make_shared<MultiCastSock>(multicast_sock_,data_sock_, command_);
+        current_sock_ = std::make_shared<MultiCastSock>(multicast_sock_, data_sock_, command_);
     }
     std::shared_ptr<CommandChannel> channel(new CommandChannel{
         command, context_, control_sock_, current_sock_});

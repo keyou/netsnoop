@@ -296,7 +296,7 @@ int SendCommandSender::SendData()
     //data_buf_ = std::to_string(index++);
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
     ASSERT_RETURN(result>=0,-1);
-    send_packets_++;
+    if(result>0) send_packets_++;
     send_bytes_+=result;
     return result;
 }
@@ -358,8 +358,10 @@ int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     stat->min_recv_speed = netstat->min_recv_speed;
     stat->max_recv_speed = netstat->max_recv_speed;
     stat->recv_pps = netstat->recv_pps;
-    if(send_packets_>0)
-        stat->loss = 1 - 1.0 * stat->recv_bytes / stat->send_bytes;
+    if(send_bytes_>0)
+    {
+        stat->loss = 1 - 1.0 * stat->recv_bytes / send_bytes_;
+    }
 
     OnStopped(stat);
     return 0;

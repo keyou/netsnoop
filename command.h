@@ -190,9 +190,7 @@ struct NetStat
     std::string ToString() const
     {
         std::stringstream ss;
-#define W(p)   \
-    if (p > 0) \
-    ss << #p " " << p << " "
+#define W(p) ss << #p " " << p << " "
         W(loss);
         W(send_speed);
         W(recv_speed);
