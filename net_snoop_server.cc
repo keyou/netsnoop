@@ -1,7 +1,4 @@
 
-#include <unistd.h>
-#include <sys/un.h>
-
 #include <vector>
 #include <map>
 #include <sstream>
@@ -27,15 +24,15 @@ int NetSnoopServer::Run()
 {
     int result;
     int time_millseconds = 0;
-    timespec timeout = {0, 0};
-    timespec *timeout_ptr = NULL;
+    timeval timeout = {0, 0};
+    timeval *timeout_ptr = NULL;
     fd_set read_fdsets, write_fdsets;
     FD_ZERO(&read_fdsets);
     FD_ZERO(&write_fdsets);
 
-    result = pipe(pipefd_);
-    ASSERT_RETURN(result == 0, -1, "create pipe failed.");
-    context_->SetReadFd(pipefd_[0]);
+    // result = pipe(pipefd_);
+    // ASSERT_RETURN(result == 0, -1, "create pipe failed.");
+    // context_->SetReadFd(pipefd_[0]);
 
     result = StartListen();
     ASSERT_RETURN(result >= 0, -1, "start server error.");
@@ -70,10 +67,10 @@ int NetSnoopServer::Run()
             {
                 time_millseconds = peer->GetTimeout();
                 timeout.tv_sec = time_millseconds / 1000;
-                timeout.tv_nsec = (time_millseconds % 1000) * 1000 * 1000;
+                timeout.tv_usec = (time_millseconds % 1000) * 1000;
                 timeout_ptr = &timeout;
                 start = high_resolution_clock::now();
-                LOGVP("Set timeout: %ld", timeout.tv_sec * 1000 + timeout.tv_nsec / 1000 / 1000);
+                LOGVP("Set timeout: %ld", timeout.tv_sec * 1000 + timeout.tv_usec / 1000);
             }
         }
 
@@ -91,7 +88,7 @@ int NetSnoopServer::Run()
         }
 #endif
         LOGVP("selecting...");
-        result = pselect(context_->max_fd + 1, &read_fdsets, &write_fdsets, NULL, timeout_ptr, NULL);
+        result = select(context_->max_fd + 1, &read_fdsets, &write_fdsets, NULL, timeout_ptr);
         LOGVP("selected---------------");
 #ifdef _DEBUG
         for (int i = 0; i < context_->max_fd + 1; i++)
@@ -118,7 +115,7 @@ int NetSnoopServer::Run()
             LOGVP("time out: %d", time_millseconds);
             continue;
         }
-        if (FD_ISSET(pipefd_[0], &read_fdsets))
+        if (FD_ISSET(command_sock_read_->GetFd(), &read_fdsets))
         {
             result = AcceptNewCommand();
             ASSERT_RETURN(result >= 0, -1, "accept new command error.");
@@ -191,20 +188,10 @@ int NetSnoopServer::Run()
     return 0;
 }
 
-int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
-{
-    int result;
-    std::unique_lock<std::mutex> lock(mtx);
-    ASSERT_RETURN(command, -1);
-    commands_.push(command);
-    result = write(pipefd_[1], command->cmd.c_str(), command->cmd.length());
-    ASSERT(result > 0);
-    return 0;
-}
-
 int NetSnoopServer::StartListen()
 {
     int result;
+    listen_peers_sock_ = std::make_shared<Tcp>();
     result = listen_peers_sock_->Initialize();
     ASSERT(result >= 0);
     result = listen_peers_sock_->Bind(option_->ip_local, option_->port);
@@ -216,6 +203,25 @@ int NetSnoopServer::StartListen()
 
     context_->control_fd = listen_peers_sock_->GetFd();
     context_->SetReadFd(listen_peers_sock_->GetFd());
+
+    command_sock_read_ = std::make_shared<Udp>();
+    result = command_sock_read_->Initialize();
+    ASSERT(result>=0);
+    // auto select a port to create a local read udp.
+    result = command_sock_read_->Bind("127.0.0.1",0);
+    ASSERT(result>=0);
+    context_->SetReadFd(command_sock_read_->GetFd());
+
+    std::string ip;
+    int port;
+    result = command_sock_read_->GetLocalAddress(ip,port);
+    ASSERT(result>=0);
+
+    command_sock_write_ = std::make_shared<Udp>();
+    result = command_sock_write_->Initialize();
+    ASSERT(result>=0);
+    result = command_sock_write_->Connect(ip,port);
+    ASSERT(result>=0);
 
     if (OnServerStart)
         OnServerStart(this);
@@ -250,7 +256,8 @@ int NetSnoopServer::AceeptNewConnect()
         LOGDP("bind multicast to(%d): %s:%d", multicast_sock_->GetFd(), ip.c_str(), port);
         if(ip == std::string("127.0.0.1"))
         {
-            LOGWP("bind multicast to 127.0.0.1 is weird, you must bind to a normal ip to make multicast valid.");
+            LOGWP("bind multicast to local loopback ip(127.0.0.1) is invalid,"
+            " you must bind to a none-loopback ip to make multicast valid.");
         }
     }
 
@@ -260,11 +267,24 @@ int NetSnoopServer::AceeptNewConnect()
     return 0;
 }
 
+int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
+{
+    int result;
+    std::unique_lock<std::mutex> lock(mtx);
+    ASSERT_RETURN(command, -1);
+    commands_.push(command);
+    //result = write(pipefd_[1], command->cmd.c_str(), command->cmd.length());
+    result = command_sock_write_->Send(command->cmd.c_str(),command->cmd.length());
+    ASSERT_RETURN(result > 0,-1);
+    return 0;
+}
+
 int NetSnoopServer::AcceptNewCommand()
 {
     int result;
     std::string cmd(MAX_CMD_LENGTH, 0);
-    result = read(pipefd_[0], &cmd[0], cmd.length());
+    // result = read(pipefd_[0], &cmd[0], cmd.length());
+    result = command_sock_read_->Recv(&cmd[0],cmd.length());
     ASSERT_RETURN(result > 0, -1);
     cmd.resize(result);
     return ProcessNextCommand();
@@ -304,7 +324,7 @@ int NetSnoopServer::ProcessNextCommand()
         return 0;
     }
 
-    LOGIP("start command: %s (peer count = %ld)", command->cmd.c_str(), ready_peers->size());
+    LOGIP("start command: %s (peers count = %ld)", command->cmd.c_str(), ready_peers->size());
     // All the below variables should be captured by pointer value.
     // The total ready peers count when we start a command.
     auto peers_count = std::make_shared<int>(ready_peers->size());
@@ -338,10 +358,10 @@ int NetSnoopServer::ProcessNextCommand()
                 else
                 {
                     *netstat_ += *netstat;
-                    if (netstat->send_bytes > 0)
-                    {
-                        (*peers_active)++;
-                    }
+                }
+                if (netstat->send_bytes > 0)
+                {
+                    (*peers_active)++;
                 }
             }
             else

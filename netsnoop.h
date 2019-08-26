@@ -46,7 +46,7 @@ public:
             *out_ << "[" << buf <<"."<< ms <<"]";
         }
 
-        *out_<<"["<<std::this_thread::get_id()<<"]";
+        //*out_<<"["<<std::this_thread::get_id()<<"]";
     }
 
     // TODO: allow set output stream

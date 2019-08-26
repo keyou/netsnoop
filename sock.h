@@ -1,6 +1,25 @@
 #pragma once
 
+#if defined WIN32
+// #define this before any windows headers are included
+#define _WIN32_WINNT _WIN32_WINNT_WIN7 // Windows 8.0
+#define FD_SETSIZE 1024
+#define InetPton inet_pton
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "Ws2_32.lib")
+#else
+#define closesocket close
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <sys/un.h>
+#endif
 
 #include <string>
 #include "netsnoop.h"
@@ -15,6 +34,8 @@ public:
     static int Connect(int fd_,std::string ip, int port);
     static ssize_t Send(int fd_, const char *buf, size_t size);
     static ssize_t Recv(int fd_, char *buf, size_t size);
+    static int GetLocalAddress(int fd_,sockaddr_in* sockaddr);
+    static int GetPeerAddress(int fd_,sockaddr_in* sockaddr);
     static int GetLocalAddress(int fd_,std::string& ip,int& port);
     static int GetPeerAddress(int fd_,std::string& ip,int& port);
     static int SockAddrToStr(sockaddr_in* sockaddr,std::string &ip,int &port);

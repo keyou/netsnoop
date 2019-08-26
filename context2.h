@@ -4,6 +4,8 @@
 #include <functional>
 #include <vector>
 
+#include "sock.h"
+
 class Peer;
 
 struct Context

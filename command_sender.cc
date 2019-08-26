@@ -273,7 +273,6 @@ int SendCommandSender::OnStart()
 
 int SendCommandSender::SendData()
 {
-    LOGDP("SendCommandSender sending payload data: %d, %d",command_->is_multicast,is_stoping_);
     if(command_->is_multicast && is_stoping_) return 0;
     if (TryStop())
     {

@@ -1,18 +1,12 @@
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <arpa/inet.h>
-#include <errno.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <string>
 #include <cassert>
 
 #include "tcp.h"
 #include "netsnoop.h"
+#include "sock.h"
 
 Tcp::Tcp() : Sock(SOCK_STREAM, IPPROTO_TCP) {}
 Tcp::Tcp(int fd) : Sock(SOCK_STREAM, IPPROTO_TCP, fd) {}
@@ -62,17 +56,18 @@ int Tcp::InitializeEx(int fd) const
     if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&opt, sizeof(opt)) < 0)
     {
         LOGEP("setsockopt TCP_NODELAY error: %s(errno: %d)", strerror(errno), errno);
-        close(fd);
+        closesocket(fd);
         return -1;
     }
     opt = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&opt, sizeof(opt)) < 0)
     {
         LOGEP("setsockopt TCP_NODELAY error: %s(errno: %d)", strerror(errno), errno);
-        close(fd);
+        closesocket(fd);
         return -1;
     }
 
+#ifndef WIN32
     int keepcnt = 3;
     int keepidle = 20;
     int keepintvl = 20;
@@ -80,20 +75,21 @@ int Tcp::InitializeEx(int fd) const
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int))<0)
     {
         LOGEP("setsocketopt TCP_KEEPCNT error: %s(errno: %d)",strerror(errno),errno);
-        close(fd);
+        closesocket(fd);
         return -1;
     }
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(int))<0)
     {
         LOGEP("setsocketopt TCP_KEEPIDLE error: %s(errno: %d)",strerror(errno),errno);
-        close(fd);
+        closesocket(fd);
         return -1;
     }
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(int))<0)
     {
         LOGEP("setsocketopt TCP_KEEPINTVL error: %s(errno: %d)",strerror(errno),errno);
-        close(fd);
+        closesocket(fd);
         return -1;
     }
+#endif // !WIN32
     return fd;
 }

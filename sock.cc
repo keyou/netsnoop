@@ -1,20 +1,12 @@
 #pragma once
 
 #include <iostream>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netdb.h>
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <ctype.h>
 
 #include <ctime>
@@ -34,17 +26,17 @@
 #include "sock.h"
 
 
-int join_mcast(int fd, ulong groupaddr);
-int join_mcast(int fd, ulong groupaddr)
+int join_mcast(int fd, u_long groupaddr);
+int join_mcast(int fd, u_long groupaddr)
 {
-    struct ip_mreq mreq;
+    ip_mreq mreq;
 
     if (IN_MULTICAST(ntohl(groupaddr)) == 0)
         return -1;
 
     mreq.imr_multiaddr.s_addr = groupaddr;
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-    if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) == -1)
+    if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&mreq, sizeof(mreq)) == -1)
     {
         LOGEP("IP_ADD_MEMBERSHIP error: %s(errno: %d)",strerror(errno),errno);
         return -1;
@@ -69,7 +61,7 @@ int Sock::CreateSocket(int type, int protocol)
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
     {
         LOGEP("setsockopt SO_REUSEADDR error: %s(errno: %d)", strerror(errno), errno);
-        close(sockfd);
+        closesocket(sockfd);
         return -1;
     }
     return sockfd;
@@ -221,15 +213,36 @@ int Sock::GetPeerAddress(std::string &ip, int &port)
 }
 
 //static
-int Sock::GetLocalAddress(int fd_, std::string &ip, int &port)
+int Sock::GetLocalAddress(int fd_,sockaddr_in* localaddr)
 {
-    sockaddr_in localaddr;
-    socklen_t localaddr_length = sizeof(localaddr);
-    if (getsockname(fd_, (sockaddr *)&localaddr, &localaddr_length) < 0)
+    socklen_t localaddr_length = sizeof(sockaddr_in);
+    memset(localaddr,0,localaddr_length);
+    if (getsockname(fd_, (sockaddr *)localaddr, &localaddr_length) < 0)
     {
         LOGEP("getsockname error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
+    return 0;
+}
+//static
+int Sock::GetPeerAddress(int fd_,sockaddr_in* peeraddr)
+{
+    socklen_t peeraddr_length = sizeof(sockaddr_in);
+    memset(peeraddr,0,peeraddr_length);
+    if (getpeername(fd_, (sockaddr *)peeraddr, &peeraddr_length) < 0)
+    {
+        LOGEP("getpeername error: %s(errno: %d)", strerror(errno), errno);
+        return -1;
+    }
+    return 0;
+}
+
+//static
+int Sock::GetLocalAddress(int fd_, std::string &ip, int &port)
+{
+    sockaddr_in localaddr;
+    int result = Sock::GetLocalAddress(fd_,&localaddr);
+    ASSERT_RETURN(result>=0,-1);
     ip = inet_ntoa(localaddr.sin_addr);
     port = ntohs(localaddr.sin_port);
     return 0;
@@ -239,12 +252,8 @@ int Sock::GetLocalAddress(int fd_, std::string &ip, int &port)
 int Sock::GetPeerAddress(int fd_, std::string &ip, int &port)
 {
     sockaddr_in peeraddr;
-    socklen_t peeraddr_length = sizeof(peeraddr);
-    if (getpeername(fd_, (sockaddr *)&peeraddr, &peeraddr_length) < 0)
-    {
-        LOGEP("getpeername error: %s(errno: %d)", strerror(errno), errno);
-        return -1;
-    }
+    int result = Sock::GetPeerAddress(fd_,&peeraddr);
+    ASSERT_RETURN(result>=0,-1);
     ip = inet_ntoa(peeraddr.sin_addr);
     port = ntohs(peeraddr.sin_port);
     return 0;
@@ -286,7 +295,7 @@ int Sock::GetSockAddr(const std::string &ip, in_addr *addr)
         LOGEP("gethostbyname error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
-    // TODO: in multi(100) thread,it crash here sometimes.
+    // TODO: in multithread(100),it crash here sometimes.
     *addr = *(in_addr *)record->h_addr;
     return 0;
 }
@@ -301,7 +310,7 @@ Sock::~Sock()
     if (fd_ > 0)
     {
         LOGVP("close socket: fd = %d", fd_);
-        close(fd_);
+        closesocket(fd_);
         fd_ = -1;
     }
 }
