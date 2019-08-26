@@ -103,29 +103,15 @@ int NetSnoopClient::Connect()
     result = multicast_sock_->Bind("0.0.0.0",option_->port);
     ASSERT_RETURN(result >= 0,-1,"multicast socket bind error: %s:%d","0.0.0.0",option_->port);
 
-    sockaddr_in addr;
-    result = Sock::StrToSockAddr(option_->ip_multicast,option_->port,&addr);
-    ASSERT_RETURN(result >= 0,-1);
-    result = join_mcast(multicast_sock_->GetFd(),addr.sin_addr.s_addr);
+    result = join_mcast(multicast_sock_->GetFd(),inet_addr(option_->ip_multicast));
     ASSERT_RETURN(result>=0,-1);
 
-    //only recv the target's multicast packets
-    result = multicast_sock_->Connect(option_->ip_remote, option_->port);
-    ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
+    // only recv the target's multicast packets,windows can not do this
+    // result = multicast_sock_->Connect(option_->ip_remote, option_->port);
+    // ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
 
-    std::string ip_local,ip_remote;
-    int port_local,port_remote;
-
-    result = multicast_sock_->GetLocalAddress(ip_local,port_local);
-    ASSERT(result>=0);
-    result = multicast_sock_->GetPeerAddress(ip_remote,port_remote);
-    ASSERT(result>=0);
-    LOGDP("multicast connection: %s:%d -> %s:%d",ip_local.c_str(),port_local,ip_remote.c_str(),port_remote);
-    // while(true){
-    // std::string data(100,0);
-    // result = multicast_sock_->Recv(&data[0],100);
-    // }
-
+    std::string ip_local;
+    int port_local;
     result = data_sock_->GetLocalAddress(ip_local, port_local);
     ASSERT(result >= 0);
     std::string cookie("cookie:" + ip_local + ":" + std::to_string(port_local));

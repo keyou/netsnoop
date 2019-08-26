@@ -31,44 +31,13 @@ int main(int argc, char *argv[])
 
     ASSERT(init_sock() == 0);
 
-
-    Logger::SetGlobalLogLevel(LLVERBOSE);
-    // if(argc == 2)
-    // {
-    //     Udp udp;
-    //     udp.Initialize();
-    //     udp.Bind("127.0.0.1",4000);
-    //     udp.Connect("127.0.0.1",4001);
-
-    //     fd_set readfds;
-    //     FD_ZERO(&readfds);
-    //     int result = select(udp.GetFd()+1,NULL,&readfds,NULL,NULL);
-    //     char buf[1000] = {0};
-    //     udp.Recv(buf,1000);
-    // }
-    // else
-    // {
-    //     Udp udp;
-    //     udp.Initialize();
-    //     udp.Bind("127.0.0.1",4001);
-    //     udp.Connect("127.0.0.1",4000);
-
-    //     while (true)
-    //     {
-    //         udp.Send("aaa",3);
-    //         getchar();
-    //     }
-    // }
-    
-    //return 0;
-
 #ifdef _DEBUG
     Logger::SetGlobalLogLevel(LLDEBUG);
 #else
     Logger::SetGlobalLogLevel(LLERROR);
 #endif // _DEBUG
 
-    strncpy(g_option->ip_remote, "0.0.0.0", sizeof(g_option->ip_remote) - 1);
+    strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote) - 1);
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local) - 1);
     strncpy(g_option->ip_multicast, "239.3.3.3", sizeof(g_option->ip_multicast) - 1);
     g_option->port = 4000;
