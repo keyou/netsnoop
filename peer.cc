@@ -81,27 +81,27 @@ int Peer::Auth()
         return -1;
     }
     cookie_ = buf;
-    std::string ip;
-    int port;
-    result = control_sock_->GetLocalAddress(ip, port);
+    std::string local_ip,peer_ip;
+    int local_port,peer_port;
+    result = control_sock_->GetLocalAddress(local_ip, local_port);
     ASSERT(result >= 0);
 
     data_sock_ = std::make_shared<Udp>();
     result = data_sock_->Initialize();
     ASSERT(result >= 0);
-    result = data_sock_->Bind(ip, port);
+    result = data_sock_->Bind(local_ip, local_port);
     ASSERT(result >= 0);
 
     buf = buf.substr(sizeof("cookie:") - 1);
     int index = buf.find(':');
-    ip = buf.substr(0, index);
-    port = atoi(buf.substr(index + 1).c_str());
-    result = data_sock_->Connect(ip, port);
+    peer_ip = buf.substr(0, index);
+    peer_port = atoi(buf.substr(index + 1).c_str());
+    result = data_sock_->Connect(peer_ip, peer_port);
     ASSERT(result >= 0);
 
     if (OnAuthSuccess)
         OnAuthSuccess(this);
-    LOGDP("connect new client: %s:%d (fd=%d)", ip.c_str(), port, data_sock_->GetFd());
+    LOGDP("connect new client(fd=%d): %s:%d", data_sock_->GetFd(), peer_ip.c_str(), peer_port);
     return 0;
 }
 

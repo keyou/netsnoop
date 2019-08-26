@@ -74,6 +74,8 @@ protected:
     DISALLOW_COPY_AND_ASSIGN(Sock);
 };
 
+int join_mcast(int fd, u_long groupaddr);
+
 inline int init_sock()
 {
 #ifdef WIN32

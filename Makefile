@@ -19,10 +19,19 @@ DEPS = netsnoop.h command.h
 OBJ = command.o context2.o sock.o tcp.o udp.o command_receiver.o command_sender.o peer.o net_snoop_client.o net_snoop_server.o
 
 .PHONY: all
-all: netsnoop.out netsnoop_test.out netsnoop_select.out
+all: netsnoop netsnoop_test netsnoop_select
 
-%.out: $(OBJ) %.o
-	$(CXX) $(CXXFLAGS) -o $*$(EXE) $^ $(LIBS)
+# %.out: $(OBJ) %.o
+# 	$(CXX) $(CXXFLAGS) -o $*$(EXE) $^ $(LIBS)
+	
+netsnoop: $(OBJ) netsnoop.o
+	$(CXX) $(CXXFLAGS) -o $@$(EXE) $^ $(LIBS)
+	
+netsnoop_test: $(OBJ) netsnoop_test.o
+	$(CXX) $(CXXFLAGS) -o $@$(EXE) $^ $(LIBS)
+	
+netsnoop_select: $(OBJ) netsnoop_select.o
+	$(CXX) $(CXXFLAGS) -o $@$(EXE) $^ $(LIBS)
 
 %.o: %.cc %.h $(DEPS)
 	$(CXX) $(CXXFLAGS) -c -o $@ $< 

@@ -248,12 +248,19 @@ int NetSnoopServer::AceeptNewConnect()
         ASSERT(result >= 0);
         multicast_sock_ = std::make_shared<Udp>();
         result = multicast_sock_->Initialize();
-        result = multicast_sock_->Bind(ip, port);
-        ASSERT_RETURN(result >= 0, -1, "multicast socket bind error.");
+
+        //struct in_addr addr;
+        auto addr = inet_addr(ip.c_str());
+	    result = setsockopt(multicast_sock_->GetFd(), IPPROTO_IP, IP_MULTICAST_IF, (char*)&addr, sizeof(addr));
+        ASSERT_RETURN(result>=0,-1);
+
+        //result = multicast_sock_->Bind(ip, 0);
+        //ASSERT_RETURN(result >= 0, -1, "multicast socket bind error.");
+        //LOGDP("bind multicast to(%d): %s:%d", multicast_sock_->GetFd(), ip.c_str(), port);
+
         //only recv the target's multicast packets
         result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
         ASSERT_RETURN(result >= 0, -1, "multicast socket connect server error.");
-        LOGDP("bind multicast to(%d): %s:%d", multicast_sock_->GetFd(), ip.c_str(), port);
         if(ip == std::string("127.0.0.1"))
         {
             LOGWP("bind multicast to local loopback ip(127.0.0.1) is invalid,"

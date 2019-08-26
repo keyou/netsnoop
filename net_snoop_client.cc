@@ -99,10 +99,16 @@ int NetSnoopClient::Connect()
 
     multicast_sock_ = std::make_shared<Udp>();
     result = multicast_sock_->Initialize();
-#ifndef WIN32
-    result = multicast_sock_->Bind(option_->ip_multicast,option_->port);
-    ASSERT_RETURN(result >= 0,-1,"multicast socket bind error: %s:%d",option_->ip_multicast,option_->port);
-#endif
+
+    result = multicast_sock_->Bind("0.0.0.0",option_->port);
+    ASSERT_RETURN(result >= 0,-1,"multicast socket bind error: %s:%d","0.0.0.0",option_->port);
+
+    sockaddr_in addr;
+    result = Sock::StrToSockAddr(option_->ip_multicast,option_->port,&addr);
+    ASSERT_RETURN(result >= 0,-1);
+    result = join_mcast(multicast_sock_->GetFd(),addr.sin_addr.s_addr);
+    ASSERT_RETURN(result>=0,-1);
+
     //only recv the target's multicast packets
     result = multicast_sock_->Connect(option_->ip_remote, option_->port);
     ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
