@@ -23,7 +23,6 @@ class CommandSender
 public:
     CommandSender(std::shared_ptr<CommandChannel> channel);
 
-    int StartPayload();
     int Start();
     int Stop();
     int SendCommand();

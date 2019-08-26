@@ -83,23 +83,14 @@ int Peer::Auth()
     cookie_ = buf;
     std::string ip;
     int port;
+    result = control_sock_->GetLocalAddress(ip, port);
+    ASSERT(result >= 0);
 
     data_sock_ = std::make_shared<Udp>();
     result = data_sock_->Initialize();
     ASSERT(result >= 0);
-    result = control_sock_->GetLocalAddress(ip, port);
-    ASSERT(result >= 0);
     result = data_sock_->Bind(ip, port);
     ASSERT(result >= 0);
-
-    // multicast_sock_ = std::make_shared<Udp>();
-    // result = multicast_sock_->Initialize();
-    // result = multicast_sock_->Bind(option_->ip_local,option_->port);
-    // ASSERT_RETURN(result>=0,-1,"multicast socket bind error.");
-    // //only recv the target's multicast packets
-    // result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
-    // ASSERT_RETURN(result >= 0,-1,"multicast socket connect server error.");
-    // LOGVP("multicast fd=%d",multicast_sock_->GetFd());
 
     buf = buf.substr(sizeof("cookie:") - 1);
     int index = buf.find(':');
@@ -110,7 +101,7 @@ int Peer::Auth()
 
     if (OnAuthSuccess)
         OnAuthSuccess(this);
-    LOGDP("connect new client: %s:%d (%s)", ip.c_str(), port, cookie_.c_str());
+    LOGDP("connect new client: %s:%d (fd=%d)", ip.c_str(), port, data_sock_->GetFd());
     return 0;
 }
 

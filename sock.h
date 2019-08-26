@@ -2,8 +2,8 @@
 
 #if defined WIN32
 // #define this before any windows headers are included
-#define _WIN32_WINNT _WIN32_WINNT_WIN7 // Windows 8.0
-#define FD_SETSIZE 1024
+//#define _WIN32_WINNT _WIN32_WINNT_WIN7 // Windows 8.0
+//#define FD_SETSIZE 1024
 #define InetPton inet_pton
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -73,3 +73,22 @@ protected:
 
     DISALLOW_COPY_AND_ASSIGN(Sock);
 };
+
+inline int init_sock()
+{
+#ifdef WIN32
+    WSADATA wsadata;
+	return WSAStartup(MAKEWORD(2 ,2), &wsadata);
+#else
+    return 0;
+#endif
+}
+
+inline int clean_sock()
+{
+#ifdef WIN32
+	return WSACleanup();
+#else
+    return 0;
+#endif
+}

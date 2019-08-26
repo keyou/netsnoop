@@ -28,10 +28,7 @@ int CommandSender::Start()
     context_->SetWriteFd(control_sock_->GetFd());
     return 0;
 }
-int CommandSender::StartPayload()
-{
-    OnStart();
-}
+
 int CommandSender::OnStart()
 {
     return 0;
@@ -170,7 +167,8 @@ int EchoCommandSender::OnStart()
     LOGDP("EchoCommandSender start payload.");
     start_ = high_resolution_clock::now();
     context_->SetWriteFd(data_sock_->GetFd());
-    context_->ClrReadFd(data_sock_->GetFd());
+    //context_->ClrReadFd(data_sock_->GetFd());
+    context_->SetReadFd(data_sock_->GetFd());
     SetTimeout(command_->GetInterval());
     return 0;
 }
@@ -178,7 +176,7 @@ int EchoCommandSender::OnStart()
 int EchoCommandSender::SendData()
 {
     send_packets_++;
-    context_->SetReadFd(data_sock_->GetFd());
+    //context_->SetReadFd(data_sock_->GetFd());
     context_->ClrWriteFd(data_sock_->GetFd());
     
     begin_ = high_resolution_clock::now();
@@ -218,8 +216,7 @@ int EchoCommandSender::OnTimeout()
     {
         stop_ = high_resolution_clock::now();
         // stop data channel
-        context_->ClrWriteFd(data_sock_->GetFd());
-        context_->ClrReadFd(data_sock_->GetFd());
+        // context_->ClrWriteFd(data_sock_->GetFd());
         return Stop();
     }
     context_->SetWriteFd(data_sock_->GetFd());
@@ -230,6 +227,7 @@ int EchoCommandSender::OnTimeout()
 int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 {
     LOGDP("EchoCommandSender stop payload.");
+    context_->ClrReadFd(data_sock_->GetFd());
     if (!OnStopped)
         return 0;
     

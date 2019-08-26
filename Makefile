@@ -3,8 +3,8 @@ CXXFLAGS= -g -std=c++11 -I. -D _DEBUG
 LIBS=-pthread
 EXE=
 
-WIN32_CXX=i686-w64-mingw32-g++-posix
-WIN32_FLAGS= -I/usr/i686-w64-mingw32/include -D WIN32
+WIN32_CXX=g++#i686-w64-mingw32-g++-posix
+WIN32_FLAGS= -D WIN32 -D_WIN32_WINNT=0x601 -DFD_SETSIZE=1024 #-D__USE_W32_SOCKETS #-I/usr/i686-w64-mingw32/include
 WIN32_LIBS=-pthread -lws2_32
 WIN32_EXE=.exe
 

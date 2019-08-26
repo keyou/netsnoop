@@ -28,6 +28,9 @@ int main(int argc, char *argv[])
                      "   test thoughput: send count 1000 interval 0";
         return 0;
     }
+
+    ASSERT(init_sock() == 0);
+
 #ifdef _DEBUG
     Logger::SetGlobalLogLevel(LLDEBUG);
 #else
@@ -37,7 +40,6 @@ int main(int argc, char *argv[])
     strncpy(g_option->ip_remote, "0.0.0.0", sizeof(g_option->ip_remote) - 1);
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local) - 1);
     strncpy(g_option->ip_multicast, "239.3.3.3", sizeof(g_option->ip_multicast) - 1);
-
     g_option->port = 4000;
 
     if (argc > 2)
@@ -67,7 +69,8 @@ int main(int argc, char *argv[])
             StartClient();
         }
     }
-
+    
+    clean_sock();
     return 0;
 }
 
