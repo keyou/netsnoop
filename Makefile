@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS= -g -std=c++11 -I. -D _DEBUG
+CXXFLAGS= -g -std=c++11 -I. #-D _DEBUG
 LIBS=-pthread
 EXE=
 

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <functional>
 #include <thread>
+#include <condition_variable>
 
 #include "netsnoop.h"
 #include "net_snoop_client.h"
@@ -22,10 +23,12 @@ int main(int argc, char *argv[])
     if (argc < 2)
     {
         std::cout << "usage: \n"
-                     "   start server: netsnoop -s 0.0.0.0 4000 -vvv\n"
-                     "   start client: netsnoop -c 0.0.0.0 4000 -vvv\n"
-                     "   test delay: echo count 10\n"
-                     "   test thoughput: send count 1000 interval 0";
+                     "   netsnoop -s 0.0.0.0 4000 -vv   (start server)\n"
+                     "   netsnoop -c 0.0.0.0 4000 -vv   (start client)\n"
+                     "   --------\n"
+                     "   command: \n"
+                     "   ping count 10                  (test delay)\n"
+                     "   send count 1000 interval 0     (test thoughput)\n";
         return 0;
     }
 
@@ -118,10 +121,13 @@ void StartServer()
     });
     t.detach();
 
+    std::mutex mtx;
+    std::condition_variable cv;
+
     std::string cmd;
     while (true)
     {
-        std::cout << "Input Action:";
+        std::cout << "Input Command:";
         std::getline(std::cin, cmd);
         if (cmd.length() < 4)
             continue;
@@ -130,8 +136,11 @@ void StartServer()
         {
             command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
                 std::clog << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+                cv.notify_all();
             });
             server.PushCommand(command);
+            std::unique_lock<std::mutex> lock(mtx);
+            cv.wait(lock);
         }
     }
 }

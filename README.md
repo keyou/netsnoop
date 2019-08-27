@@ -5,6 +5,17 @@ A network snoop tool, support detect multi-client (which is not supported by ipe
 
 ## Usage
 
+```sh
+$ ./netsnoop
+usage:
+   netsnoop -s 0.0.0.0 4000 -vv   (start server)
+   netsnoop -c 0.0.0.0 4000 -vv   (start client)
+   --------
+   command:
+   ping count 10                  (test delay)
+   send count 1000 interval 0     (test thoughput)
+```
+
 In server side run:
 
 ```sh
