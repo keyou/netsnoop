@@ -17,12 +17,12 @@ void StartClients(int count, bool join);
 void StartServer();
 
 std::vector<std::string> cmds{
-    "echo",
+    "ping",
     "send",
     "send count 100 interval 1 size 1024",
     "send count 10000 interval 0 size 1024",
-    "echo count 10 interval 200 size 1024",
-    "echo count 10 interval 200 size 10240",
+    "ping count 10 interval 200 size 1024",
+    "ping count 10 interval 200 size 10240",
     "send count 1000 interval 1 size 1024",
     "send count 1000 interval 0 size 8096",
     "send count 10000 interval 0 size 12024",

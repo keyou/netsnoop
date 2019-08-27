@@ -7,7 +7,7 @@ static CommandRegister<T> __command_##name(#name)
 static CommandRegister<T> __command_##name(#name,true)
 
 
-REGISER_COMMAND(echo,EchoCommand);
+REGISER_COMMAND(ping,EchoCommand);
 REGISER_COMMAND(send,SendCommand);
 REGISER_PRIVATE_COMMAND(ack,AckCommand);
 REGISER_PRIVATE_COMMAND(stop,StopCommand);

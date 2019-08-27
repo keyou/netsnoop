@@ -401,15 +401,15 @@ private:
 class EchoCommand : public Command
 {
 public:
-    // format: echo [count <num>] [time <num>] [interval <num>] [size <num>]
-    // example: echo count 10 interval 100
+    // format: ping [count <num>] [interval <num>] [size <num>]
+    // example: ping count 10 interval 100
     EchoCommand(std::string cmd)
         : count_(ECHO_DEFAULT_COUNT),
           time_(ECHO_DEFAULT_WAIT),
           interval_(ECHO_DEFAULT_INTERVAL),
           size_(ECHO_DEFAULT_SIZE),
           speed_(0),
-          Command("echo", cmd)
+          Command("ping", cmd)
     {
     }
     bool ResolveArgs(CommandArgs args) override
