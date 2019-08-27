@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    ASSERT(init_sock() == 0);
+    SockInit init;
 
 #ifdef _DEBUG
     Logger::SetGlobalLogLevel(LLDEBUG);
@@ -73,7 +73,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    clean_sock();
     return 0;
 }
 
@@ -81,7 +80,7 @@ void StartClient()
 {
     NetSnoopClient client(g_option);
     client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
-        std::clog << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+        std::cout << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&client]() {
         LOGVP("client run.");
@@ -127,9 +126,10 @@ void StartServer()
     std::string cmd;
     while (true)
     {
-        std::cout << "command:";
+        std::cout << "command:" << std::flush;
         std::getline(std::cin, cmd);
-        if(cmd.empty()) continue;
+        if (cmd.empty())
+            continue;
         auto command = CommandFactory::New(cmd);
         if (!command)
         {
@@ -145,6 +145,6 @@ void StartServer()
             std::unique_lock<std::mutex> lock(mtx);
             cv.wait(lock);
         }
-        std::cout<<std::endl;
+        std::cout << std::endl;
     }
 }

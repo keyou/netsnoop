@@ -29,11 +29,11 @@ public:
     {
         switch (level)
         {
-        case LLVERBOSE:out_ = &std::cout;*out_<<"[VER]";break;
-        case LLDEBUG:out_ = &std::cout;*out_<<"[DBG]";break;
-        case LLWARN:out_ = &std::cout;*out_<<"[WAR]";break;
+        case LLVERBOSE:out_ = &std::clog;*out_<<"[VER]";break;
+        case LLDEBUG:out_ = &std::clog;*out_<<"[DBG]";break;
+        case LLWARN:out_ = &std::clog;*out_<<"[WAR]";break;
         case LLERROR:out_ = &std::cerr;*out_<<"[ERR]";break;
-        default:out_ = &std::cout;*out_<<"[INF]";
+        default:out_ = &std::clog;*out_<<"[INF]";
         }
 
         using namespace std::chrono;
@@ -42,11 +42,12 @@ public:
         auto tm = system_clock::to_time_t(tp);
         auto ms = duration_cast<milliseconds>(tp.time_since_epoch()).count()%1000;
         char buf[1024]={0};
-        if (std::strftime(buf, sizeof(buf), "%m/%d %T", std::localtime(&tm))) {
+        // %T is not supported by mingw-w64, why?
+        if (std::strftime(buf, sizeof(buf), "%m/%d %H:%M:%S", std::localtime(&tm))) {
             *out_ << "[" << buf <<"."<< ms <<"]";
         }
 
-        //*out_<<"["<<std::this_thread::get_id()<<"]";
+        *out_<<"["<<std::this_thread::get_id()<<"]";
     }
 
     // TODO: allow set output stream

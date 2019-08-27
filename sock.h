@@ -77,6 +77,23 @@ protected:
 // windows has no in_addr_t type
 int join_mcast(int fd, u_long groupaddr);
 
+/**
+ * @brief init sock library as need.
+ * 
+ */
+class SockInit final
+{
+public:
+    SockInit()
+    {
+        ASSERT(init_sock() == 0);
+    }
+    ~SockInit()
+    {
+        clean_sock();
+    }
+
+private:
 inline int init_sock()
 {
 #ifdef WIN32
@@ -95,3 +112,5 @@ inline int clean_sock()
     return 0;
 #endif
 }
+
+};

@@ -265,10 +265,8 @@ int NetSnoopServer::AceeptNewConnect()
         result = setsockopt(multicast_sock_->GetFd(), IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopch, sizeof(loopch));
         ASSERT_RETURN(result >= 0, -1);
 
-        //only recv the target's multicast packets
         result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
         ASSERT_RETURN(result >= 0, -1, "multicast socket connect server error.");
-        
     }
 
     auto peer = std::make_shared<Peer>(tcp, option_, context_);

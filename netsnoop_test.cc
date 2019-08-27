@@ -32,7 +32,10 @@ std::shared_ptr<Option> g_option = std::make_shared<Option>();
 int main(int argc, char *argv[])
 {
     Logger::SetGlobalLogLevel(LogLevel::LLDEBUG);
-    strncpy(g_option->ip_remote, "0.0.0.0", sizeof(g_option->ip_remote) - 1);
+
+    SockInit init;
+
+    strncpy(g_option->ip_remote, "127.0.0.1", sizeof(g_option->ip_remote) - 1);
     strncpy(g_option->ip_local, "0.0.0.0", sizeof(g_option->ip_local) - 1);
     strncpy(g_option->ip_multicast, "239.3.3.3", sizeof(g_option->ip_multicast) - 1);
 
