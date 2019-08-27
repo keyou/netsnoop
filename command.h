@@ -39,7 +39,7 @@ public:
         ss >> name;
         if (Container().find(name) == Container().end())
         {
-            LOGEP("illegal command: %s", cmd.c_str());
+            LOGWP("illegal command: %s", cmd.c_str());
             return NULL;
         }
         while (ss >> key)

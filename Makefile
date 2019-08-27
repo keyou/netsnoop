@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS= -g -std=c++11 -I. #-D _DEBUG
+CXXFLAGS= -std=c++11 -I.
 LIBS=-pthread
 EXE=
 
@@ -15,11 +15,23 @@ LIBS=$(WIN32_LIBS)
 EXE=$(WIN32_EXE)
 endif
 
+ifeq ($(BUILD),DEBUG)
+CXXFLAGS += -O0 -g -D_DEBUG
+else
+CXXFLAGS += -O3 -s
+endif
+
 DEPS = netsnoop.h command.h
 OBJ = command.o context2.o sock.o tcp.o udp.o command_receiver.o command_sender.o peer.o net_snoop_client.o net_snoop_server.o
 
 .PHONY: all
 all: netsnoop netsnoop_test netsnoop_select
+
+win32:
+	make ARCH=WIN32
+
+debug:
+	make BUILD=DEBUG
 
 # %.out: $(OBJ) %.o
 # 	$(CXX) $(CXXFLAGS) -o $*$(EXE) $^ $(LIBS)

@@ -127,20 +127,24 @@ void StartServer()
     std::string cmd;
     while (true)
     {
-        std::cout << "Input Command:";
+        std::cout << "command:";
         std::getline(std::cin, cmd);
-        if (cmd.length() < 4)
-            continue;
+        if(cmd.empty()) continue;
         auto command = CommandFactory::New(cmd);
-        if (command)
+        if (!command)
+        {
+            std::cout << "command '" << cmd << "' is not supported." << std::endl;
+        }
+        else
         {
             command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                std::clog << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+                std::cout << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
                 cv.notify_all();
             });
             server.PushCommand(command);
             std::unique_lock<std::mutex> lock(mtx);
             cv.wait(lock);
         }
+        std::cout<<std::endl;
     }
 }
