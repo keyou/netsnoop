@@ -109,7 +109,7 @@ int NetSnoopClient::Connect()
     result = join_mcast(multicast_sock_->GetFd(),option_->ip_multicast,ip_local);
     ASSERT_RETURN(result>=0,-1);
 
-    LOGDP("bind multicast to group %s, interface %s",option_->ip_multicast,ip_local);
+    LOGDP("bind multicast to group %s, interface %s",option_->ip_multicast,ip_local.c_str());
 
     // only recv the target's multicast packets,windows can not do this
     // result = multicast_sock_->Connect(option_->ip_remote, option_->port);
