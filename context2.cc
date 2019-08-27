@@ -1,6 +1,4 @@
 
-#pragma once
-
 #include "context2.h"
 
 Context::Context() : max_fd(-1), control_fd(-1), data_fd(-1)
