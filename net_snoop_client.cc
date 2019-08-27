@@ -105,7 +105,7 @@ int NetSnoopClient::Connect()
     multicast_sock_ = std::make_shared<Udp>();
     result = multicast_sock_->Initialize();
     result = multicast_sock_->Bind("0.0.0.0",option_->port);
-    ASSERT_RETURN(result >= 0,-1,"multicast socket bind error: %s:%d",ip_local,option_->port);
+    ASSERT_RETURN(result >= 0,-1,"multicast socket bind error: %s:%d",ip_local.c_str(),option_->port);
     result = join_mcast(multicast_sock_->GetFd(),option_->ip_multicast,ip_local);
     ASSERT_RETURN(result>=0,-1);
 
