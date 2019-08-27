@@ -69,7 +69,7 @@ int Sock::Bind(int fd_, std::string ip, int port)
     }
 
     if (IN_MULTICAST(ntohl(localaddr.sin_addr.s_addr)))
-        return join_mcast(fd_,localaddr.sin_addr.s_addr);
+        return join_mcast(fd_,ip,"0.0.0.0");
 
     return 0;
 }
@@ -295,15 +295,17 @@ Sock::~Sock()
     }
 }
 
-int join_mcast(int fd, u_long groupaddr)
+int join_mcast(int fd, std::string group_addr, std::string interface_addr)
 {
     ip_mreq mreq;
+    auto groupaddr = inet_addr(group_addr.c_str());
+    auto interfaceaddr = inet_addr(interface_addr.c_str());
 
     if (IN_MULTICAST(ntohl(groupaddr)) == 0)
         return -1;
 
     mreq.imr_multiaddr.s_addr = groupaddr;
-    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+    mreq.imr_interface.s_addr = interfaceaddr;
     if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&mreq, sizeof(mreq)) == -1)
     {
         LOGEP("IP_ADD_MEMBERSHIP error: %s(errno: %d)",strerror(errno),errno);

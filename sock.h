@@ -75,7 +75,7 @@ protected:
 };
 
 // windows has no in_addr_t type
-int join_mcast(int fd, u_long groupaddr);
+int join_mcast(int fd, std::string group_addr, std::string interface_addr);
 
 /**
  * @brief init sock library as need.
