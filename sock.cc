@@ -296,7 +296,7 @@ Sock::~Sock()
     }
 }
 
-int join_mcast(int fd, in_addr_t groupaddr)
+int join_mcast(int fd, u_long groupaddr)
 {
     ip_mreq mreq;
 

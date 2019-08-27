@@ -222,7 +222,7 @@ int NetSnoopServer::StartListen()
     ASSERT(result >= 0);
     result = command_sock_write_->Connect(ip, port);
     ASSERT(result >= 0);
-    LOGDP("create command socket: %s:%d", ip.c_str(), port);
+    LOGVP("create command socket: %s:%d", ip.c_str(), port);
 
     if (OnServerStart)
         OnServerStart(this);
@@ -246,7 +246,7 @@ int NetSnoopServer::AceeptNewConnect()
         result = tcp->GetLocalAddress(ip, port);
         if(ip == "127.0.0.1")
         {
-            LOGWP("bind multicast to local loopback ip(127.0.0.1) is invalid,multicast is disabled.");
+            LOGWP("loopback(127.0.0.1) can not receive multicast, multicast is disabled.");
         }
 
         multicast_sock_ = std::make_shared<Udp>();
@@ -254,7 +254,7 @@ int NetSnoopServer::AceeptNewConnect()
 
         // result = multicast_sock_->Bind("0.0.0.0", 0);
         // ASSERT_RETURN(result >= 0, -1, "multicast socket bind error.");
-        // LOGDP("bind multicast to(%d): %s:%d", multicast_sock_->GetFd(), ip.c_str(), port);
+        // LOGDP("bind multicast to interface(%d): %s:%d", multicast_sock_->GetFd(), ip.c_str(), port);
 
         //struct in_addr addr;
         auto addr = inet_addr(ip.c_str());
@@ -268,6 +268,7 @@ int NetSnoopServer::AceeptNewConnect()
         //only recv the target's multicast packets
         result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
         ASSERT_RETURN(result >= 0, -1, "multicast socket connect server error.");
+        
     }
 
     auto peer = std::make_shared<Peer>(tcp, option_, context_);

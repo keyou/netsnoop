@@ -74,7 +74,8 @@ protected:
     DISALLOW_COPY_AND_ASSIGN(Sock);
 };
 
-int join_mcast(int fd, in_addr_t groupaddr);
+// windows has no in_addr_t type
+int join_mcast(int fd, u_long groupaddr);
 
 inline int init_sock()
 {
