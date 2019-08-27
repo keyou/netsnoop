@@ -27,9 +27,11 @@ OBJ = command.o context2.o sock.o tcp.o udp.o command_receiver.o command_sender.
 .PHONY: all
 all: netsnoop netsnoop_test netsnoop_select
 
+.PHONY: win32
 win32:
 	make ARCH=WIN32
 
+.PHONY: debug
 debug:
 	make BUILD=DEBUG
 
