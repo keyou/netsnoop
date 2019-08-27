@@ -278,7 +278,6 @@ int SendCommandSender::SendData()
         is_stoping_ = true;
         // stop data channel
         context_->ClrWriteFd(data_sock_->GetFd());
-        stop_ = high_resolution_clock::now();
         return Stop();
     }
     LOGDP("SendCommandSender send payload data.");
@@ -295,6 +294,7 @@ int SendCommandSender::SendData()
     ASSERT_RETURN(result>=0,-1);
     if(result>0) send_packets_++;
     send_bytes_+=result;
+    stop_ = high_resolution_clock::now();
     return result;
 }
 int SendCommandSender::RecvData()
@@ -311,7 +311,6 @@ int SendCommandSender::OnTimeout()
         is_stoping_ = true;
         // stop data channel
         context_->ClrWriteFd(data_sock_->GetFd());
-        stop_ = high_resolution_clock::now();
         return Stop();
     }
 
