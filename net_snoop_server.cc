@@ -244,7 +244,10 @@ int NetSnoopServer::AceeptNewConnect()
         std::string ip;
         int port;
         result = tcp->GetLocalAddress(ip, port);
-        LOGWP("bind multicast to local loopback ip(127.0.0.1) is invalid,multicast is disabled.");
+        if(ip == "127.0.0.1")
+        {
+            LOGWP("bind multicast to local loopback ip(127.0.0.1) is invalid,multicast is disabled.");
+        }
 
         multicast_sock_ = std::make_shared<Udp>();
         result = multicast_sock_->Initialize();

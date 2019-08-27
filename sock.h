@@ -59,7 +59,7 @@ protected:
     Sock(int type, int protocol, int fd);
     virtual int InitializeEx(int fd) const { return fd; };
 
-    static int GetSockAddr(const std::string& ip,in_addr* addr);
+    static int GetSockAddr(const std::string& ip,in_addr& addr);
 
     int fd_;
     int type_;
@@ -74,7 +74,7 @@ protected:
     DISALLOW_COPY_AND_ASSIGN(Sock);
 };
 
-int join_mcast(int fd, u_long groupaddr);
+int join_mcast(int fd, in_addr_t groupaddr);
 
 inline int init_sock()
 {

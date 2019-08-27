@@ -266,8 +266,10 @@ int Sock::StrToSockAddr(const std::string& ip,int port,sockaddr_in* sockaddr)
 }
 
 //static
-int Sock::GetSockAddr(const std::string &ip, in_addr *addr)
+int Sock::GetSockAddr(const std::string &ip, in_addr& addr)
 {
+    addr.s_addr = inet_addr(ip.c_str());
+    if(addr.s_addr!=-1) return 0;
     hostent *record = gethostbyname(ip.c_str());
     if (record == NULL)
     {
@@ -275,7 +277,7 @@ int Sock::GetSockAddr(const std::string &ip, in_addr *addr)
         return -1;
     }
     // TODO: in multithread(100),it crash here sometimes.
-    *addr = *(in_addr *)record->h_addr;
+    addr = *(in_addr *)record->h_addr;
     return 0;
 }
 
@@ -294,7 +296,7 @@ Sock::~Sock()
     }
 }
 
-int join_mcast(int fd, u_long groupaddr)
+int join_mcast(int fd, in_addr_t groupaddr)
 {
     ip_mreq mreq;
 

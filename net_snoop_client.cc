@@ -155,11 +155,11 @@ int NetSnoopClient::RecvCommand()
     
 #ifndef WIN32
     // clear data socket data.
-    std::string buf(MAX_UDP_LENGTH,0);
-    while ((result = recv(data_sock_->GetFd(),&buf[0],buf.length(),MSG_DONTWAIT))>0)
-    {
-        LOGDP("illegal data recved(%d).",result);
-    }
+    // std::string buf(MAX_UDP_LENGTH,0);
+    // while ((result = recv(data_sock_->GetFd(),&buf[0],buf.length(),MSG_DONTWAIT))>0)
+    // {
+    //     LOGDP("illegal data recved(%d).",result);
+    // }
 #endif // !WIN32
 
     auto ack_command = std::make_shared<AckCommand>();
