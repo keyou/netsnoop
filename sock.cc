@@ -25,25 +25,6 @@
 
 #include "sock.h"
 
-int join_mcast(int fd, u_long groupaddr)
-{
-    ip_mreq mreq;
-
-    if (IN_MULTICAST(ntohl(groupaddr)) == 0)
-        return -1;
-
-    mreq.imr_multiaddr.s_addr = groupaddr;
-    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-    if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&mreq, sizeof(mreq)) == -1)
-    {
-        LOGEP("IP_ADD_MEMBERSHIP error: %s(errno: %d)",strerror(errno),errno);
-        return -1;
-    }
-
-    LOGVP("multicast group joined");
-    return 0;
-}
-
 //static
 int Sock::CreateSocket(int type, int protocol)
 {
@@ -311,4 +292,23 @@ Sock::~Sock()
         closesocket(fd_);
         fd_ = -1;
     }
+}
+
+int join_mcast(int fd, u_long groupaddr)
+{
+    ip_mreq mreq;
+
+    if (IN_MULTICAST(ntohl(groupaddr)) == 0)
+        return -1;
+
+    mreq.imr_multiaddr.s_addr = groupaddr;
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+    if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&mreq, sizeof(mreq)) == -1)
+    {
+        LOGEP("IP_ADD_MEMBERSHIP error: %s(errno: %d)",strerror(errno),errno);
+        return -1;
+    }
+
+    LOGVP("multicast group joined");
+    return 0;
 }

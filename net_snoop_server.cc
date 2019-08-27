@@ -222,6 +222,7 @@ int NetSnoopServer::StartListen()
     ASSERT(result >= 0);
     result = command_sock_write_->Connect(ip, port);
     ASSERT(result >= 0);
+    LOGDP("create command socket: %s:%d", ip.c_str(), port);
 
     if (OnServerStart)
         OnServerStart(this);

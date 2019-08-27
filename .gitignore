@@ -6,6 +6,7 @@ tags
 GTAGS
 *.log
 *.swp
+*.dll
 netsnoop
 netsnoop_test
 netsnoop_select
