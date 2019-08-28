@@ -31,6 +31,10 @@ all: netsnoop netsnoop_test netsnoop_select
 win32:
 	make ARCH=WIN32
 
+.PHONY: win32_debug
+win32_debug:
+	make ARCH=WIN32 BUILD=DEBUG
+
 .PHONY: debug
 debug:
 	make BUILD=DEBUG
