@@ -20,7 +20,7 @@ auto g_option = std::make_shared<Option>();
  */
 int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    if (argc < 2 || !strcmp(argv[1], "-h"))
     {
         std::cout << "usage: \n"
                      "  netsnoop -s 0.0.0.0 4000            (start server)\n"
@@ -29,7 +29,10 @@ int main(int argc, char *argv[])
                      "  command:\n"
                      "  ping count 10                       (test delay)\n"
                      "  send count 1000                     (test thoughput)\n"
-                     "  send count 1000 multicast true      (test multicast)\n";
+                     "  send count 1000 multicast true      (test multicast)\n"
+                     "  \n"
+                     "  version: "
+                  << VERSION(0.1) << " (" << __DATE__ <<" "<< __TIME__ << ")" << std::endl;
         return 0;
     }
 
@@ -106,7 +109,7 @@ void StartServer()
         std::clog << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
     };
     server.OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
-        std::clog << "peer stoped: (" << peer->GetCookie() <<") " << peer->GetCommand()->cmd.c_str()
+        std::clog << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->cmd.c_str()
                   << " || " << (netstat ? netstat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&]() {

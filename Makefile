@@ -3,11 +3,6 @@ CXXFLAGS= -std=c++11 -I.
 LIBS=-pthread
 EXE=
 
-WIN32_CXX=g++
-WIN32_FLAGS= -D WIN32 -D_WIN32_WINNT=0x601 -DFD_SETSIZE=1024 #-D__USE_W32_SOCKETS #-I/usr/i686-w64-mingw32/include
-WIN32_LIBS=-lws2_32
-WIN32_EXE=.exe
-
 ifeq ($(OS), Windows_NT)
 ARCH=WIN32
 endif
@@ -26,6 +21,8 @@ CXXFLAGS += -O0 -g -D_DEBUG
 else
 CXXFLAGS += -O3 -s
 endif
+
+CXXFLAGS += -DBUILD_VERSION=$(shell git rev-list --count HEAD)
 
 DEPS = netsnoop.h command.h
 OBJ = command.o context2.o sock.o tcp.o udp.o command_receiver.o command_sender.o peer.o net_snoop_client.o net_snoop_server.o
