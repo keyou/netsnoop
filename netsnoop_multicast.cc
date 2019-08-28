@@ -3,7 +3,7 @@
 
 int main(int argc,char* argv[])
 {
-    Logger::SetGlobalLogLevel(LogLevel::LLDEBUG);
+    Logger::SetGlobalLogLevel(LogLevel::LLVERBOSE);
     int result;
 
     Udp udp;
