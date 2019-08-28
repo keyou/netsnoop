@@ -5,6 +5,7 @@
 #include <memory>
 #include <sstream>
 #include <functional>
+#include <unistd.h>
 
 #include "command_receiver.h"
 #include "command_sender.h"
@@ -189,8 +190,9 @@ struct NetStat
 
     std::string ToString() const
     {
+        bool istty = isatty(fileno(stdout));
         std::stringstream ss;
-#define W(p) ss << #p " " << p << " "
+#define W(p) if(!istty || p > 0) ss << #p " " << p << " "
         W(loss);
         W(send_speed);
         W(recv_speed);

@@ -3,15 +3,12 @@
 #if defined WIN32
 // #define this before any windows headers are included
 //#define _WIN32_WINNT _WIN32_WINNT_WIN7 // Windows 8.0
-//#define FD_SETSIZE 1024
-#define InetPton inet_pton
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #else
 #define closesocket close
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <unistd.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -20,6 +17,7 @@
 #include <sys/un.h>
 #endif
 
+#include <unistd.h>
 #include <string>
 #include "netsnoop.h"
 
