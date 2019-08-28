@@ -53,6 +53,9 @@ netsnoop_test: $(OBJ) netsnoop_test.o
 	
 netsnoop_select: $(OBJ) netsnoop_select.o
 	$(CXX) $(CXXFLAGS) -o $@$(EXE) $^ $(LIBS)
+	
+netsnoop_multicast: $(OBJ) netsnoop_multicast.o
+	$(CXX) $(CXXFLAGS) -o $@$(EXE) $^ $(LIBS)
 
 %.o: %.cc %.h $(DEPS)
 	$(CXX) $(CXXFLAGS) -c -o $@ $< 
