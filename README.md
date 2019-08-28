@@ -6,7 +6,7 @@ A network snoop tool, support detect multi-client (which is not supported by ipe
 ## Usage
 
 ```sh
-$ ./netsnoop
+$ ./netsnoop -h
 usage:
   netsnoop -s 0.0.0.0 4000            (start server)
   netsnoop -c <server ip> 4000        (start client)
@@ -15,6 +15,8 @@ usage:
   ping count 10                       (test delay)
   send count 1000                     (test thoughput)
   send count 1000 multicast true      (test multicast)
+  
+  version: v0.1.85 (Aug 28 2019 15:02:50)
 ```
 
 In server side run:
