@@ -6,8 +6,11 @@ int main(int argc,char* argv[])
     Logger::SetGlobalLogLevel(LogLevel::LLVERBOSE);
     int result;
 
+    SockInit init;
+
     Udp udp;
     result = udp.Initialize();
+    ASSERT_RETURN(result>=0,-1);
     if(argc>2 && !strcmp("-s",argv[1]))
     {
         auto addr = inet_addr(argv[2]);
