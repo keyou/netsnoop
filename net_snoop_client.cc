@@ -122,6 +122,8 @@ int NetSnoopClient::Connect()
     context_->control_fd = control_sock_->GetFd();
     context_->data_fd = data_sock_->GetFd();
 
+    if(OnConnected) OnConnected();
+
     return 0;
 }
 

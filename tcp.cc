@@ -68,9 +68,9 @@ int Tcp::InitializeEx(int fd) const
     }
 
 #ifndef WIN32
-    int keepcnt = 3;
-    int keepidle = 20;
-    int keepintvl = 20;
+    int keepcnt = 4;
+    int keepidle = 5;
+    int keepintvl = 5;
 
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int))<0)
     {

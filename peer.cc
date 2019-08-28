@@ -98,10 +98,11 @@ int Peer::Auth()
     peer_port = atoi(buf.substr(index + 1).c_str());
     result = data_sock_->Connect(peer_ip, peer_port);
     ASSERT(result >= 0);
-
+    
+    LOGDP("connect new client(fd=%d): %s:%d", data_sock_->GetFd(), peer_ip.c_str(), peer_port);
     if (OnAuthSuccess)
         OnAuthSuccess(this);
-    LOGDP("connect new client(fd=%d): %s:%d", data_sock_->GetFd(), peer_ip.c_str(), peer_port);
+
     return 0;
 }
 
@@ -175,7 +176,7 @@ int Peer::SetCommand(std::shared_ptr<Command> command)
         MultiCastSock::Start();
         current_sock_ = std::make_shared<MultiCastSock>(multicast_sock_, data_sock_, command);
     }
-    
+
     command_ = command;
     std::shared_ptr<CommandChannel> channel(new CommandChannel{
         command, context_, control_sock_, current_sock_});

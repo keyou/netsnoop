@@ -34,7 +34,7 @@ public:
     std::shared_ptr<Context> GetContext() const{return context_;}
     int SetCommand(std::shared_ptr<Command> command);
     std::shared_ptr<Command> GetCommand() const{return command_;};
-    const std::string &GetCookie() { return cookie_; }
+    const std::string &GetCookie() const { return cookie_; }
     int GetTimeout() const{ return commandsender_?commandsender_->GetTimeout():-1; }
     bool IsReady() const{return !!data_sock_;}
     bool IsPayloadStarted() const {return commandsender_&&commandsender_->is_started_;}

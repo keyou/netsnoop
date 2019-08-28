@@ -79,6 +79,9 @@ int main(int argc, char *argv[])
 void StartClient()
 {
     NetSnoopClient client(g_option);
+    client.OnConnected = [] {
+        std::clog << "connect to " << g_option->ip_remote << ":" << g_option->port << " (" << g_option->ip_multicast << ")" << std::endl;
+    };
     client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
         std::cout << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
     };
@@ -95,24 +98,15 @@ void StartServer()
     NetSnoopServer server(g_option);
     server.OnPeerConnected = [&](const Peer *peer) {
         count++;
-        std::string ip;
-        int port;
-        peer->GetControlSock()->GetPeerAddress(ip, port);
-        LOGD << "peer connect: [" << count << "]: " << ip.c_str() << ":" << port;
+        std::clog << "peer connect(" << count << "): " << peer->GetCookie() << std::endl;
     };
     server.OnPeerDisconnected = [&](const Peer *peer) {
         count--;
-        std::string ip;
-        int port;
-        peer->GetControlSock()->GetPeerAddress(ip, port);
-        LOGD << "peer disconnect: [" << count << "]: " << ip.c_str() << ":" << port;
+        std::clog << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
     };
     server.OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
-        std::string ip;
-        int port;
-        peer->GetControlSock()->GetPeerAddress(ip, port);
-        LOGD << "peer stoped: (" << ip.c_str() << ":" << port << ") " << peer->GetCommand()->cmd.c_str()
-             << " || " << (netstat ? netstat->ToString() : "NULL");
+        std::clog << "peer stoped: (" << peer->GetCookie() <<") " << peer->GetCommand()->cmd.c_str()
+                  << " || " << (netstat ? netstat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&]() {
         LOGVP("server run.");
@@ -133,7 +127,7 @@ void StartServer()
         auto command = CommandFactory::New(cmd);
         if (!command)
         {
-            std::cout << "command '" << cmd << "' is not supported." << std::endl;
+            std::clog << "command '" << cmd << "' is not supported." << std::endl;
         }
         else
         {

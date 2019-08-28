@@ -11,4 +11,5 @@ netsnoop
 netsnoop_test
 netsnoop_select
 data/
+out/
 

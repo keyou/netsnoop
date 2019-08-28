@@ -17,6 +17,7 @@ public:
     int Run();
 
     std::function<void(std::shared_ptr<Command>,std::shared_ptr<NetStat>)> OnStopped;
+    std::function<void()> OnConnected;
 
 private:
     int Connect();
