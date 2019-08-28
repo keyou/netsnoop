@@ -3,16 +3,22 @@ CXXFLAGS= -std=c++11 -I.
 LIBS=-pthread
 EXE=
 
-WIN32_CXX=g++#i686-w64-mingw32-g++-posix
+WIN32_CXX=g++
 WIN32_FLAGS= -D WIN32 -D_WIN32_WINNT=0x601 -DFD_SETSIZE=1024 #-D__USE_W32_SOCKETS #-I/usr/i686-w64-mingw32/include
-WIN32_LIBS=-pthread -lws2_32
+WIN32_LIBS=-lws2_32
 WIN32_EXE=.exe
 
-ifeq ($(ARCH), WIN32)
-CXX=$(WIN32_CXX)
-CXXFLAGS+=$(WIN32_FLAGS)
-LIBS=$(WIN32_LIBS)
-EXE=$(WIN32_EXE)
+ifeq ($(OS), Windows_NT)
+ARCH=WIN32
+endif
+
+ifeq ($(ARCH),WIN32)
+	ifneq ($(OS), Windows_NT)
+	CXX = i686-w64-mingw32-g++-posix
+	endif
+CXXFLAGS += -D WIN32 -D_WIN32_WINNT=0x601 -DFD_SETSIZE=1024
+LIBS += -lws2_32
+EXE = .exe
 endif
 
 ifeq ($(BUILD),DEBUG)
