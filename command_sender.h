@@ -113,9 +113,6 @@ private:
     high_resolution_clock::time_point begin_;
     high_resolution_clock::time_point end_;
 
-    double delay_;
-    double min_delay_;
-    double max_delay_;
     ssize_t send_packets_;
     ssize_t send_bytes_;
     std::string data_buf_;

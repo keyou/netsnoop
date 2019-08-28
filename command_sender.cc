@@ -234,8 +234,11 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     auto stat = std::make_shared<NetStat>();
     stat->delay = delay_/(1000*1000);
     stat->max_delay = max_delay_/(1000*1000);
-    stat->min_delay = min_delay_/(1000*1000);
-    stat->jitter = stat->max_delay - stat->min_delay;
+    if(recv_packets_>0)
+    {
+        stat->min_delay = min_delay_/(1000*1000);
+        stat->jitter = stat->max_delay - stat->min_delay;
+    }
     stat->send_bytes = send_packets_ * data_buf_.size();
     stat->send_packets = send_packets_;
     stat->recv_packets = recv_packets_;
@@ -253,7 +256,6 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 SendCommandSender::SendCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<SendCommandClazz>(channel->command_)),
       data_buf_(command_->GetSize(), 0),
-      delay_(0), max_delay_(0), min_delay_(INT32_MAX),
       send_packets_(0), send_bytes_(0),is_stoping_(false),
       CommandSender(channel)
 {

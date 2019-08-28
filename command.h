@@ -192,7 +192,7 @@ struct NetStat
     {
         bool istty = isatty(fileno(stdout));
         std::stringstream ss;
-#define W(p) if(!istty || p > 0) ss << #p " " << p << " "
+#define W(p) if(!istty || p != 0) ss << #p " " << p << " "
         W(loss);
         W(send_speed);
         W(recv_speed);
