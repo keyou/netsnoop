@@ -23,12 +23,13 @@ int main(int argc, char *argv[])
     if (argc < 2)
     {
         std::cout << "usage: \n"
-                     "   netsnoop -s 0.0.0.0 4000 -vv   (start server)\n"
-                     "   netsnoop -c 0.0.0.0 4000 -vv   (start client)\n"
-                     "   --------\n"
-                     "   command: \n"
-                     "   ping count 10                  (test delay)\n"
-                     "   send count 1000 interval 0     (test thoughput)\n";
+                     "  netsnoop -s 0.0.0.0 4000            (start server)\n"
+                     "  netsnoop -c <server ip> 4000        (start client)\n"
+                     "  --------\n"
+                     "  command:\n"
+                     "  ping count 10                       (test delay)\n"
+                     "  send count 1000                     (test thoughput)\n"
+                     "  send count 1000 multicast true      (test multicast)\n";
         return 0;
     }
 

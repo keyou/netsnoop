@@ -8,12 +8,13 @@ A network snoop tool, support detect multi-client (which is not supported by ipe
 ```sh
 $ ./netsnoop
 usage:
-   netsnoop -s 0.0.0.0 4000 -vv   (start server)
-   netsnoop -c 0.0.0.0 4000 -vv   (start client)
-   --------
-   command:
-   ping count 10                  (test delay)
-   send count 1000 interval 0     (test thoughput)
+  netsnoop -s 0.0.0.0 4000            (start server)
+  netsnoop -c <server ip> 4000        (start client)
+  --------
+  command:
+  ping count 10                       (test delay)
+  send count 1000                     (test thoughput)
+  send count 1000 multicast true      (test multicast)
 ```
 
 In server side run:
@@ -79,4 +80,4 @@ In Linux alike system just run `make`.
 
 #### Windows
 
-In windows system you should install mingw or msys2 first, then run `make ARCH=WIN32`.
+In windows system you should install mingw or msys2 first, then run `make`.

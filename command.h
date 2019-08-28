@@ -454,9 +454,9 @@ private:
     DISALLOW_COPY_AND_ASSIGN(EchoCommand);
 };
 
-#define SEND_DEFAULT_COUNT 10
+#define SEND_DEFAULT_COUNT 100
 #define SEND_DEFAULT_INTERVAL 0
-#define SEND_DEFAULT_SIZE 1024
+#define SEND_DEFAULT_SIZE 1472
 #define SEND_DEFAULT_WAIT 500
 /**
  * @brief a main command, server send data only and client recv only.
