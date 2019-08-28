@@ -10,6 +10,7 @@ GTAGS
 netsnoop
 netsnoop_test
 netsnoop_select
+netsnoop_multicast
 data/
 out/
 
