@@ -15,6 +15,9 @@
 // time wait to give a chance for client receive all data
 #define STOP_WAIT_TIME 500
 
+// use as an identity of a main command
+#define VISIABLE_LATTERS "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
 class CommandFactory;
 class Command;
 class NetStat;
@@ -367,7 +370,9 @@ class Command
 {
 public:
     // TODO: optimize command structure to simplify sub command.
-    Command(std::string name, std::string cmd) : name(name), cmd(cmd), is_private(false),is_multicast(false)
+    Command(std::string name, std::string cmd) 
+        : name(name), cmd(cmd),character('$'),
+          is_private(false),is_multicast(false)
     {
     }
     void RegisterCallback(CommandCallback callback)
@@ -394,6 +399,8 @@ public:
     std::string cmd;
     bool is_private;
     bool is_multicast;
+
+    unsigned char character;
     //bool can_start;
 private:
     std::vector<CommandCallback> callbacks_;
@@ -403,9 +410,8 @@ private:
 
 #define ECHO_DEFAULT_COUNT 5
 #define ECHO_DEFAULT_INTERVAL 200
-#define ECHO_DEFAULT_WAIT 500
 #define ECHO_DEFAULT_SIZE 32
-#define ECHO_DEFAULT_SPEED 0
+#define ECHO_DEFAULT_WAIT 500
 /**
  * @brief a main command, server send to client and client should echo
  * 
@@ -417,12 +423,13 @@ public:
     // example: ping count 10 interval 100
     EchoCommand(std::string cmd)
         : count_(ECHO_DEFAULT_COUNT),
-          time_(ECHO_DEFAULT_WAIT),
           interval_(ECHO_DEFAULT_INTERVAL),
           size_(ECHO_DEFAULT_SIZE),
-          speed_(0),
+          wait_(ECHO_DEFAULT_WAIT),
           Command("ping", cmd)
     {
+        static unsigned char index = 0;
+        character = VISIABLE_LATTERS[index++%(sizeof(VISIABLE_LATTERS)-1)];
     }
     bool ResolveArgs(CommandArgs args) override
     {
@@ -430,7 +437,6 @@ public:
         count_ = args["count"].empty() ? ECHO_DEFAULT_COUNT : std::stoi(args["count"]);
         interval_ = args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stoi(args["interval"]);
         size_ = args["size"].empty() ? ECHO_DEFAULT_SIZE : std::stoi(args["size"]);
-        speed_ = args["speed"].empty() ? ECHO_DEFAULT_SPEED : std::stoi(args["speed"]);
         wait_ = args["wait"].empty() ? ECHO_DEFAULT_WAIT : std::stoi(args["wait"]);
         // echo can not have zero delay
         if (interval_ <= 0)
@@ -449,16 +455,13 @@ public:
 
     int GetCount() { return count_; }
     int GetInterval() { return interval_; }
-    int GetTime() { return time_; }
     int GetSize() { return size_; }
     int GetWait() override { return wait_; }
 
 private:
     int count_;
-    int time_;
     int interval_;
     int size_;
-    int speed_;
     int wait_;
 
     DISALLOW_COPY_AND_ASSIGN(EchoCommand);
@@ -475,7 +478,16 @@ private:
 class SendCommand : public Command
 {
 public:
-    SendCommand(std::string cmd) : is_finished(false), Command("send", cmd) {}
+    SendCommand(std::string cmd) 
+        : count_(SEND_DEFAULT_COUNT),
+          interval_(SEND_DEFAULT_INTERVAL),
+          size_(SEND_DEFAULT_SIZE),
+          wait_(SEND_DEFAULT_WAIT),
+          is_finished(false), Command("send", cmd) 
+    {
+        static unsigned char index = 0;
+        character = VISIABLE_LATTERS[index++%(sizeof(VISIABLE_LATTERS)-1)];
+    }
 
     bool ResolveArgs(CommandArgs args) override
     {
@@ -501,7 +513,6 @@ public:
 
     int GetCount() { return count_; }
     int GetInterval() { return interval_; }
-    int GetTime() { return time_; }
     int GetSize() { return size_; }
     int GetWait() override { return wait_; }
 
@@ -510,7 +521,6 @@ public:
 private:
     int count_;
     int interval_;
-    int time_;
     int size_;
     int wait_;
 

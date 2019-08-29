@@ -89,7 +89,6 @@ private:
     ssize_t send_packets_;
     ssize_t recv_packets_;
     std::string data_buf_;
-    unsigned char character_;
 };
 
 class SendCommandSender : public CommandSender
@@ -117,7 +116,6 @@ private:
     ssize_t send_packets_;
     ssize_t send_bytes_;
     std::string data_buf_;
-    unsigned char character_;
 };
 
 class MulticastSendCommandSender : public SendCommandSender

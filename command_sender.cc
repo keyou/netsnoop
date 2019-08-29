@@ -155,17 +155,14 @@ int CommandSender::Timeout(int timeout)
 
 EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)),
-      data_buf_(command_->GetSize(), rand()),
+      data_buf_(command_->GetSize(), command_->character),
       delay_(0), max_delay_(0), min_delay_(INT64_MAX),
       send_packets_(0), recv_packets_(0),
       CommandSender(channel)
 {
+    // echo data size must bigger than sizeof(int64_t) to storage at least one 
+    // character.
     if(data_buf_.size()<=sizeof(int64_t)) data_buf_.resize(sizeof(int64_t)+1);
-    // set A-Z to data,simplify debug.
-    static unsigned char index = 0;
-    character_ = 65+index%26;
-    memset(&data_buf_[0],character_,data_buf_.length());
-    index++;
 }
 
 int EchoCommandSender::OnStart()
@@ -200,7 +197,7 @@ int EchoCommandSender::RecvData()
     if(result>sizeof(int64_t))
     {
         auto character = data_buf_[sizeof(int64_t)];
-        if(character==character_)
+        if(character==command_->character)
         {
             recv_packets_++;
             int64_t* buf = (int64_t*)&data_buf_[0];
@@ -212,7 +209,7 @@ int EchoCommandSender::RecvData()
         }
         else
         {
-            LOGWP("recv old data: %c (expect %c)",character,character_);
+            LOGWP("recv old data: %c (expect %c)",character,command_->character);
         }
     }
     else
@@ -267,15 +264,10 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 
 SendCommandSender::SendCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<SendCommandClazz>(channel->command_)),
-      data_buf_(command_->GetSize(), 0),
+      data_buf_(command_->GetSize(), command_->character),
       send_packets_(0), send_bytes_(0),is_stoping_(false),
       CommandSender(channel)
 {
-    // set A-Z to data,simplify debug.
-    static unsigned char index = 0;
-    character_ = 65+index%26;
-    memset(&data_buf_[0],character_,data_buf_.length());
-    index++;
 }
 
 int SendCommandSender::OnStart()

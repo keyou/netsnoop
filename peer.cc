@@ -98,7 +98,7 @@ int Peer::Auth()
     peer_port = atoi(buf.substr(index + 1).c_str());
     result = data_sock_->Connect(peer_ip, peer_port);
     ASSERT(result >= 0);
-    
+
     LOGDP("connect new client(fd=%d): %s:%d", data_sock_->GetFd(), peer_ip.c_str(), peer_port);
     if (OnAuthSuccess)
         OnAuthSuccess(this);

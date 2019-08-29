@@ -111,11 +111,12 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
         return -1;
     }
 
-#ifdef _DEBUG
-    char tmp[64] = {};
-    strncpy(tmp, buf, sizeof(tmp)-1);
-    LOGVP("send(%ld): %s", result, tmp);
-#endif // _DEBUG
+    if(Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
+    {
+        char tmp[64] = {};
+        strncpy(tmp, buf, sizeof(tmp)-1);
+        LOGVP("send(%ld): %s", result, tmp);
+    }
     return result;
 }
 
@@ -134,11 +135,13 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
         LOGEP("recv timeout.");
         return ERR_TIMEOUT;
     }
-#ifdef _DEBUG
-    char tmp[64] = {};
-    strncpy(tmp, buf, sizeof(tmp)-1);
-    LOGVP("recv(%ld): %s", result, tmp);
-#endif // _DEBUG
+
+    if(Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
+    {
+        char tmp[64] = {};
+        strncpy(tmp, buf, sizeof(tmp)-1);
+        LOGVP("recv(%ld): %s", result, tmp);
+    }
     return result;
 }
 int Sock::Initialize()
