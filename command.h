@@ -132,6 +132,12 @@ struct NetStat
     long long recv_packets;
 
     /**
+     * @brief Recved illegal packets count
+     * 
+     */
+    long long illegal_packets;
+
+    /**
      * @brief Send/Recv data length
      * 
      */
@@ -203,6 +209,7 @@ struct NetStat
         W(min_recv_speed);
         W(send_packets);
         W(recv_packets);
+        W(illegal_packets);
         W(send_pps);
         W(recv_pps);
         W(send_bytes);
@@ -239,6 +246,7 @@ struct NetStat
         RLL(min_recv_speed);
         RLL(send_packets);
         RLL(recv_packets);
+        RLL(illegal_packets);
         RLL(send_pps);
         RLL(recv_pps);
         RLL(send_bytes);
@@ -277,6 +285,7 @@ struct NetStat
         MIN(min_recv_speed);
         INT(send_packets);
         INT(recv_packets);
+        INT(illegal_packets);
         INT(send_pps);
         INT(recv_pps);
         INT(send_bytes);
@@ -315,6 +324,7 @@ struct NetStat
         MIN(min_recv_speed);
         INT(send_packets);
         INT(recv_packets);
+        INT(illegal_packets);
         INT(send_pps);
         INT(recv_pps);
         INT(send_bytes);

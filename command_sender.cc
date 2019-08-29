@@ -155,11 +155,17 @@ int CommandSender::Timeout(int timeout)
 
 EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)),
-      data_buf_(command_->GetSize(), 0),
+      data_buf_(command_->GetSize(), rand()),
       delay_(0), max_delay_(0), min_delay_(INT64_MAX),
       send_packets_(0), recv_packets_(0),
       CommandSender(channel)
 {
+    if(data_buf_.size()<=sizeof(int64_t)) data_buf_.resize(sizeof(int64_t)+1);
+    // set A-Z to data,simplify debug.
+    static unsigned char index = 0;
+    character_ = 65+index%26;
+    memset(&data_buf_[0],character_,data_buf_.length());
+    index++;
 }
 
 int EchoCommandSender::OnStart()
@@ -178,9 +184,7 @@ int EchoCommandSender::SendData()
     send_packets_++;
     //context_->SetReadFd(data_sock_->GetFd());
     context_->ClrWriteFd(data_sock_->GetFd());
-    
     begin_ = high_resolution_clock::now();
-    if(data_buf_.size()<sizeof(int64_t)) data_buf_.resize(sizeof(int64_t));
     int64_t* buf = (int64_t*)&data_buf_[0];
     auto timestamp = begin_.time_since_epoch().count();
     // write timestamp to data
@@ -193,15 +197,23 @@ int EchoCommandSender::RecvData()
 {
     end_ = high_resolution_clock::now();
     int result = data_sock_->Recv(&data_buf_[0], data_buf_.length());
-    if(result>=sizeof(int64_t))
+    if(result>sizeof(int64_t))
     {
-        recv_packets_++;
-        int64_t* buf = (int64_t*)&data_buf_[0];
-        auto delay = end_.time_since_epoch().count() - *buf;
-        max_delay_ = std::max(max_delay_, delay);
-        min_delay_ = std::min(min_delay_, delay);
-        if(recv_packets_ == 1) delay_ = delay;
-        delay_ = (delay_ + delay + 1)/2;
+        auto character = data_buf_[sizeof(int64_t)];
+        if(character==character_)
+        {
+            recv_packets_++;
+            int64_t* buf = (int64_t*)&data_buf_[0];
+            auto delay = end_.time_since_epoch().count() - *buf;
+            max_delay_ = std::max(max_delay_, delay);
+            min_delay_ = std::min(min_delay_, delay);
+            if(recv_packets_ == 1) delay_ = delay;
+            delay_ = (delay_ + delay + 1)/2;
+        }
+        else
+        {
+            LOGWP("recv old data: %c (expect %c)",character,character_);
+        }
     }
     else
     {
@@ -259,6 +271,11 @@ SendCommandSender::SendCommandSender(std::shared_ptr<CommandChannel> channel)
       send_packets_(0), send_bytes_(0),is_stoping_(false),
       CommandSender(channel)
 {
+    // set A-Z to data,simplify debug.
+    static unsigned char index = 0;
+    character_ = 65+index%26;
+    memset(&data_buf_[0],character_,data_buf_.length());
+    index++;
 }
 
 int SendCommandSender::OnStart()
@@ -290,13 +307,14 @@ int SendCommandSender::SendData()
     }
     if (command_->GetInterval() > 0)
         context_->ClrWriteFd(data_sock_->GetFd());
-    //static int index = 0;
-    //data_buf_ = std::to_string(index++);
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
     ASSERT_RETURN(result>=0,-1);
-    if(result>0) send_packets_++;
-    send_bytes_+=result;
-    stop_ = high_resolution_clock::now();
+    if(result>0)
+    {
+        send_packets_++;
+        send_bytes_+=result;
+        stop_ = high_resolution_clock::now();
+    }
     return result;
 }
 int SendCommandSender::RecvData()

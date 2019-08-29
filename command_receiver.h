@@ -84,7 +84,8 @@ private:
     int64_t speed_;
     int64_t max_speed_;
     int64_t min_speed_;
+    ssize_t illegal_data_count_;
 
     ssize_t latest_recv_bytes_;
-
+    char character_;
 };
