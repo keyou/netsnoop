@@ -68,9 +68,6 @@ int Sock::Bind(int fd_, std::string ip, int port)
         return -1;
     }
 
-    if (IN_MULTICAST(ntohl(localaddr.sin_addr.s_addr)))
-        return join_mcast(fd_,ip,"0.0.0.0");
-
     return 0;
 }
 
@@ -111,10 +108,10 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
         return -1;
     }
 
-    if(Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
+    if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
         char tmp[64] = {};
-        strncpy(tmp, buf, sizeof(tmp)-1);
+        strncpy(tmp, buf, sizeof(tmp) - 1);
         LOGVP("send(%ld): %s", result, tmp);
     }
     return result;
@@ -136,10 +133,10 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
         return ERR_TIMEOUT;
     }
 
-    if(Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
+    if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
         char tmp[64] = {};
-        strncpy(tmp, buf, sizeof(tmp)-1);
+        strncpy(tmp, buf, sizeof(tmp) - 1);
         LOGVP("recv(%ld): %s", result, tmp);
     }
     return result;
@@ -183,21 +180,21 @@ ssize_t Sock::Recv(char *buf, size_t size) const
     return Recv(fd_, buf, size);
 }
 
-int Sock::GetLocalAddress(std::string &ip, int &port) 
+int Sock::GetLocalAddress(std::string &ip, int &port)
 {
-    return GetLocalAddress(fd_,ip,port);
+    return GetLocalAddress(fd_, ip, port);
 }
 
 int Sock::GetPeerAddress(std::string &ip, int &port)
 {
-    return GetPeerAddress(fd_,ip,port);
+    return GetPeerAddress(fd_, ip, port);
 }
 
 //static
-int Sock::GetLocalAddress(int fd_,sockaddr_in* localaddr)
+int Sock::GetLocalAddress(int fd_, sockaddr_in *localaddr)
 {
     socklen_t localaddr_length = sizeof(sockaddr_in);
-    memset(localaddr,0,localaddr_length);
+    memset(localaddr, 0, localaddr_length);
     if (getsockname(fd_, (sockaddr *)localaddr, &localaddr_length) < 0)
     {
         LOGEP("getsockname error: %s(errno: %d)", strerror(errno), errno);
@@ -206,10 +203,10 @@ int Sock::GetLocalAddress(int fd_,sockaddr_in* localaddr)
     return 0;
 }
 //static
-int Sock::GetPeerAddress(int fd_,sockaddr_in* peeraddr)
+int Sock::GetPeerAddress(int fd_, sockaddr_in *peeraddr)
 {
     socklen_t peeraddr_length = sizeof(sockaddr_in);
-    memset(peeraddr,0,peeraddr_length);
+    memset(peeraddr, 0, peeraddr_length);
     if (getpeername(fd_, (sockaddr *)peeraddr, &peeraddr_length) < 0)
     {
         LOGEP("getpeername error: %s(errno: %d)", strerror(errno), errno);
@@ -222,8 +219,8 @@ int Sock::GetPeerAddress(int fd_,sockaddr_in* peeraddr)
 int Sock::GetLocalAddress(int fd_, std::string &ip, int &port)
 {
     sockaddr_in localaddr;
-    int result = Sock::GetLocalAddress(fd_,&localaddr);
-    ASSERT_RETURN(result>=0,-1);
+    int result = Sock::GetLocalAddress(fd_, &localaddr);
+    ASSERT_RETURN(result >= 0, -1);
     ip = inet_ntoa(localaddr.sin_addr);
     port = ntohs(localaddr.sin_port);
     return 0;
@@ -233,15 +230,15 @@ int Sock::GetLocalAddress(int fd_, std::string &ip, int &port)
 int Sock::GetPeerAddress(int fd_, std::string &ip, int &port)
 {
     sockaddr_in peeraddr;
-    int result = Sock::GetPeerAddress(fd_,&peeraddr);
-    ASSERT_RETURN(result>=0,-1);
+    int result = Sock::GetPeerAddress(fd_, &peeraddr);
+    ASSERT_RETURN(result >= 0, -1);
     ip = inet_ntoa(peeraddr.sin_addr);
     port = ntohs(peeraddr.sin_port);
     return 0;
 }
 
 //static
-int Sock::SockAddrToStr(sockaddr_in* sockaddr,std::string &ip,int &port)
+int Sock::SockAddrToStr(sockaddr_in *sockaddr, std::string &ip, int &port)
 {
     ip = inet_ntoa(sockaddr->sin_addr);
     port = ntohs(sockaddr->sin_port);
@@ -249,7 +246,7 @@ int Sock::SockAddrToStr(sockaddr_in* sockaddr,std::string &ip,int &port)
 }
 
 //static
-int Sock::StrToSockAddr(const std::string& ip,int port,sockaddr_in* sockaddr)
+int Sock::StrToSockAddr(const std::string &ip, int port, sockaddr_in *sockaddr)
 {
     //sockaddr_in peeraddr;
     //socklen_t peeraddr_size = sizeof(sockaddr_in);
@@ -268,10 +265,11 @@ int Sock::StrToSockAddr(const std::string& ip,int port,sockaddr_in* sockaddr)
 }
 
 //static
-int Sock::GetSockAddr(const std::string &ip, in_addr& addr)
+int Sock::GetSockAddr(const std::string &ip, in_addr &addr)
 {
     addr.s_addr = inet_addr(ip.c_str());
-    if(addr.s_addr!=-1) return 0;
+    if (addr.s_addr != -1)
+        return 0;
     hostent *record = gethostbyname(ip.c_str());
     if (record == NULL)
     {
@@ -281,6 +279,38 @@ int Sock::GetSockAddr(const std::string &ip, in_addr& addr)
     // TODO: in multithread(100),it crash here sometimes.
     addr = *(in_addr *)record->h_addr;
     return 0;
+}
+
+std::vector<std::string> Sock::Host2Ips(const std::string &host)
+{
+    std::vector<std::string> ips;
+    struct addrinfo hints, *res;
+    int errcode;
+    char addrstr[100];
+    void *ptr;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = PF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags |= AI_CANONNAME;
+
+    errcode = getaddrinfo(host.c_str(), NULL, &hints, &res);
+    if (errcode != 0)
+    {
+        LOGEP("getaddrinfo error: %s (errno: %d)", strerror(errno), errno);
+        return ips;
+    }
+
+    while (res)
+    {
+        inet_ntop(res->ai_family, res->ai_addr->sa_data, addrstr, 100);
+        ptr = &((struct sockaddr_in *)res->ai_addr)->sin_addr;
+        inet_ntop(res->ai_family, ptr, addrstr, 100);
+        printf("IPv%d address: %s (%s)\n", 4, addrstr, res->ai_canonname);
+        res = res->ai_next;
+    }
+
+    return ips;
 }
 
 Sock::Sock(int type, int protocol)
@@ -296,25 +326,4 @@ Sock::~Sock()
         closesocket(fd_);
         fd_ = -1;
     }
-}
-
-int join_mcast(int fd, std::string group_addr, std::string interface_addr)
-{
-    ip_mreq mreq;
-    auto groupaddr = inet_addr(group_addr.c_str());
-    auto interfaceaddr = inet_addr(interface_addr.c_str());
-
-    if (IN_MULTICAST(ntohl(groupaddr)) == 0)
-        return -1;
-
-    mreq.imr_multiaddr.s_addr = groupaddr;
-    mreq.imr_interface.s_addr = interfaceaddr;
-    if (setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&mreq, sizeof(mreq)) == -1)
-    {
-        LOGEP("IP_ADD_MEMBERSHIP error: %s(errno: %d)",strerror(errno),errno);
-        return -1;
-    }
-
-    LOGVP("multicast group joined");
-    return 0;
 }

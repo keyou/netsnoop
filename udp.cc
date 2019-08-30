@@ -14,31 +14,6 @@ int Udp::Listen(int count)
     return 0;
 }
 
-// int Udp::Connect(std::string ip, int port)
-// {
-//     ASSERT(fd_ > 0);
-//     struct sockaddr_in remoteaddr;
-//     socklen_t size = sizeof(remoteaddr);
-//     memset(&remoteaddr, 0, sizeof(remoteaddr));
-//     remoteaddr.sin_family = AF_INET;
-//     remoteaddr.sin_port = htons(port);
-
-//     if (inet_pton(AF_INET, ip.c_str(), &remoteaddr.sin_addr) <= 0)
-//     {
-//         LOGEP("inet_pton remote error for %s", ip.c_str());
-//         return ERR_ILLEGAL_PARAM;
-//     }
-
-//     if (Connect(fd_, &remoteaddr, size) < 0)
-//         return -1;
-
-//     LOGVP("Connect udp: %s:%d", ip.c_str(), port);
-
-//     remote_ip_ = ip;
-//     remote_port_ = port;
-//     return 0;
-// }
-
 int Udp::Accept()
 {
     ASSERT(fd_ > 0);
@@ -116,3 +91,71 @@ ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in* peeraddr)
     return result;
 }
 
+    int join_or_drop(int fd, std::string group_addr, std::string interface_addr,bool join=true)
+    {
+        ip_mreq mreq;
+        auto groupaddr = inet_addr(group_addr.c_str());
+        auto interfaceaddr = inet_addr(interface_addr.c_str());
+
+        if (IN_MULTICAST(ntohl(groupaddr)) == 0)
+            return -1;
+
+        mreq.imr_multiaddr.s_addr = groupaddr;
+        mreq.imr_interface.s_addr = interfaceaddr;
+        int type = join?IP_ADD_MEMBERSHIP:IP_DROP_MEMBERSHIP;
+
+        if (setsockopt(fd, IPPROTO_IP, type, (const char*)&mreq, sizeof(mreq)) == -1)
+        {
+            LOGEP("setsocketopt error: %s(errno: %d)",strerror(errno),errno);
+            return -1;
+        }
+
+        LOGVP("multicast group %s: %s(%s)",join?"join":"drop",group_addr.c_str(),interface_addr.c_str());
+        return 0;
+    }
+
+    /**
+     * @brief Used when you need to send multicast data.
+     * set IP_MULTICAST_IF and IP_MULTICAST_LOOP
+     * 
+     * @param interface_addr 
+     * @return int 
+     */
+    int Udp::BindMulticastInterface(std::string interface_addr)
+    {
+        int result = 0;
+        auto addr = inet_addr(interface_addr.c_str());
+        result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_IF, (char *)&addr, sizeof(addr));
+        ASSERT_RETURN(result >= 0, -1);
+
+        char loopch = 1;
+        result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopch, sizeof(loopch));
+        ASSERT_RETURN(result >= 0, -1);
+
+        return 0;
+    }
+
+    /**
+     * @brief Used when you need to recv multicast data.
+     * Join multicast group with specific interface.
+     * 
+     * @param group_addr 
+     * @param interface_addr 
+     * @return int 
+     */
+    int Udp::JoinMUlticastGroup(std::string group_addr,std::string interface_addr)
+    {
+        return join_or_drop(fd_,group_addr,interface_addr,true);
+    }
+
+    /**
+     * @brief Leave a multicast group.
+     * 
+     * @param group_addr 
+     * @param interface_addr 
+     * @return int 
+     */
+    int Udp::DropMulticastGroup(std::string group_addr,std::string interface_addr)
+    {
+        return join_or_drop(fd_,group_addr,interface_addr,false);
+    }

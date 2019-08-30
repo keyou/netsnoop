@@ -247,19 +247,8 @@ int NetSnoopServer::AceeptNewConnect()
         
         multicast_sock_ = std::make_shared<Udp>();
         result = multicast_sock_->Initialize();
-
-        // result = multicast_sock_->Bind("0.0.0.0", 0);
-        // ASSERT_RETURN(result >= 0, -1, "multicast socket bind error.");
-        // LOGDP("bind multicast to interface(%d): %s:%d", multicast_sock_->GetFd(), ip.c_str(), port);
-
-        //struct in_addr addr;
-        auto addr = inet_addr(ip.c_str());
-        result = setsockopt(multicast_sock_->GetFd(), IPPROTO_IP, IP_MULTICAST_IF, (char *)&addr, sizeof(addr));
-        ASSERT_RETURN(result >= 0, -1);
-
-        char loopch = 1;
-        result = setsockopt(multicast_sock_->GetFd(), IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopch, sizeof(loopch));
-        ASSERT_RETURN(result >= 0, -1);
+        result = multicast_sock_->BindMulticastInterface(ip);
+        ASSERT_RETURN(result>=0,-1,"bind multicast interface error.")
 
         result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
         ASSERT_RETURN(result >= 0, -1, "multicast socket connect server error.");

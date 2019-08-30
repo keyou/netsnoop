@@ -67,7 +67,7 @@ private:
      * @brief The socket for multicast testing.
      * 
      */
-    std::shared_ptr<Sock> multicast_sock_;
+    std::shared_ptr<Udp> multicast_sock_;
 
     /**
      * @brief All connected peers, no matter auth or not.

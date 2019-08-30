@@ -17,6 +17,7 @@
 #include <sys/un.h>
 #endif
 
+#include <vector>
 #include <unistd.h>
 #include <string>
 #include "netsnoop.h"
@@ -51,6 +52,8 @@ public:
 
     int GetFd(){return fd_;}
 
+    std::vector<std::string> Host2Ips(const std::string &host);
+
 protected:
     Sock(int type, int protocol);
     Sock(int type, int protocol, int fd);
@@ -70,9 +73,6 @@ protected:
 
     DISALLOW_COPY_AND_ASSIGN(Sock);
 };
-
-// windows has no in_addr_t type
-int join_mcast(int fd, std::string group_addr, std::string interface_addr);
 
 /**
  * @brief init sock library as need.

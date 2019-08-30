@@ -7,7 +7,6 @@
 #include "netsnoop.h"
 #include "net_snoop_client.h"
 #include "net_snoop_server.h"
-#include "udp_multicast.h"
 
 void StartClient();
 void StartServer();
@@ -86,7 +85,7 @@ void StartServer()
 
     auto notify_thread = std::thread([] {
         LOGVP("notify running...");
-        Multicast multicast;
+        Udp multicast;
         multicast.Initialize();
         multicast.Connect("239.3.3.4", 4001);
         while (true)
@@ -189,10 +188,10 @@ void StartClient()
     {
         {
             sockaddr_in server_addr;
-            Multicast multicast;
+            Udp multicast;
             result = multicast.Initialize();
             result = multicast.Bind("0.0.0.0", 4001);
-            result = join_mcast(multicast.GetFd(), "239.3.3.4", "0.0.0.0");
+            result = multicast.JoinMUlticastGroup("239.3.3.4");
 
             std::clog << "finding server... " << std::endl;
             std::string server_ip(40, 0);
