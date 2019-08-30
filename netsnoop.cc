@@ -6,6 +6,7 @@
 #include "netsnoop.h"
 #include "net_snoop_client.h"
 #include "net_snoop_server.h"
+#include "udp_multicast.h"
 
 void StartClient();
 void StartServer();
@@ -32,7 +33,7 @@ int main(int argc, char *argv[])
                      "  send count 1000 multicast true      (test multicast)\n"
                      "  \n"
                      "  version: "
-                  << VERSION(0.1) << " (" << __DATE__ <<" "<< __TIME__ << ")" << std::endl;
+                  << VERSION(0.1) << " (" << __DATE__ << " " << __TIME__ << ")" << std::endl;
         return 0;
     }
 
@@ -98,6 +99,19 @@ void StartClient()
 
 void StartServer()
 {
+    auto notify_thread = std::thread([] {
+        LOGVP("notify running...");
+        Multicast multicast;
+        multicast.Initialize();
+        multicast.Connect("239.3.3.4", 4001);
+        while (true)
+        {
+            multicast.Send(g_option->ip_local, strlen(g_option->ip_local));
+            sleep(3);
+        }
+    });
+    notify_thread.detach();
+
     static int count = 0;
     NetSnoopServer server(g_option);
     server.OnPeerConnected = [&](const Peer *peer) {
@@ -113,7 +127,7 @@ void StartServer()
                   << " || " << (netstat ? netstat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&]() {
-        LOGVP("server run.");
+        LOGVP("server running...");
         server.Run();
     });
     t.detach();

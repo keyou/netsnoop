@@ -44,7 +44,7 @@ int Udp::Accept()
     ASSERT(fd_ > 0);
     int result;
     char buf[64] = {0};
-    char remote_ip[20] = {0};
+    char remote_ip[40] = {0};
 
     struct sockaddr_in peeraddr;
     socklen_t peeraddr_size = sizeof(peeraddr);

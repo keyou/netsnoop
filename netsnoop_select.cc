@@ -7,6 +7,7 @@
 #include "netsnoop.h"
 #include "net_snoop_client.h"
 #include "net_snoop_server.h"
+#include "udp_multicast.h"
 
 void StartClient();
 void StartServer();
@@ -18,7 +19,7 @@ int main(int argc, char *argv[])
     if (argc < 2)
     {
         std::cout << "usage: \n"
-                     "   start server: netsnoop -s 0.0.0.0 4000 -vvv\n";
+                     "   netsnoop_select -s 0.0.0.0 4000 -vvv\n";
         return 0;
     }
     Logger::SetGlobalLogLevel(LLERROR);
@@ -52,6 +53,10 @@ int main(int argc, char *argv[])
         {
             StartServer();
         }
+        if (!strcmp(argv[1], "-c"))
+        {
+            StartClient();
+        }
     }
 
     return 0;
@@ -61,14 +66,41 @@ void StartServer()
 {
     static int count = 0;
     NetSnoopServer server(g_option);
-
-    auto t = std::thread([&]() {
-        LOGVP("server run.");
+    server.OnPeerConnected = [&](const Peer *peer) {
+        count++;
+        std::clog << "peer connect(" << count << "): " << peer->GetCookie() << std::endl;
+    };
+    server.OnPeerDisconnected = [&](const Peer *peer) {
+        count--;
+        std::clog << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
+    };
+    server.OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
+        std::clog << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->cmd.c_str()
+                  << " || " << (netstat ? netstat->ToString() : "NULL") << std::endl;
+    };
+    auto server_thread = std::thread([&]() {
+        LOGVP("server running...");
         server.Run();
     });
+    server_thread.detach();
 
-    std::cout << "Press any key to start..." << std::endl;
+    auto notify_thread = std::thread([] {
+        LOGVP("notify running...");
+        Multicast multicast;
+        multicast.Initialize();
+        multicast.Connect("239.3.3.4", 4001);
+        while (true)
+        {
+            multicast.Send(g_option->ip_local, strlen(g_option->ip_local));
+            sleep(3);
+        }
+    });
+    notify_thread.detach();
+
+    std::cout << "After all clients connected, press any key to start..." << std::endl;
     getchar();
+    std::cout << "Let's go..." << std::endl;
+
     std::mutex mtx;
     std::condition_variable cv;
 
@@ -147,5 +179,42 @@ begin:
     }
     else
         std::clog << "unicast finished." << std::endl;
-    t.join();
+}
+
+void StartClient()
+{
+    int result;
+
+    while (true)
+    {
+        {
+            sockaddr_in server_addr;
+            Multicast multicast;
+            result = multicast.Initialize();
+            result = multicast.Bind("0.0.0.0", 4001);
+            result = join_mcast(multicast.GetFd(), "239.3.3.4", "0.0.0.0");
+
+            std::clog << "finding server... " << std::endl;
+            std::string server_ip(40, 0);
+            result = multicast.RecvFrom(server_ip, &server_addr);
+            ASSERT(result > 0);
+            server_ip = inet_ntoa(server_addr.sin_addr);
+            std::clog << "find server: " << server_ip << std::endl;
+            memset(g_option->ip_remote, 0, sizeof(g_option->ip_remote));
+            strncpy(g_option->ip_remote, server_ip.c_str(), sizeof(g_option->ip_remote) - 1);
+        }
+
+        NetSnoopClient client(g_option);
+        client.OnConnected = [] {
+            std::clog << "connect to " << g_option->ip_remote << ":" << g_option->port << " (" << g_option->ip_multicast << ")" << std::endl;
+        };
+        client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
+            std::cout << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+        };
+
+        LOGVP("client running...");
+        client.Run();
+        std::clog << "client stop, restarting..." << std::endl;
+        std::clog << "----------------------------" << std::endl;
+    }
 }
