@@ -197,7 +197,10 @@ void StartClient()
             std::string server_ip(40, 0);
             result = multicast.RecvFrom(server_ip, &server_addr);
             ASSERT(result > 0);
-            server_ip = inet_ntoa(server_addr.sin_addr);
+            if(server_ip == "0.0.0.0")
+            {
+                server_ip = inet_ntoa(server_addr.sin_addr);
+            }
             std::clog << "find server: " << server_ip << std::endl;
             memset(g_option->ip_remote, 0, sizeof(g_option->ip_remote));
             strncpy(g_option->ip_remote, server_ip.c_str(), sizeof(g_option->ip_remote) - 1);

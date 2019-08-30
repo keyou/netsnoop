@@ -60,11 +60,12 @@ ssize_t Udp::SendTo(const std::string &buf, sockaddr_in* peeraddr)
         LOGEP("sendto error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
-    #ifdef _DEBUG
-    char* ip = inet_ntoa(peeraddr->sin_addr);
-    int port = ntohs(peeraddr->sin_port);
-    LOGVP("sendto(%s:%d)(%d): %s", ip,port,result,buf.substr(0,64).c_str());
-    #endif // _DEBUG
+    if(Logger::GetGlobalLogLevel()==LogLevel::LLVERBOSE)
+    {
+        char* ip = inet_ntoa(peeraddr->sin_addr);
+        int port = ntohs(peeraddr->sin_port);
+        LOGVP("sendto(%s:%d)(%d): %s", ip,port,result,buf.substr(0,64).c_str());
+    }
     return result;
 }
 
@@ -83,11 +84,12 @@ ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in* peeraddr)
         return -1;
     }
 
-    #ifdef _DEBUG
-    char* ip = inet_ntoa(peeraddr->sin_addr);
-    int port = ntohs(peeraddr->sin_port);
-    LOGVP("recvfrom(%s:%d)(%d): %s", ip,port,result,buf.substr(0,64).c_str());
-    #endif // _DEBUG
+    if(Logger::GetGlobalLogLevel()==LogLevel::LLVERBOSE)
+    {
+        char* ip = inet_ntoa(peeraddr->sin_addr);
+        int port = ntohs(peeraddr->sin_port);
+        LOGVP("recvfrom(%s:%d)(%d): %s", ip,port,result,buf.substr(0,64).c_str());
+    }
     return result;
 }
 
