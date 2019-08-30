@@ -63,5 +63,6 @@ netsnoop_multicast: $(OBJ) netsnoop_multicast.o
 .PHONY: clean
 clean:
 	rm -rf *.o *.obj
-	rm -f netsnoop netsnoop_test netsnoop_select
-	rm -f netsnoop$(EXE) netsnoop_test$(EXE) netsnoop_select$(EXE)
+	rm -f netsnoop netsnoop_test netsnoop_select netsnoop_multicast
+	rm -f netsnoop$(EXE) netsnoop_test$(EXE) netsnoop_select$(EXE) netsnoop_multicast$(EXE)
+
