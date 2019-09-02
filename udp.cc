@@ -108,7 +108,7 @@ ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in* peeraddr)
 
         if (setsockopt(fd, IPPROTO_IP, type, (const char*)&mreq, sizeof(mreq)) == -1)
         {
-            LOGEP("setsocketopt error: %s(errno: %d)",strerror(errno),errno);
+            LOGEP("setsocketopt %s error: %s(errno: %d)",type == IP_ADD_MEMBERSHIP?"IP_ADD_MEMBERSHIP":"IP_DROP_MEMBERSHIP",strerror(errno),errno);
             return -1;
         }
 

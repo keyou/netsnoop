@@ -192,11 +192,18 @@ void StartClient()
             result = multicast.Initialize();
             result = multicast.Bind("0.0.0.0", 4001);
             result = multicast.JoinMUlticastGroup("239.3.3.4");
+            if(result<0)
+            {
+                std::clog << "join multicast group 239.3.3.4 error, retry in 3 seconds..." << std::endl;
+                sleep(3);
+                continue;
+            }
 
             std::clog << "finding server... " << std::endl;
             std::string server_ip(40, 0);
             result = multicast.RecvFrom(server_ip, &server_addr);
             ASSERT(result > 0);
+            server_ip.resize(result);
             if(server_ip == "0.0.0.0")
             {
                 server_ip = inet_ntoa(server_addr.sin_addr);
@@ -216,7 +223,7 @@ void StartClient()
 
         LOGVP("client running...");
         client.Run();
-        std::clog << "client stop, restarting..." << std::endl;
+        std::clog << "client stop, restarting in 3 seconds..." << std::endl;
         std::clog << "----------------------------" << std::endl;
     }
 }
