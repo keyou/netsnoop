@@ -194,6 +194,7 @@ void StartClient()
             result = multicast.Initialize();
             result = multicast.Bind("0.0.0.0", 4001);
             auto ips = multicast.GetLocalIps();
+            ips.push_back("0.0.0.0");
             for (auto &&ip : ips)
             {
                 result = multicast.JoinMUlticastGroup("239.3.3.4",ip);
