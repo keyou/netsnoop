@@ -186,18 +186,24 @@ void StartClient()
 
     while (true)
     {
+        //TODO: fix this,in chromeos,it's too quick to start before if up.
+        sleep(3);
         {
             sockaddr_in server_addr;
             Udp multicast;
             result = multicast.Initialize();
             result = multicast.Bind("0.0.0.0", 4001);
-            result = multicast.JoinMUlticastGroup("239.3.3.4");
-            if(result<0)
+            auto ips = multicast.GetLocalIps();
+            for (auto &&ip : ips)
             {
-                std::clog << "join multicast group 239.3.3.4 error, retry in 3 seconds..." << std::endl;
-                sleep(3);
-                continue;
+                result = multicast.JoinMUlticastGroup("239.3.3.4",ip);
+                if(result<0)
+                {
+                    std::clog << "join multicast group 239.3.3.4("<<ip<<") error, retry in 3 seconds..." << std::endl;
+                    continue;
+                }
             }
+            
 
             std::clog << "finding server... " << std::endl;
             std::string server_ip(40, 0);

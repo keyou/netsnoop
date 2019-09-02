@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <sys/un.h>
+#include <ifaddrs.h>
 #endif
 
 #include <vector>
@@ -53,6 +54,7 @@ public:
     int GetFd(){return fd_;}
 
     std::vector<std::string> Host2Ips(const std::string &host);
+    static std::vector<std::string> GetLocalIps();
 
 protected:
     Sock(int type, int protocol);

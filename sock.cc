@@ -313,6 +313,38 @@ std::vector<std::string> Sock::Host2Ips(const std::string &host)
     return ips;
 }
 
+//static
+std::vector<std::string> Sock::GetLocalIps()
+{
+    std::vector<std::string> ips;
+#ifndef WIN32
+    std::string ip;
+    struct ifaddrs *interfaces = NULL;
+    struct ifaddrs *temp_addr = NULL;
+    
+    int result = getifaddrs(&interfaces);
+    if (result == 0) {
+        temp_addr = interfaces;
+        while(temp_addr != NULL) {
+            if(temp_addr->ifa_addr->sa_family == AF_INET) {
+                ip=inet_ntoa(((struct sockaddr_in*)temp_addr->ifa_addr)->sin_addr);
+                if(ip.length()>0)
+                {
+                    ips.push_back(ip);
+                    LOGVP("find local ip: %s",ip.c_str());
+                }
+            }
+            temp_addr = temp_addr->ifa_next;
+        }
+    }
+    freeifaddrs(interfaces);
+#else
+    ips.push_back("0.0.0.0");
+#endif // WIN32
+    return ips;
+}
+
+
 Sock::Sock(int type, int protocol)
     : fd_(0), type_(type), protocol_(protocol) {}
 Sock::Sock(int type, int protocol, int fd)
