@@ -186,26 +186,32 @@ void StartClient()
 
     while (true)
     {
-        //TODO: fix this,in chromeos,it's too quick to start before if up.
-        sleep(3);
         {
             sockaddr_in server_addr;
             Udp multicast;
             result = multicast.Initialize();
             result = multicast.Bind("0.0.0.0", 4001);
-            auto ips = multicast.GetLocalIps();
-            ips.push_back("0.0.0.0");
-            for (auto &&ip : ips)
+            // the IGMP package will send from default route.
+            result = multicast.JoinMUlticastGroup("239.3.3.4");
+            if(result<0)
             {
-                result = multicast.JoinMUlticastGroup("239.3.3.4",ip);
-                if(result<0)
-                {
-                    std::clog << "join multicast group 239.3.3.4("<<ip<<") error, retry in 3 seconds..." << std::endl;
-                    continue;
-                }
+                std::clog << "join multicast group 239.3.3.4("<<"0.0.0.0"<<") error, retry in 3 seconds..." << std::endl;
+                //TODO: fix this,in chromeos,it's too quick to start before if up.
+                sleep(3);
+                continue;
             }
+            // this way will case obscure problem, when the system is not conneted to any network while has local ip.
+            // auto ips = multicast.GetLocalIps();
+            // for (auto &&ip : ips)
+            // {
+            //     result = multicast.JoinMUlticastGroup("239.3.3.4",ip);
+            //     if(result<0)
+            //     {
+            //         std::clog << "join multicast group 239.3.3.4("<<ip<<") error, retry in 3 seconds..." << std::endl;
+            //         continue;
+            //     }
+            // }
             
-
             std::clog << "finding server... " << std::endl;
             std::string server_ip(40, 0);
             result = multicast.RecvFrom(server_ip, &server_addr);
