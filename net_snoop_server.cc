@@ -382,15 +382,6 @@ int NetSnoopServer::ProcessNextCommand()
                 {
                     netstat_->loss = 1 - 1.0 * netstat_->recv_bytes / (netstat_->send_bytes * success_count);
                 }
-                // *netstat_ /= success_count;
-                // netstat_->send_speed *= success_count;
-                // netstat_->recv_speed *= success_count;
-                // netstat_->send_bytes *= success_count;
-                // netstat_->recv_bytes *= success_count;
-                // netstat_->send_packets *= success_count;
-                // netstat_->recv_packets *= success_count;
-                // netstat_->send_pps *= success_count;
-                // netstat_->recv_pps *= success_count;
 
                 netstat_->peers_count = *peers_count;
                 netstat_->peers_failed = *peers_failed;

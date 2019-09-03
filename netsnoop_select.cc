@@ -2,6 +2,7 @@
 #include <functional>
 #include <thread>
 #include <mutex>
+#include <memory>
 #include <condition_variable>
 
 #include "netsnoop.h"
@@ -64,22 +65,22 @@ int main(int argc, char *argv[])
 void StartServer()
 {
     static int count = 0;
-    NetSnoopServer server(g_option);
-    server.OnPeerConnected = [&](const Peer *peer) {
+    auto server = std::make_shared<NetSnoopServer>(g_option);
+    server->OnPeerConnected = [&](const Peer *peer) {
         count++;
         std::clog << "peer connect(" << count << "): " << peer->GetCookie() << std::endl;
     };
-    server.OnPeerDisconnected = [&](const Peer *peer) {
+    server->OnPeerDisconnected = [&](const Peer *peer) {
         count--;
         std::clog << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
     };
-    server.OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
-        std::clog << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->cmd.c_str()
+    server->OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
+        std::cout << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->cmd.c_str()
                   << " || " << (netstat ? netstat->ToString() : "NULL") << std::endl;
     };
-    auto server_thread = std::thread([&]() {
+    auto server_thread = std::thread([server]() {
         LOGVP("server running...");
-        server.Run();
+        server->Run();
     });
     server_thread.detach();
 
@@ -96,9 +97,9 @@ void StartServer()
     });
     notify_thread.detach();
 
-    std::cout << "After all clients connected, press any key to start..." << std::endl;
+    std::clog << "After all clients connected, press any key to start..." << std::endl;
     getchar();
-    std::cout << "Let's go..." << std::endl;
+    std::clog << "Let's go..." << std::endl;
 
     std::mutex mtx;
     std::condition_variable cv;
@@ -109,6 +110,7 @@ void StartServer()
     std::shared_ptr<NetStat> avgstat;
     std::string maxcommand;
 
+    int MAX_DELAYS_TIMES = 10;
     int MAX_TIMES = 3;
     int times = 0;
     bool finish = false;
@@ -116,19 +118,20 @@ void StartServer()
     int size = 0;
 begin:
     maxstat = NULL;
-    for (auto i = 30; i >= 0; i -= 3)
+    for (auto i = MAX_DELAYS_TIMES; i >= 0; i--)
     {
         times = 0;
         avgstat = NULL;
         if (is_multicast)
-            size = sprintf(&cmd[0], "send multicast true count 100 interval %d size 1472 wait 500", i);
+            size = sprintf(&cmd[0], "send multicast true count 100 interval %d size 1472 wait 500", i*3);
         else
-            size = sprintf(&cmd[0], "send count 100 interval %d size 1472 wait 500", i);
+            size = sprintf(&cmd[0], "send unicast true count 100 interval %d size 1472 wait 500", i*3);
         for (auto k = 0; k < MAX_TIMES; k++)
         {
             auto command = CommandFactory::New(cmd.substr(0, size));
-            command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                std::clog << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+            command->RegisterCallback([&,i,k](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
+                std::cout << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+                std::clog << "progress: " <<(MAX_DELAYS_TIMES-i)*MAX_TIMES+k+1<<"/"<< (MAX_DELAYS_TIMES+1)*MAX_TIMES << std::endl;
                 if (!avgstat)
                 {
                     avgstat = stat;
@@ -157,18 +160,17 @@ begin:
                         {
                             //finish = true;
                         }
-                        std::clog << "avg recv_speed: " << oldcommand->cmd << " || " << (avgstat ? avgstat->ToString() : "NULL") << std::endl;
-                        std::clog << "max recv_speed: " << maxcommand << " || " << (maxstat ? maxstat->ToString() : "NULL") << std::endl;
-                        std::clog << "----------------------------" << std::endl;
+                        std::cout << "avg recv_speed: " << oldcommand->cmd << " || " << (avgstat ? avgstat->ToString() : "NULL") << std::endl;
+                        std::cout << "max recv_speed: " << maxcommand << " || " << (maxstat ? maxstat->ToString() : "NULL") << std::endl;
+                        std::cout << "----------------------------" << std::endl;
                     }
                     cv.notify_all();
                 }
             });
-            server.PushCommand(command);
+            server->PushCommand(command);
         }
         std::unique_lock<std::mutex> lock(mtx);
         cv.wait(lock, [&] { return times >= MAX_TIMES; });
-        //if(finish) break;
     }
     if (is_multicast)
     {
