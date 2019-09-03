@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <queue>
+#include <bitset>
 
 #include "context2.h"
 #include "sock.h"
@@ -84,8 +85,12 @@ private:
     int64_t speed_;
     int64_t max_speed_;
     int64_t min_speed_;
-    ssize_t illegal_data_count_;
+    ssize_t illegal_packets_;
+    ssize_t reorder_packets_;
+    ssize_t duplicate_packets_;
 
     ssize_t latest_recv_bytes_;
-    char character_;
+    char token_;
+    uint16_t sequence_;
+    std::bitset<2^16> packets_;
 };

@@ -155,14 +155,12 @@ int CommandSender::Timeout(int timeout)
 
 EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)),
-      data_buf_(command_->GetSize(), command_->character),
+      data_buf_(command_->GetSize(), command_->token),
       delay_(0), max_delay_(0), min_delay_(INT64_MAX),
-      send_packets_(0), recv_packets_(0),
+      send_packets_(0), recv_packets_(0),illegal_packets_(0),
       CommandSender(channel)
 {
-    // echo data size must bigger than sizeof(int64_t) to storage at least one 
-    // character.
-    if(data_buf_.size()<=sizeof(int64_t)) data_buf_.resize(sizeof(int64_t)+1);
+    if(data_buf_.size()<sizeof(DataHead)) data_buf_.resize(sizeof(DataHead));
 }
 
 int EchoCommandSender::OnStart()
@@ -182,10 +180,12 @@ int EchoCommandSender::SendData()
     //context_->SetReadFd(data_sock_->GetFd());
     context_->ClrWriteFd(data_sock_->GetFd());
     begin_ = high_resolution_clock::now();
-    int64_t* buf = (int64_t*)&data_buf_[0];
+    auto head = (DataHead*)&data_buf_[0];
     auto timestamp = begin_.time_since_epoch().count();
     // write timestamp to data
-    *buf = timestamp;
+    head->timestamp = timestamp;
+    head->sequence = send_packets_-1;
+    head->token = command_->token;
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
     return result;
 }
@@ -194,14 +194,14 @@ int EchoCommandSender::RecvData()
 {
     end_ = high_resolution_clock::now();
     int result = data_sock_->Recv(&data_buf_[0], data_buf_.length());
-    if(result>sizeof(int64_t))
+    if(result>=sizeof(DataHead))
     {
-        auto character = data_buf_[sizeof(int64_t)];
-        if(character==command_->character)
+        auto head = (DataHead*)&data_buf_[0];
+        auto character = head->token;
+        if(character==command_->token)
         {
             recv_packets_++;
-            int64_t* buf = (int64_t*)&data_buf_[0];
-            auto delay = end_.time_since_epoch().count() - *buf;
+            auto delay = end_.time_since_epoch().count() - head->timestamp;
             max_delay_ = std::max(max_delay_, delay);
             min_delay_ = std::min(min_delay_, delay);
             if(recv_packets_ == 1) delay_ = delay;
@@ -209,7 +209,8 @@ int EchoCommandSender::RecvData()
         }
         else
         {
-            LOGWP("recv old data: %c (expect %c)",character,command_->character);
+            illegal_packets_++;
+            LOGWP("recv old data: %c (expect %c)",character,command_->token);
         }
     }
     else
@@ -251,6 +252,7 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     stat->send_bytes = send_packets_ * data_buf_.size();
     stat->send_packets = send_packets_;
     stat->recv_packets = recv_packets_;
+    stat->illegal_packets = illegal_packets_;
     stat->send_pps = send_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
     stat->recv_pps = recv_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
     stat->loss = 1 - 1.0 * recv_packets_ / send_packets_;
@@ -264,10 +266,11 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
 
 SendCommandSender::SendCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<SendCommandClazz>(channel->command_)),
-      data_buf_(command_->GetSize(), command_->character),
+      data_buf_(command_->GetSize(), command_->token),
       send_packets_(0), send_bytes_(0),is_stoping_(false),
       CommandSender(channel)
 {
+    if(data_buf_.size()<sizeof(DataHead)) data_buf_.resize(sizeof(DataHead));
 }
 
 int SendCommandSender::OnStart()
@@ -299,6 +302,12 @@ int SendCommandSender::SendData()
     }
     if (command_->GetInterval() > 0)
         context_->ClrWriteFd(data_sock_->GetFd());
+    
+    DataHead* head = (DataHead*)&data_buf_[0];
+    head->timestamp = high_resolution_clock::now().time_since_epoch().count();
+    head->sequence = send_packets_;
+    head->token = command_->token;
+
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
     ASSERT_RETURN(result>=0,-1);
     if(result>0)
@@ -345,7 +354,7 @@ int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     if (!OnStopped)
         return 0;
 
-    auto stat = std::make_shared<NetStat>();
+    auto stat = netstat;
     if(send_packets_>0)
     {
         stat->send_bytes = send_bytes_;
@@ -357,18 +366,7 @@ int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
         {
             stat->send_speed = stat->send_bytes / seconds;
         }
-    }
-
-    stat->recv_bytes = netstat->recv_bytes;
-    stat->recv_packets = netstat->recv_packets;
-    stat->recv_time = netstat->recv_time;
-    stat->recv_speed = netstat->recv_speed;
-    stat->min_recv_speed = netstat->min_recv_speed;
-    stat->max_recv_speed = netstat->max_recv_speed;
-    stat->recv_pps = netstat->recv_pps;
-    if(send_bytes_>0)
-    {
-        stat->loss = 1 - 1.0 * stat->recv_bytes / send_bytes_;
+        stat->loss = 1 - 1.0 * (stat->recv_packets - stat->illegal_packets - stat->duplicate_packets) / send_packets_;
     }
 
     OnStopped(stat);

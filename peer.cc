@@ -136,6 +136,8 @@ public:
         }
 
         begin_ = std::chrono::high_resolution_clock::now();
+        DataHead* head = (DataHead*)&buf[0];
+        head->sequence = count_;
         count_++;
         command_->is_finished = count_ >= command_->GetCount();
         return multicast_sock_->Send(buf, size);

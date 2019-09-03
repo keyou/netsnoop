@@ -344,7 +344,7 @@ int NetSnoopServer::ProcessNextCommand()
                 netstat->max_recv_time = netstat->recv_time;
                 netstat->min_send_time = netstat->send_time;
                 netstat->min_recv_time = netstat->recv_time;
-                netstat->recv_avg_spped = netstat->recv_speed;
+                netstat->recv_avg_speed = netstat->recv_speed;
                 if (!netstat_)
                 {
                     netstat_ = netstat;
@@ -376,7 +376,7 @@ int NetSnoopServer::ProcessNextCommand()
                 ASSERT(*peers_active > 0);
                 netstat_->send_time /= *peers_active;
                 netstat_->loss /= *peers_active;
-                netstat_->recv_avg_spped /= success_count;
+                netstat_->recv_avg_speed /= success_count;
                 netstat_->recv_time /= success_count;
                 if (command->is_multicast)
                 {

@@ -101,6 +101,12 @@ void StartServer()
     getchar();
     std::clog << "Let's go..." << std::endl;
 
+    auto command = CommandFactory::New("ping");
+    command->RegisterCallback([](const Command *oldcommand, std::shared_ptr<NetStat> stat){
+        std::cout << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+    });
+    server->PushCommand(command);
+
     std::mutex mtx;
     std::condition_variable cv;
 

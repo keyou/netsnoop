@@ -89,6 +89,7 @@ private:
     ssize_t send_packets_;
     ssize_t recv_packets_;
     std::string data_buf_;
+    long long illegal_packets_;
 };
 
 class SendCommandSender : public CommandSender

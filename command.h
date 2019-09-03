@@ -139,6 +139,8 @@ struct NetStat
      * 
      */
     long long illegal_packets;
+    long long reorder_packets;
+    long long duplicate_packets;
 
     /**
      * @brief Send/Recv data length
@@ -178,7 +180,7 @@ struct NetStat
      * @brief average recv speed
      * 
      */
-    long long recv_avg_spped;
+    long long recv_avg_speed;
     int max_send_time;
     int min_send_time;
     int max_recv_time;
@@ -205,7 +207,7 @@ struct NetStat
         W(loss);
         W(send_speed);
         W(recv_speed);
-        W(recv_avg_spped);
+        W(recv_avg_speed);
         W(max_send_speed);
         W(max_recv_speed);
         W(min_send_speed);
@@ -213,6 +215,8 @@ struct NetStat
         W(send_packets);
         W(recv_packets);
         W(illegal_packets);
+        W(reorder_packets);
+        W(duplicate_packets);
         W(send_pps);
         W(recv_pps);
         W(send_bytes);
@@ -242,7 +246,7 @@ struct NetStat
         RF(loss);
         RLL(send_speed);
         RLL(recv_speed);
-        RLL(recv_avg_spped);
+        RLL(recv_avg_speed);
         RLL(max_send_speed);
         RLL(max_recv_speed);
         RLL(min_send_speed);
@@ -250,6 +254,8 @@ struct NetStat
         RLL(send_packets);
         RLL(recv_packets);
         RLL(illegal_packets);
+        RLL(reorder_packets);
+        RLL(duplicate_packets);
         RLL(send_pps);
         RLL(recv_pps);
         RLL(send_bytes);
@@ -281,7 +287,7 @@ struct NetStat
         DOU(loss);
         INT(send_speed);
         INT(recv_speed);
-        INT(recv_avg_spped);
+        INT(recv_avg_speed);
         MAX(max_send_speed);
         MAX(max_recv_speed);
         MIN(min_send_speed);
@@ -289,6 +295,8 @@ struct NetStat
         INT(send_packets);
         INT(recv_packets);
         INT(illegal_packets);
+        INT(reorder_packets);
+        INT(duplicate_packets);
         INT(send_pps);
         INT(recv_pps);
         INT(send_bytes);
@@ -320,7 +328,7 @@ struct NetStat
         DOU(loss);
         INT(send_speed);
         INT(recv_speed);
-        INT(recv_avg_spped);
+        INT(recv_avg_speed);
         MAX(max_send_speed);
         MAX(max_recv_speed);
         MIN(min_send_speed);
@@ -328,6 +336,8 @@ struct NetStat
         INT(send_packets);
         INT(recv_packets);
         INT(illegal_packets);
+        INT(reorder_packets);
+        INT(duplicate_packets);
         INT(send_pps);
         INT(recv_pps);
         INT(send_bytes);
@@ -371,7 +381,7 @@ class Command
 public:
     // TODO: optimize command structure to simplify sub command.
     Command(std::string name, std::string cmd) 
-        : name(name), cmd(cmd),character('$'),
+        : name(name), cmd(cmd),token('$'),
           is_private(false),is_multicast(false)
     {
     }
@@ -395,17 +405,29 @@ public:
 
     virtual int GetWait() { return STOP_WAIT_TIME; }
 
+    std::string GetCmd(){return cmd + " token " + token;}
+
     std::string name;
     std::string cmd;
     bool is_private;
     bool is_multicast;
 
-    unsigned char character;
-    //bool can_start;
+    char token;
+    
 private:
     std::vector<CommandCallback> callbacks_;
 
     DISALLOW_COPY_AND_ASSIGN(Command);
+};
+
+struct DataHead
+{
+    // time since epoch in nanoseconds
+    int64_t timestamp:64;
+    // sequence number
+    uint16_t sequence:16;
+    // token used for data validation
+    char token;
 };
 
 #define ECHO_DEFAULT_COUNT 5
@@ -429,7 +451,7 @@ public:
           Command("ping", cmd)
     {
         static unsigned char index = 0;
-        character = VISIABLE_LATTERS[index++%(sizeof(VISIABLE_LATTERS)-1)];
+        token = VISIABLE_LATTERS[index++%(sizeof(VISIABLE_LATTERS)-1)];
     }
     bool ResolveArgs(CommandArgs args) override
     {
@@ -486,7 +508,7 @@ public:
           is_finished(false), Command("send", cmd) 
     {
         static unsigned char index = 0;
-        character = VISIABLE_LATTERS[index++%(sizeof(VISIABLE_LATTERS)-1)];
+        token = VISIABLE_LATTERS[index++%(sizeof(VISIABLE_LATTERS)-1)];
     }
 
     bool ResolveArgs(CommandArgs args) override

@@ -67,7 +67,7 @@ int EchoCommandReceiver::Recv()
     ASSERT_RETURN(running_, -1, "EchoCommandReceiver recv unexpeted.");
     int result;
     ASSERT(running_);
-    std::string buf(1024 * 64, 0);
+    std::string buf(MAX_UDP_LENGTH, 0);
     if ((result = data_sock_->Recv(&buf[0], buf.length())) < 0)
     {
         return -1;
@@ -107,7 +107,8 @@ int EchoCommandReceiver::SendPrivateCommand()
 
 SendCommandReceiver::SendCommandReceiver(std::shared_ptr<CommandChannel> channel)
     : length_(0), recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0),
-      running_(false), is_stopping_(false), latest_recv_bytes_(0), character_(-1),
+      running_(false), is_stopping_(false), latest_recv_bytes_(0), token_(-1),
+      illegal_packets_(0), reorder_packets_(0), duplicate_packets_(0),sequence_(0),
       command_(std::dynamic_pointer_cast<SendCommand>(channel->command_)), CommandReceiver(channel) {}
 
 int SendCommandReceiver::Start()
@@ -141,22 +142,37 @@ int SendCommandReceiver::Recv()
         begin_ = high_resolution_clock::now();
     }
     int result;
-    if ((result = data_sock_->Recv(buf_, sizeof(buf_))) <= 0)
+    if ((result = data_sock_->Recv(buf_, sizeof(buf_))) < sizeof(DataHead))
     {
-        LOGDP("recv error.");
+        LOGDP("recv data error.");
         return -1;
     }
     end_ = high_resolution_clock::now();
     stop_ = high_resolution_clock::now();
-    auto character = buf_[0];
-    if (character_ == -1)
+    auto head = (DataHead*)buf_;
+    if (token_ == -1)
     {
-        character_ = character;
+        token_ = head->token;
     }
-    else if (character_ != character)
+    else if (token_ != head->token)
     {
-        illegal_data_count_++;
-        LOGWP("recv illegal data: %c (expect %c)", character, character_);
+        illegal_packets_++;
+        LOGWP("recv illegal data: seq=%ld, token=%c (expect %c)",head->sequence, head->token, token_);
+    }
+    else if(packets_.test(head->sequence))
+    {
+        duplicate_packets_++;
+        LOGWP("recv duplicate data: seq=%ld, token=%c",head->sequence,head->token);
+    }
+    else if(head->sequence!=sequence_)
+    {
+        reorder_packets_++;
+        sequence_ = head->sequence+1;
+        LOGWP("recv reorder data: seq=%ld, token=%c",head->sequence,head->token);
+    }
+    if(head->token == token_)
+    {
+        packets_.set(head->sequence);
     }
 
     recv_bytes_ += result;
@@ -184,7 +200,9 @@ int SendCommandReceiver::SendPrivateCommand()
     auto stat = std::make_shared<NetStat>();
     stat->recv_bytes = recv_bytes_;
     stat->recv_packets = recv_count_;
-    stat->illegal_packets = illegal_data_count_;
+    stat->illegal_packets = illegal_packets_;
+    stat->reorder_packets = reorder_packets_;
+    stat->duplicate_packets = duplicate_packets_;
     auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
     if (seconds >= 0.001)
     {
