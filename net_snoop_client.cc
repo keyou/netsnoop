@@ -143,7 +143,7 @@ int NetSnoopClient::RecvCommand()
     auto command = CommandFactory::New(cmd);
     if (!command)
         return ERR_ILLEGAL_DATA;
-    LOGDP("recv new command: %s",command->cmd.c_str());
+    LOGDP("recv new command: %s",command->GetCmd().c_str());
     if(receiver_ && command->is_private)
     {
         auto stop_command = std::dynamic_pointer_cast<StopCommand>(command);
@@ -164,7 +164,7 @@ int NetSnoopClient::RecvCommand()
 #endif // !WIN32
 
     auto ack_command = std::make_shared<AckCommand>();
-    result = control_sock_->Send(ack_command->cmd.c_str(),ack_command->cmd.length());
+    result = control_sock_->Send(ack_command->GetCmd().c_str(),ack_command->GetCmd().length());
     ASSERT_RETURN(result>0,ERR_DEFAULT,"send ack command error.");
 
     context_->data_fd = command->is_multicast?multicast_sock_->GetFd():data_sock_->GetFd();

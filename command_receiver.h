@@ -92,5 +92,5 @@ private:
     ssize_t latest_recv_bytes_;
     char token_;
     uint16_t sequence_;
-    std::bitset<2^16> packets_;
+    std::bitset<MAX_SEQ> packets_;
 };

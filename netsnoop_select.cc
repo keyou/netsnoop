@@ -75,7 +75,7 @@ void StartServer()
         std::clog << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
     };
     server->OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
-        std::cout << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->cmd.c_str()
+        std::cout << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->GetCmd().c_str()
                   << " || " << (netstat ? netstat->ToString() : "NULL") << std::endl;
     };
     auto server_thread = std::thread([server]() {
@@ -103,7 +103,7 @@ void StartServer()
 
     auto command = CommandFactory::New("ping");
     command->RegisterCallback([](const Command *oldcommand, std::shared_ptr<NetStat> stat){
-        std::cout << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+        std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
     });
     server->PushCommand(command);
 
@@ -136,7 +136,7 @@ begin:
         {
             auto command = CommandFactory::New(cmd.substr(0, size));
             command->RegisterCallback([&,i,k](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                std::cout << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+                std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
                 std::clog << "progress: " <<(MAX_DELAYS_TIMES-i)*MAX_TIMES+k+1<<"/"<< (MAX_DELAYS_TIMES+1)*MAX_TIMES << std::endl;
                 if (!avgstat)
                 {
@@ -155,18 +155,18 @@ begin:
                         if (!maxstat)
                         {
                             maxstat = avgstat;
-                            maxcommand = oldcommand->cmd;
+                            maxcommand = oldcommand->GetCmd();
                         }
                         else if (maxstat->recv_speed < avgstat->recv_speed)
                         {
                             maxstat = avgstat;
-                            maxcommand = oldcommand->cmd;
+                            maxcommand = oldcommand->GetCmd();
                         }
                         else
                         {
                             //finish = true;
                         }
-                        std::cout << "avg recv_speed: " << oldcommand->cmd << " || " << (avgstat ? avgstat->ToString() : "NULL") << std::endl;
+                        std::cout << "avg recv_speed: " << oldcommand->GetCmd() << " || " << (avgstat ? avgstat->ToString() : "NULL") << std::endl;
                         std::cout << "max recv_speed: " << maxcommand << " || " << (maxstat ? maxstat->ToString() : "NULL") << std::endl;
                         std::cout << "----------------------------" << std::endl;
                     }
@@ -239,7 +239,7 @@ void StartClient()
             std::clog << "connect to " << g_option->ip_remote << ":" << g_option->port << " (" << g_option->ip_multicast << ")" << std::endl;
         };
         client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
-            std::cout << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+            std::cout << "peer finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
         };
 
         LOGVP("client running...");

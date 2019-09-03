@@ -177,6 +177,7 @@ private:
 
 #define MAX_CLINETS 500
 #define MAX_SENDERS 10
+#define MAX_SEQ (1UL<<16)
 
 struct Option
 {

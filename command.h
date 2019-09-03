@@ -12,6 +12,7 @@
 #include "netsnoop.h"
 
 #define MAX_CMD_LENGTH 1024
+#define MAX_TOKEN_LENGTH 10
 // time wait to give a chance for client receive all data
 #define STOP_WAIT_TIME 500
 
@@ -37,6 +38,7 @@ class CommandFactory
 public:
     static std::shared_ptr<Command> New(const std::string &cmd)
     {
+        ASSERT_RETURN(cmd.length()<=MAX_CMD_LENGTH-MAX_TOKEN_LENGTH,NULL,"cmd too long.");
         CommandArgs args;
         std::stringstream ss(cmd);
         std::string name, key, value;
@@ -405,16 +407,19 @@ public:
 
     virtual int GetWait() { return STOP_WAIT_TIME; }
 
-    std::string GetCmd(){return cmd + " token " + token;}
+    std::string GetCmd() const
+    {
+        return (cmd.find(" token") != std::string::npos || token == '$')?cmd:cmd + " token " + token;
+    }
 
     std::string name;
-    std::string cmd;
     bool is_private;
     bool is_multicast;
 
     char token;
     
 private:
+    std::string cmd;
     std::vector<CommandCallback> callbacks_;
 
     DISALLOW_COPY_AND_ASSIGN(Command);
@@ -460,6 +465,7 @@ public:
         interval_ = args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stoi(args["interval"]);
         size_ = args["size"].empty() ? ECHO_DEFAULT_SIZE : std::stoi(args["size"]);
         wait_ = args["wait"].empty() ? ECHO_DEFAULT_WAIT : std::stoi(args["wait"]);
+        if(!args["token"].empty()) token = args["token"].at(0);
         // echo can not have zero delay
         if (interval_ <= 0)
             interval_ = ECHO_DEFAULT_INTERVAL;
@@ -518,6 +524,7 @@ public:
         interval_ = args["interval"].empty() ? SEND_DEFAULT_INTERVAL : std::stoi(args["interval"]);
         size_ = args["size"].empty() ? SEND_DEFAULT_SIZE : std::stoi(args["size"]);
         wait_ = args["wait"].empty() ? SEND_DEFAULT_WAIT : std::stoi(args["wait"]);
+        if(!args["token"].empty()) token = args["token"].at(0);
         is_multicast = !args["multicast"].empty();
         if(is_multicast)
             LOGDP("enable multicast.");

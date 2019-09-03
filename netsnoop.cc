@@ -87,7 +87,7 @@ void StartClient()
         std::clog << "connect to " << g_option->ip_remote << ":" << g_option->port << " (" << g_option->ip_multicast << ")" << std::endl;
     };
     client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
-        std::cout << "peer finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+        std::cout << "peer finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&client]() {
         LOGVP("client run.");
@@ -122,7 +122,7 @@ void StartServer()
         std::clog << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
     };
     server.OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
-        std::clog << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->cmd.c_str()
+        std::clog << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->GetCmd().c_str()
                   << " || " << (netstat ? netstat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&]() {
@@ -149,7 +149,7 @@ void StartServer()
         else
         {
             command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
-                std::cout << "command finish: " << oldcommand->cmd << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+                std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
                 cv.notify_all();
             });
             server.PushCommand(command);

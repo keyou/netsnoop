@@ -68,8 +68,8 @@ int CommandSender::SendCommand()
     {
         is_starting_ = false;
         is_waiting_ack_ = true;
-        LOGDP("CommandSender send command: %s", command_->cmd.c_str());
-        if ((result = control_sock_->Send(command_->cmd.c_str(), command_->cmd.length())) < 0)
+        LOGDP("CommandSender send command: %s", command_->GetCmd().c_str());
+        if ((result = control_sock_->Send(command_->GetCmd().c_str(), command_->GetCmd().length())) < 0)
         {
             LOGEP("CommandSender send command error.");
             return -1;
@@ -82,9 +82,9 @@ int CommandSender::SendCommand()
         ASSERT(!is_waiting_result_);
         is_stopping_ = false;
         is_waiting_result_ = true;
-        LOGDP("CommandSender send stop for: %s", command_->cmd.c_str());
+        LOGDP("CommandSender send stop for: %s", command_->GetCmd().c_str());
         auto stop_command = std::make_shared<StopCommand>();
-        result = control_sock_->Send(stop_command->cmd.c_str(), stop_command->cmd.length());
+        result = control_sock_->Send(stop_command->GetCmd().c_str(), stop_command->GetCmd().length());
         if(result <= 0) return -1;
         return result;
     }
@@ -110,7 +110,7 @@ int CommandSender::RecvCommand()
         is_waiting_result_ = false;
         is_stopped_ = true;
         auto result_command = std::dynamic_pointer_cast<ResultCommand>(command);
-        ASSERT_RETURN(result_command, -1, "CommandSender expect recv result command: %s", command->cmd.c_str());
+        ASSERT_RETURN(result_command, -1, "CommandSender expect recv result command: %s", command->GetCmd().c_str());
         LOGDP("CommandSender recv result: %s",result_command->netstat->ToString().c_str());
         // should not clear control sock,keep control sock readable for detecting client disconnect
         //context_->ClrReadFd(control_sock_->GetFd());
@@ -122,7 +122,7 @@ int CommandSender::RecvCommand()
         is_waiting_ack_ = false;
         is_started_ = true;
         auto ack_command = std::dynamic_pointer_cast<AckCommand>(command);
-        ASSERT_RETURN(ack_command, -1, "CommandSender expect recv ack command: %s", command->cmd.c_str());
+        ASSERT_RETURN(ack_command, -1, "CommandSender expect recv ack command: %s", command->GetCmd().c_str());
         return OnStart();
     }
 
@@ -132,7 +132,7 @@ int CommandSender::RecvCommand()
 
 int CommandSender::OnRecvCommand(std::shared_ptr<Command> command)
 {
-    ASSERT_RETURN(0,-1,"CommandSender recv unexpected command: %s",command?command->cmd.c_str():"NULL");
+    ASSERT_RETURN(0,-1,"CommandSender recv unexpected command: %s",command?command->GetCmd().c_str():"NULL");
 }
 
 int CommandSender::Timeout(int timeout)

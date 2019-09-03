@@ -267,8 +267,8 @@ int NetSnoopServer::PushCommand(std::shared_ptr<Command> command)
     std::unique_lock<std::mutex> lock(mtx);
     ASSERT_RETURN(command, -1);
     commands_.push(command);
-    //result = write(pipefd_[1], command->cmd.c_str(), command->cmd.length());
-    result = command_sock_write_->Send(command->cmd.c_str(), command->cmd.length());
+    //result = write(pipefd_[1], command->GetCmd().c_str(), command->cmd.length());
+    result = command_sock_write_->Send(command->GetCmd().c_str(), command->GetCmd().length());
     ASSERT_RETURN(result > 0, -1);
     return 0;
 }
@@ -306,7 +306,7 @@ int NetSnoopServer::ProcessNextCommand()
 
     if (ready_peers->size() == 0)
     {
-        ASSERT(command->cmd.length() > 3);
+        ASSERT(command->GetCmd().length() > 3);
         command->InvokeCallback(NULL);
         while (commands_.size() > 0)
         {
@@ -318,7 +318,7 @@ int NetSnoopServer::ProcessNextCommand()
         return 0;
     }
 
-    LOGIP("start command: %s (peers count = %ld)", command->cmd.c_str(), ready_peers->size());
+    LOGIP("start command: %s (peers count = %ld)", command->GetCmd().c_str(), ready_peers->size());
     // All the below variables should be captured by pointer value.
     // The total ready peers count when we start a command.
     auto peers_count = std::make_shared<int>(ready_peers->size());
@@ -335,7 +335,7 @@ int NetSnoopServer::ProcessNextCommand()
         ASSERT(result == 0);
         peer->OnStopped = [&, peer, command, ready_peers, peers_count, peers_failed, peers_active](const Peer *p, std::shared_ptr<NetStat> netstat) mutable {
             ready_peers->remove_if([&p](std::shared_ptr<Peer> p1) { return p1.get() == p; });
-            LOGIP("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->cmd.c_str(), netstat ? netstat->ToString().c_str() : "NULL");
+            LOGIP("stop command (%ld/%d): %s (%s)", (*peers_count - ready_peers->size()), *peers_count, command->GetCmd().c_str(), netstat ? netstat->ToString().c_str() : "NULL");
             if (OnPeerStopped)
                 OnPeerStopped(p, netstat);
             if (netstat)
@@ -367,7 +367,7 @@ int NetSnoopServer::ProcessNextCommand()
                 peer->OnStopped = NULL;
                 return;
             }
-            LOGIP("command total : %s || %s", command->cmd.c_str(), netstat_ ? netstat_->ToString().c_str() : "NULL");
+            LOGIP("command total : %s || %s", command->GetCmd().c_str(), netstat_ ? netstat_->ToString().c_str() : "NULL");
             is_running_ = false;
             if (netstat_ != NULL)
             {
@@ -386,7 +386,7 @@ int NetSnoopServer::ProcessNextCommand()
                 netstat_->peers_count = *peers_count;
                 netstat_->peers_failed = *peers_failed;
             }
-            LOGIP("command finish: %s || %s", command->cmd.c_str(), netstat_ ? netstat_->ToString().c_str() : "NULL");
+            LOGIP("command finish: %s || %s", command->GetCmd().c_str(), netstat_ ? netstat_->ToString().c_str() : "NULL");
             command->InvokeCallback(netstat_);
             current_command_ = NULL;
             peer->OnStopped = NULL;
