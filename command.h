@@ -491,7 +491,7 @@ public:
             token = args["token"].at(0);
         // echo can not have zero delay
         if (interval_ <= 0)
-            interval_ = ECHO_DEFAULT_INTERVAL;
+            interval_ = ECHO_DEFAULT_INTERVAL*1000;
         return true;
     }
 
@@ -523,8 +523,8 @@ private:
 #define SEND_DEFAULT_SIZE 1472
 #define SEND_DEFAULT_WAIT 500
 #define SEND_DEFAULT_TIMEOUT 100 // millseconds
-#define SEND_DEFAULT_SPEED 1024  // KByte/s
-#define SEND_DEFAULT_TIME 0      // millseconds
+#define SEND_DEFAULT_SPEED 0 // KByte/s
+#define SEND_DEFAULT_TIME 3000 // millseconds
 /**
  * @brief a main command, server send data only and client recv only.
  * 
@@ -548,7 +548,7 @@ public:
     {
         // TODO: optimize these assign.
         count_ = args["count"].empty() ? SEND_DEFAULT_COUNT : std::stoi(args["count"]);
-        interval_ = (args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stod(args["interval"])) * 1000;
+        interval_ = (args["interval"].empty() ? SEND_DEFAULT_INTERVAL : std::stod(args["interval"])) * 1000;
         size_ = args["size"].empty() ? SEND_DEFAULT_SIZE : std::stoi(args["size"]);
         wait_ = args["wait"].empty() ? SEND_DEFAULT_WAIT : std::stoi(args["wait"]);
         timeout_ = args["timeout"].empty() ? SEND_DEFAULT_TIMEOUT : std::stoi(args["timeout"]);
@@ -561,7 +561,7 @@ public:
         
         auto speed = args["speed"].empty() ? SEND_DEFAULT_SPEED : std::stoi(args["speed"]);
         auto time = args["time"].empty() ? SEND_DEFAULT_TIME : std::stoi(args["time"]);
-        if (time > 0)
+        if (speed > 0 && time > 0)
         {
             count_ = ceil((speed * 1024) * (time / 1000.0) / size_);
             interval_ = 1000000/((1.0*speed*1024)/size_);
