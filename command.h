@@ -6,6 +6,7 @@
 #include <sstream>
 #include <functional>
 #include <unistd.h>
+#include <math.h>
 
 #include "command_receiver.h"
 #include "command_sender.h"
@@ -38,7 +39,7 @@ class CommandFactory
 public:
     static std::shared_ptr<Command> New(const std::string &cmd)
     {
-        ASSERT_RETURN(cmd.length()<=MAX_CMD_LENGTH-MAX_TOKEN_LENGTH,NULL,"cmd too long.");
+        ASSERT_RETURN(cmd.length() <= MAX_CMD_LENGTH - MAX_TOKEN_LENGTH, NULL, "cmd too long.");
         CommandArgs args;
         std::stringstream ss(cmd);
         std::string name, key, value;
@@ -118,11 +119,19 @@ struct NetStat
     int delay;
     int max_delay;
     int min_delay;
+
     /**
      * @brief Jitter in millseconds
      * 
      */
     int jitter;
+
+    /**
+     * @brief The standard deviation of jitter
+     * 
+     */
+    long long jitter_std;
+
     /**
      * @brief Packet loss percent
      * 
@@ -143,6 +152,11 @@ struct NetStat
     long long illegal_packets;
     long long reorder_packets;
     long long duplicate_packets;
+    /**
+     * @brief The packets that stay too long in the network.
+     * 
+     */
+    long long timeout_packets;
 
     /**
      * @brief Send/Recv data length
@@ -187,6 +201,7 @@ struct NetStat
     int min_send_time;
     int max_recv_time;
     int min_recv_time;
+
     /**
      * @brief the peers count when the command start
      * 
@@ -198,14 +213,13 @@ struct NetStat
      */
     int peers_failed;
 
-    double errors;
-    int retransmits;
-
     std::string ToString() const
     {
         bool istty = isatty(fileno(stdout));
         std::stringstream ss;
-#define W(p) if(!istty || p != 0) ss << #p " " << p << " "
+#define W(p)              \
+    if (!istty || p != 0) \
+    ss << #p " " << p << " "
         W(loss);
         W(send_speed);
         W(recv_speed);
@@ -219,6 +233,7 @@ struct NetStat
         W(illegal_packets);
         W(reorder_packets);
         W(duplicate_packets);
+        W(timeout_packets);
         W(send_pps);
         W(recv_pps);
         W(send_bytes);
@@ -233,6 +248,7 @@ struct NetStat
         W(min_delay);
         W(max_delay);
         W(jitter);
+        W(jitter_std);
         W(peers_count);
         W(peers_failed);
 #undef W
@@ -258,6 +274,7 @@ struct NetStat
         RLL(illegal_packets);
         RLL(reorder_packets);
         RLL(duplicate_packets);
+        RLL(timeout_packets);
         RLL(send_pps);
         RLL(recv_pps);
         RLL(send_bytes);
@@ -272,6 +289,7 @@ struct NetStat
         RI(min_delay);
         RI(max_delay);
         RI(jitter);
+        RLL(jitter_std);
         RI(peers_count);
         RI(peers_failed);
 #undef RI
@@ -284,8 +302,8 @@ struct NetStat
     {
 #define INT(p) p = p + stat.p
 #define DOU(p) INT(p)
-#define MAX(p) p = std::max(p,stat.p)
-#define MIN(p) p = std::min(p,stat.p)
+#define MAX(p) p = std::max(p, stat.p)
+#define MIN(p) p = std::min(p, stat.p)
         DOU(loss);
         INT(send_speed);
         INT(recv_speed);
@@ -299,6 +317,7 @@ struct NetStat
         INT(illegal_packets);
         INT(reorder_packets);
         INT(duplicate_packets);
+        INT(timeout_packets);
         INT(send_pps);
         INT(recv_pps);
         INT(send_bytes);
@@ -307,6 +326,7 @@ struct NetStat
         MIN(min_delay);
         MAX(max_delay);
         INT(jitter);
+        INT(jitter_std);
         INT(send_time);
         INT(recv_time);
         MAX(max_send_time);
@@ -321,12 +341,12 @@ struct NetStat
 #undef MIN
         return *this;
     }
-        NetStat &operator/=(int num)
+    NetStat &operator/=(int num)
     {
 #define INT(p) p /= num
 #define DOU(p) INT(p)
-#define MAX(p) p = p*1
-#define MIN(p) p = p*1
+#define MAX(p) p = p * 1
+#define MIN(p) p = p * 1
         DOU(loss);
         INT(send_speed);
         INT(recv_speed);
@@ -340,6 +360,7 @@ struct NetStat
         INT(illegal_packets);
         INT(reorder_packets);
         INT(duplicate_packets);
+        INT(timeout_packets);
         INT(send_pps);
         INT(recv_pps);
         INT(send_bytes);
@@ -348,6 +369,7 @@ struct NetStat
         MIN(min_delay);
         MAX(max_delay);
         INT(jitter);
+        INT(jitter_std);
         INT(send_time);
         INT(recv_time);
         MAX(max_send_time);
@@ -382,9 +404,9 @@ class Command
 {
 public:
     // TODO: optimize command structure to simplify sub command.
-    Command(std::string name, std::string cmd) 
-        : name(name), cmd(cmd),token('$'),
-          is_private(false),is_multicast(false)
+    Command(std::string name, std::string cmd)
+        : name(name), cmd(cmd), token('$'),
+          is_private(false), is_multicast(false)
     {
     }
     void RegisterCallback(CommandCallback callback)
@@ -401,7 +423,7 @@ public:
         }
     }
 
-    virtual bool ResolveArgs(CommandArgs args) {return true;}
+    virtual bool ResolveArgs(CommandArgs args) { return true; }
     virtual std::shared_ptr<CommandSender> CreateCommandSender(std::shared_ptr<CommandChannel> channel) { return NULL; }
     virtual std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) { return NULL; }
 
@@ -409,7 +431,7 @@ public:
 
     std::string GetCmd() const
     {
-        return (cmd.find(" token") != std::string::npos || token == '$')?cmd:cmd + " token " + token;
+        return (cmd.find(" token") != std::string::npos || token == '$') ? cmd : cmd + " token " + token;
     }
 
     std::string name;
@@ -417,7 +439,7 @@ public:
     bool is_multicast;
 
     char token;
-    
+
 private:
     std::string cmd;
     std::vector<CommandCallback> callbacks_;
@@ -428,9 +450,9 @@ private:
 struct DataHead
 {
     // time since epoch in nanoseconds
-    int64_t timestamp:64;
+    int64_t timestamp : 64;
     // sequence number
-    uint16_t sequence:16;
+    uint16_t sequence : 16;
     // token used for data validation
     char token;
 };
@@ -456,16 +478,17 @@ public:
           Command("ping", cmd)
     {
         static unsigned char index = 0;
-        token = VISIABLE_LATTERS[index++%(sizeof(VISIABLE_LATTERS)-1)];
+        token = VISIABLE_LATTERS[index++ % (sizeof(VISIABLE_LATTERS) - 1)];
     }
     bool ResolveArgs(CommandArgs args) override
     {
         // TODO: optimize these assign.
         count_ = args["count"].empty() ? ECHO_DEFAULT_COUNT : std::stoi(args["count"]);
-        interval_ = args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stoi(args["interval"]);
+        interval_ = (args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stod(args["interval"])) * 1000;
         size_ = args["size"].empty() ? ECHO_DEFAULT_SIZE : std::stoi(args["size"]);
         wait_ = args["wait"].empty() ? ECHO_DEFAULT_WAIT : std::stoi(args["wait"]);
-        if(!args["token"].empty()) token = args["token"].at(0);
+        if (!args["token"].empty())
+            token = args["token"].at(0);
         // echo can not have zero delay
         if (interval_ <= 0)
             interval_ = ECHO_DEFAULT_INTERVAL;
@@ -499,6 +522,9 @@ private:
 #define SEND_DEFAULT_INTERVAL 0
 #define SEND_DEFAULT_SIZE 1472
 #define SEND_DEFAULT_WAIT 500
+#define SEND_DEFAULT_TIMEOUT 100 // millseconds
+#define SEND_DEFAULT_SPEED 1024  // KByte/s
+#define SEND_DEFAULT_TIME 0      // millseconds
 /**
  * @brief a main command, server send data only and client recv only.
  * 
@@ -506,28 +532,40 @@ private:
 class SendCommand : public Command
 {
 public:
-    SendCommand(std::string cmd) 
+    SendCommand(std::string cmd)
         : count_(SEND_DEFAULT_COUNT),
           interval_(SEND_DEFAULT_INTERVAL),
           size_(SEND_DEFAULT_SIZE),
           wait_(SEND_DEFAULT_WAIT),
-          is_finished(false), Command("send", cmd) 
+          timeout_(SEND_DEFAULT_TIMEOUT),
+          is_finished(false), Command("send", cmd)
     {
         static unsigned char index = 0;
-        token = VISIABLE_LATTERS[index++%(sizeof(VISIABLE_LATTERS)-1)];
+        token = VISIABLE_LATTERS[index++ % (sizeof(VISIABLE_LATTERS) - 1)];
     }
 
     bool ResolveArgs(CommandArgs args) override
     {
         // TODO: optimize these assign.
         count_ = args["count"].empty() ? SEND_DEFAULT_COUNT : std::stoi(args["count"]);
-        interval_ = args["interval"].empty() ? SEND_DEFAULT_INTERVAL : std::stoi(args["interval"]);
+        interval_ = (args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stod(args["interval"])) * 1000;
         size_ = args["size"].empty() ? SEND_DEFAULT_SIZE : std::stoi(args["size"]);
         wait_ = args["wait"].empty() ? SEND_DEFAULT_WAIT : std::stoi(args["wait"]);
-        if(!args["token"].empty()) token = args["token"].at(0);
+        timeout_ = args["timeout"].empty() ? SEND_DEFAULT_TIMEOUT : std::stoi(args["timeout"]);
+        if (!args["token"].empty())
+            token = args["token"].at(0);
         is_multicast = !args["multicast"].empty();
-        if(is_multicast)
+        if (is_multicast)
             LOGDP("enable multicast.");
+        ASSERT(size_>=sizeof(DataHead));
+        
+        auto speed = args["speed"].empty() ? SEND_DEFAULT_SPEED : std::stoi(args["speed"]);
+        auto time = args["time"].empty() ? SEND_DEFAULT_TIME : std::stoi(args["time"]);
+        if (time > 0)
+        {
+            count_ = ceil((speed * 1024) * (time / 1000.0) / size_);
+            interval_ = 1000000/((1.0*speed*1024)/size_);
+        }
         return true;
     }
 
@@ -544,6 +582,7 @@ public:
     int GetInterval() { return interval_; }
     int GetSize() { return size_; }
     int GetWait() override { return wait_; }
+    int GetTimeout() { return timeout_; }
 
     bool is_finished;
 
@@ -552,6 +591,7 @@ private:
     int interval_;
     int size_;
     int wait_;
+    int timeout_;
 
     DISALLOW_COPY_AND_ASSIGN(SendCommand);
 };
@@ -614,27 +654,28 @@ public:
     DISALLOW_COPY_AND_ASSIGN(ResultCommand);
 };
 
-class ModeCommand : public Command 
+class ModeCommand : public Command
 {
 public:
-
     enum class ModeType
     {
-        None,UDP,Multicast //TODO: TCP
+        None,
+        UDP,
+        Multicast //TODO: TCP
     };
 
-    ModeCommand() : ModeCommand("mode"){}
-    ModeCommand(std::string cmd) : mode_(ModeType::None), Command("mode",cmd){}
+    ModeCommand() : ModeCommand("mode") {}
+    ModeCommand(std::string cmd) : mode_(ModeType::None), Command("mode", cmd) {}
     bool ResolveArgs(CommandArgs args) override
     {
-        mode_ = !args["udp"].empty()?ModeType::UDP:
-                !args["multicast"].empty()?ModeType::Multicast:ModeType::None;
+        mode_ = !args["udp"].empty() ? ModeType::UDP : !args["multicast"].empty() ? ModeType::Multicast : ModeType::None;
         return mode_ != ModeType::None;
     }
     ModeType GetModeType()
     {
         return mode_;
     }
+
 private:
     ModeType mode_;
 };

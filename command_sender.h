@@ -90,6 +90,9 @@ private:
     ssize_t recv_packets_;
     std::string data_buf_;
     long long illegal_packets_;
+
+    ssize_t varn_delay_ = 0;
+    ssize_t std_delay_ = 0;
 };
 
 class SendCommandSender : public CommandSender

@@ -22,14 +22,22 @@ public:
 
     virtual int Start() = 0;
     virtual int Stop() = 0;
-    virtual int Send() { ASSERT(0);return -1; }
-    virtual int Recv() { ASSERT(0);return -1; }
+    virtual int Send()
+    {
+        ASSERT(0);
+        return -1;
+    }
+    virtual int Recv()
+    {
+        ASSERT(0);
+        return -1;
+    }
     virtual int RecvPrivateCommand(std::shared_ptr<Command> private_command);
-    virtual int SendPrivateCommand(){return 0;}
+    virtual int SendPrivateCommand() { return 0; }
 
-    std::function<void(std::shared_ptr<Command>,std::shared_ptr<NetStat>)> OnStopped;
+    std::function<void(std::shared_ptr<Command>, std::shared_ptr<NetStat>)> OnStopped;
 
-    int GetDataFd(){return data_sock_?data_sock_->GetFd():-1;}
+    int GetDataFd() { return data_sock_ ? data_sock_->GetFd() : -1; }
 
 protected:
     std::string argv_;
@@ -88,9 +96,21 @@ private:
     ssize_t illegal_packets_;
     ssize_t reorder_packets_;
     ssize_t duplicate_packets_;
+    ssize_t timeout_packets_;
 
     ssize_t latest_recv_bytes_;
     char token_;
     uint16_t sequence_;
     std::bitset<MAX_SEQ> packets_;
+
+    ssize_t time_gap_ = 0;
+    ssize_t total_delay_ = 0;
+    ssize_t avg_delay_ = 0;
+    ssize_t max_delay_ = 0;
+    ssize_t min_delay_ = 0;
+    ssize_t head_avg_delay_ = 0;;
+    // var_delay_ = varn_delay_/n is variance
+    ssize_t varn_delay_ = 0;
+    // std_delay_ is standard deviation
+    ssize_t std_delay_ = 0;
 };

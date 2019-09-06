@@ -23,7 +23,7 @@ using namespace std::chrono;
 int NetSnoopServer::Run()
 {
     int result;
-    int time_millseconds = 0;
+    int time_microseconds = 0;
     timeval timeout = {0, 0};
     timeval *timeout_ptr = NULL;
     fd_set read_fdsets, write_fdsets;
@@ -46,7 +46,7 @@ int NetSnoopServer::Run()
             for (auto &peer : peers_)
             {
                 end = high_resolution_clock::now();
-                time_spend = duration_cast<milliseconds>(end - start).count();
+                time_spend = duration_cast<microseconds>(end - start).count();
                 if (time_spend > 0 && peer->GetTimeout() > 0)
                     peer->Timeout(time_spend);
                 //ASSERT(result>=0);
@@ -59,18 +59,18 @@ int NetSnoopServer::Run()
         memcpy(&read_fdsets, &context_->read_fds, sizeof(read_fdsets));
         memcpy(&write_fdsets, &context_->write_fds, sizeof(write_fdsets));
         timeout_ptr = NULL;
-        time_millseconds = INT32_MAX;
+        time_microseconds = INT32_MAX;
 
         for (auto &peer : peers_)
         {
-            if (peer->GetTimeout() > 0 && time_millseconds > peer->GetTimeout())
+            if (peer->GetTimeout() > 0 && time_microseconds > peer->GetTimeout())
             {
-                time_millseconds = peer->GetTimeout();
-                timeout.tv_sec = time_millseconds / 1000;
-                timeout.tv_usec = (time_millseconds % 1000) * 1000;
+                time_microseconds = peer->GetTimeout();
+                timeout.tv_sec = time_microseconds / 1000000;
+                timeout.tv_usec = time_microseconds % 1000000;
                 timeout_ptr = &timeout;
                 start = high_resolution_clock::now();
-                LOGVP("Set timeout: %ld", timeout.tv_sec * 1000 + timeout.tv_usec / 1000);
+                LOGVP("Set timeout: %ld", time_microseconds);
             }
         }
 
@@ -112,7 +112,7 @@ int NetSnoopServer::Run()
 
         if (result == 0)
         {
-            LOGVP("time out: %d", time_millseconds);
+            LOGVP("time out: %d", time_microseconds);
             continue;
         }
         if (FD_ISSET(command_sock_read_->GetFd(), &read_fdsets))

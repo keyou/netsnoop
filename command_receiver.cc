@@ -1,5 +1,6 @@
 
 #include <algorithm>
+#include <cmath>
 
 #include "command.h"
 #include "command_receiver.h"
@@ -149,41 +150,91 @@ int SendCommandReceiver::Recv()
         LOGDP("recv data error.");
         return -1;
     }
-    end_ = high_resolution_clock::now();
-    stop_ = high_resolution_clock::now();
+
     auto head = (DataHead*)buf_;
     if (token_ != head->token)
     {
         illegal_packets_++;
         LOGWP("recv illegal data: seq=%ld, token=%c, expect %c",head->sequence, head->token, token_);
+        return result;
     }
-    else
-    {
-        if(packets_.test(head->sequence))
-        {
-            duplicate_packets_++;
-            LOGWP("recv duplicate data: seq=%ld",head->sequence,head->token);
-        }
-        else if(head->sequence<sequence_)
-        {
-            reorder_packets_++;
-            LOGWP("recv reorder data: seq=%ld, expect %ld",head->sequence,sequence_);
-        }
-        
-        packets_.set(head->sequence);
-        // cycle reset to reuse sequence
-        packets_.reset((head->sequence+MAX_SEQ/2)%MAX_SEQ);
 
-        sequence_ = head->sequence + 1;
-        while (packets_.test(sequence_))
-        {
-            sequence_++;
-        }
+    if(packets_.test(head->sequence))
+    {
+        duplicate_packets_++;
+        LOGWP("recv duplicate data: seq=%ld",head->sequence,head->token);
+        return result;
     }
-    
+
+    end_ = high_resolution_clock::now();
+    stop_ = high_resolution_clock::now();
+
     recv_bytes_ += result;
     recv_count_++;
     latest_recv_bytes_ += result;
+    
+    if(head->sequence!=sequence_)
+    {
+        reorder_packets_++;
+        LOGWP("recv reorder data: seq=%ld, expect %ld",head->sequence,sequence_);
+    }
+    
+    auto jump_count = int(head->sequence) - sequence_;
+    if((jump_count>0 && jump_count<MAX_SEQ/2) || jump_count<0-MAX_SEQ/2)
+    {
+        // reset the locations which conrespond to the loss packets
+        while (sequence_ != head->sequence)
+        {
+            packets_.reset((sequence_+MAX_SEQ/2)%MAX_SEQ);
+            //LOGVP("reset %ld",(sequence_+MAX_SEQ/2)%MAX_SEQ);
+            sequence_++;
+        }
+    }
+    packets_.set(head->sequence);
+    // cycle reset to reuse sequence
+    packets_.reset((head->sequence+MAX_SEQ/2)%MAX_SEQ);
+    //LOGVP("reset %ld",(head->sequence+MAX_SEQ/2)%MAX_SEQ);
+    
+    sequence_ = head->sequence+1;
+    while (packets_.test(sequence_))
+    {
+        sequence_++;
+    }
+    
+    auto time_delay_ = end_.time_since_epoch().count() + time_gap_ - head->timestamp;
+    if(recv_count_ == 1)
+    {
+        time_gap_ = time_delay_;
+        time_delay_ = 0;
+        head_avg_delay_ = avg_delay_ = max_delay_ = min_delay_ = time_delay_;
+        LOGDP("time_gap= %ld",time_gap_);
+    }
+    else if(recv_count_ == 2)
+    {
+        head_avg_delay_ = avg_delay_ = max_delay_ = min_delay_ = time_delay_;
+    }
+
+    if(time_delay_ > command_->GetTimeout()*1000*1000)
+    {
+        timeout_packets_++;
+    }
+    
+    total_delay_ += time_delay_;
+    
+    max_delay_ = std::max(max_delay_,time_delay_);
+    min_delay_ = std::min(min_delay_,time_delay_);
+    auto old_avg_delay_ = avg_delay_;
+    avg_delay_ = total_delay_/recv_count_;
+
+    // The first 100 packets' delay may be more pure than all packets'.
+    if(recv_count_<=100)
+    {
+        head_avg_delay_ = avg_delay_;
+    }
+
+    varn_delay_ = varn_delay_ + (time_delay_ - head_avg_delay_)*(time_delay_- head_avg_delay_);
+    std_delay_ = std::sqrt(varn_delay_/recv_count_);
+    
     auto seconds = duration_cast<duration<double>>(end_ - begin_).count();
     if (seconds >= 1)
     {
@@ -191,9 +242,11 @@ int SendCommandReceiver::Recv()
         min_speed_ = min_speed_ == -1 ? speed : std::min(min_speed_, speed);
         max_speed_ = std::max(max_speed_, speed);
         LOGIP("latest recv speed: recv_speed %ld recv_bytes %ld recv_time %d", speed, latest_recv_bytes_, int(seconds * 1000));
+        LOGIP("latest recv delay: recv_count %d delay %ld head_avg_delay %ld avg_delay %ld std_delay %ld max_delay %ld min_delay %ld",recv_count_,time_delay_,head_avg_delay_,avg_delay_,std_delay_,max_delay_,min_delay_);
         latest_recv_bytes_ = 0;
         begin_ = high_resolution_clock::now();
     }
+    
     return result;
 }
 
@@ -209,6 +262,12 @@ int SendCommandReceiver::SendPrivateCommand()
     stat->illegal_packets = illegal_packets_;
     stat->reorder_packets = reorder_packets_;
     stat->duplicate_packets = duplicate_packets_;
+    stat->timeout_packets = timeout_packets_;
+    stat->delay = avg_delay_/1000/1000;
+    stat->max_delay = max_delay_/1000/1000;
+    stat->min_delay = min_delay_/1000/1000;
+    stat->jitter = stat->max_delay - stat->min_delay;
+    stat->jitter_std = std_delay_/1000/1000;
     auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
     if (seconds >= 0.001)
     {

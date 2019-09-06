@@ -156,7 +156,7 @@ int CommandSender::Timeout(int timeout)
 EchoCommandSender::EchoCommandSender(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)),
       data_buf_(command_->GetSize(), command_->token),
-      delay_(0), max_delay_(0), min_delay_(INT64_MAX),
+      delay_(0), max_delay_(0), min_delay_(0),
       send_packets_(0), recv_packets_(0),illegal_packets_(0),
       CommandSender(channel)
 {
@@ -202,10 +202,16 @@ int EchoCommandSender::RecvData()
         {
             recv_packets_++;
             auto delay = end_.time_since_epoch().count() - head->timestamp;
+            if(recv_packets_ == 1)
+            {
+                max_delay_ = min_delay_ = delay;
+            }
             max_delay_ = std::max(max_delay_, delay);
             min_delay_ = std::min(min_delay_, delay);
-            if(recv_packets_ == 1) delay_ = delay;
-            delay_ = (delay_ + delay + 1)/2;
+            auto old_delay = delay_;
+            delay_ = delay_ + (delay - delay_)/recv_packets_;
+            varn_delay_ = varn_delay_ + (delay - old_delay)*(delay-delay_);
+            std_delay_ = std::sqrt(varn_delay_/recv_packets_);
         }
         else
         {
@@ -244,20 +250,24 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     auto stat = std::make_shared<NetStat>();
     stat->delay = delay_/(1000*1000);
     stat->max_delay = max_delay_/(1000*1000);
-    if(recv_packets_>0)
-    {
-        stat->min_delay = min_delay_/(1000*1000);
-        stat->jitter = stat->max_delay - stat->min_delay;
-    }
+    stat->min_delay = min_delay_/(1000*1000);
+    stat->jitter = stat->max_delay - stat->min_delay;
+    stat->jitter_std = std_delay_/(1000*1000);
     stat->send_bytes = send_packets_ * data_buf_.size();
+    stat->recv_bytes = recv_packets_ * data_buf_.size();
     stat->send_packets = send_packets_;
     stat->recv_packets = recv_packets_;
     stat->illegal_packets = illegal_packets_;
-    stat->send_pps = send_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
-    stat->recv_pps = recv_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
     stat->loss = 1 - 1.0 * recv_packets_ / send_packets_;
     stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
-    stat->send_speed = stat->send_bytes / duration_cast<duration<double>>(stop_ - start_).count();
+    auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
+    if(stat->send_time>=1)
+    {
+        stat->send_pps = send_packets_/ seconds;
+        stat->recv_pps = recv_packets_/ seconds;
+        stat->send_speed = stat->send_bytes / seconds;
+        stat->recv_speed = stat->recv_bytes / seconds;
+    }
     OnStopped(stat);
     return 0;
 }
