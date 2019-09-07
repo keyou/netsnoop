@@ -51,26 +51,26 @@ int Udp::Accept()
 }
 
 //static
-ssize_t Udp::SendTo(const std::string &buf, sockaddr_in* peeraddr)
+ssize_t Udp::SendTo(const std::string &buf, sockaddr_in *peeraddr)
 {
     int result;
-    
+
     if ((result = sendto(fd_, buf.c_str(), buf.length(), 0, (struct sockaddr *)peeraddr, sizeof(sockaddr_in))) < 0)
     {
         LOGEP("sendto error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
-    if(Logger::GetGlobalLogLevel()==LogLevel::LLVERBOSE)
+    if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
-        char* ip = inet_ntoa(peeraddr->sin_addr);
+        char *ip = inet_ntoa(peeraddr->sin_addr);
         int port = ntohs(peeraddr->sin_port);
-        LOGVP("sendto(%s:%d)(%d): %s", ip,port,result,buf.substr(0,64).c_str());
+        LOGVP("sendto(%s:%d)(%d): %s", ip, port, result, buf.substr(0, 64).c_str());
     }
     return result;
 }
 
 //static
-ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in* peeraddr)
+ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in *peeraddr)
 {
     int result;
     char remote_ip[64] = {0};
@@ -84,80 +84,84 @@ ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in* peeraddr)
         return -1;
     }
 
-    if(Logger::GetGlobalLogLevel()==LogLevel::LLVERBOSE)
+    if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
-        char* ip = inet_ntoa(peeraddr->sin_addr);
+        char *ip = inet_ntoa(peeraddr->sin_addr);
         int port = ntohs(peeraddr->sin_port);
-        LOGVP("recvfrom(%s:%d)(%d): %s", ip,port,result,buf.substr(0,64).c_str());
+        LOGVP("recvfrom(%s:%d)(%d): %s", ip, port, result, buf.substr(0, 64).c_str());
     }
     return result;
 }
 
-    int join_or_drop(int fd, std::string group_addr, std::string interface_addr,bool join=true)
+int join_or_drop(int fd, std::string group_addr, std::string interface_addr, bool join = true)
+{
+    ip_mreq mreq;
+    auto groupaddr = inet_addr(group_addr.c_str());
+    auto interfaceaddr = inet_addr(interface_addr.c_str());
+
+    if (IN_MULTICAST(ntohl(groupaddr)) == 0)
+        return -1;
+
+    mreq.imr_multiaddr.s_addr = groupaddr;
+    mreq.imr_interface.s_addr = interfaceaddr;
+    int type = join ? IP_ADD_MEMBERSHIP : IP_DROP_MEMBERSHIP;
+
+    if (setsockopt(fd, IPPROTO_IP, type, (const char *)&mreq, sizeof(mreq)) == -1)
     {
-        ip_mreq mreq;
-        auto groupaddr = inet_addr(group_addr.c_str());
-        auto interfaceaddr = inet_addr(interface_addr.c_str());
-
-        if (IN_MULTICAST(ntohl(groupaddr)) == 0)
-            return -1;
-
-        mreq.imr_multiaddr.s_addr = groupaddr;
-        mreq.imr_interface.s_addr = interfaceaddr;
-        int type = join?IP_ADD_MEMBERSHIP:IP_DROP_MEMBERSHIP;
-
-        if (setsockopt(fd, IPPROTO_IP, type, (const char*)&mreq, sizeof(mreq)) == -1)
-        {
-            LOGEP("setsocketopt %s error: %s(errno: %d)",type == IP_ADD_MEMBERSHIP?"IP_ADD_MEMBERSHIP":"IP_DROP_MEMBERSHIP",strerror(errno),errno);
-            return -1;
-        }
-
-        LOGVP("multicast group %s: %s(%s)",join?"join":"drop",group_addr.c_str(),interface_addr.c_str());
-        return 0;
+        LOGEP("setsocketopt %s error: %s(errno: %d)", type == IP_ADD_MEMBERSHIP ? "IP_ADD_MEMBERSHIP" : "IP_DROP_MEMBERSHIP", strerror(errno), errno);
+        return -1;
     }
 
-    /**
-     * @brief Used when you need to send multicast data.
-     * set IP_MULTICAST_IF and IP_MULTICAST_LOOP
-     * 
-     * @param interface_addr 
-     * @return int 
-     */
-    int Udp::BindMulticastInterface(std::string interface_addr)
-    {
-        int result = 0;
-        auto addr = inet_addr(interface_addr.c_str());
-        result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_IF, (char *)&addr, sizeof(addr));
-        ASSERT_RETURN(result >= 0, -1);
+    LOGVP("multicast group %s: %s(%s)", join ? "join" : "drop", group_addr.c_str(), interface_addr.c_str());
+    return 0;
+}
 
-        char loopch = 1;
-        result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopch, sizeof(loopch));
-        ASSERT_RETURN(result >= 0, -1);
+/**
+ * @brief Used when you need to send multicast data.
+ * set IP_MULTICAST_IF and IP_MULTICAST_LOOP
+ * 
+ * @param interface_addr 
+ * @return int 
+ */
+int Udp::BindMulticastInterface(std::string interface_addr)
+{
+    int result = 0;
+    auto addr = inet_addr(interface_addr.c_str());
+    result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_IF, (char *)&addr, sizeof(addr));
+    ASSERT_RETURN(result >= 0, -1);
 
-        return 0;
-    }
+    char loopch = 1;
+    result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_LOOP, (char *)&loopch, sizeof(loopch));
+    ASSERT_RETURN(result >= 0, -1);
 
-    /**
-     * @brief Used when you need to recv multicast data.
-     * Join multicast group with specific interface.
-     * 
-     * @param group_addr 
-     * @param interface_addr 
-     * @return int 
-     */
-    int Udp::JoinMUlticastGroup(std::string group_addr,std::string interface_addr)
-    {
-        return join_or_drop(fd_,group_addr,interface_addr,true);
-    }
+    // char ttl = 1;
+    // result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl, sizeof(ttl));
+    // ASSERT_RETURN(result >= 0, -1);
 
-    /**
-     * @brief Leave a multicast group.
-     * 
-     * @param group_addr 
-     * @param interface_addr 
-     * @return int 
-     */
-    int Udp::DropMulticastGroup(std::string group_addr,std::string interface_addr)
-    {
-        return join_or_drop(fd_,group_addr,interface_addr,false);
-    }
+    return 0;
+}
+
+/**
+ * @brief Used when you need to recv multicast data.
+ * Join multicast group with specific interface.
+ * 
+ * @param group_addr 
+ * @param interface_addr 
+ * @return int 
+ */
+int Udp::JoinMUlticastGroup(std::string group_addr, std::string interface_addr)
+{
+    return join_or_drop(fd_, group_addr, interface_addr, true);
+}
+
+/**
+ * @brief Leave a multicast group.
+ * 
+ * @param group_addr 
+ * @param interface_addr 
+ * @return int 
+ */
+int Udp::DropMulticastGroup(std::string group_addr, std::string interface_addr)
+{
+    return join_or_drop(fd_, group_addr, interface_addr, false);
+}

@@ -103,14 +103,13 @@ private:
     uint16_t sequence_;
     std::bitset<MAX_SEQ> packets_;
 
-    ssize_t time_gap_ = 0;
     ssize_t total_delay_ = 0;
     ssize_t avg_delay_ = 0;
     ssize_t max_delay_ = 0;
     ssize_t min_delay_ = 0;
     ssize_t head_avg_delay_ = 0;;
     // var_delay_ = varn_delay_/n is variance
-    ssize_t varn_delay_ = 0;
+    uint64_t varn_delay_ = 0;
     // std_delay_ is standard deviation
-    ssize_t std_delay_ = 0;
+    uint64_t std_delay_ = 0;
 };

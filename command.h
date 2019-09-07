@@ -14,8 +14,8 @@
 
 #define MAX_CMD_LENGTH 1024
 #define MAX_TOKEN_LENGTH 10
-// time wait to give a chance for client receive all data
-#define STOP_WAIT_TIME 500
+// time in microseconds wait to give a chance for client receive all data
+#define STOP_WAIT_TIME 500*1000
 
 // use as an identity of a main command
 #define VISIABLE_LATTERS "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -53,12 +53,12 @@ public:
         {
             if (ss >> value)
             {
-                ASSERT(args.find(key) == args.end());
+                ASSERT_RETURN(args.find(key) == args.end(),NULL);
                 args[key] = value;
             }
             else
             {
-                ASSERT(!value.empty());
+                ASSERT_RETURN(!value.empty(),NULL);
                 args[key] = "";
             }
         }
@@ -440,6 +440,13 @@ public:
 
     char token;
 
+protected:
+    void UpdateToken()
+    {
+        static unsigned char index = 0;
+        token = VISIABLE_LATTERS[index++ % (sizeof(VISIABLE_LATTERS) - 1)];
+    }
+
 private:
     std::string cmd;
     std::vector<CommandCallback> callbacks_;
@@ -458,9 +465,12 @@ struct DataHead
 };
 
 #define ECHO_DEFAULT_COUNT 5
-#define ECHO_DEFAULT_INTERVAL 200
+#define ECHO_DEFAULT_INTERVAL 200*1000
 #define ECHO_DEFAULT_SIZE 32
-#define ECHO_DEFAULT_WAIT 500
+#define ECHO_DEFAULT_WAIT 500*1000
+#define ECHO_DEFAULT_TIMEOUT 100 // milliseconds
+#define ECHO_DEFAULT_SPEED 0 // KByte/s
+#define ECHO_DEFAULT_TIME 3000 // milliseconds
 /**
  * @brief a main command, server send to client and client should echo
  * 
@@ -477,21 +487,31 @@ public:
           wait_(ECHO_DEFAULT_WAIT),
           Command("ping", cmd)
     {
-        static unsigned char index = 0;
-        token = VISIABLE_LATTERS[index++ % (sizeof(VISIABLE_LATTERS) - 1)];
+        UpdateToken();
     }
     bool ResolveArgs(CommandArgs args) override
     {
         // TODO: optimize these assign.
         count_ = args["count"].empty() ? ECHO_DEFAULT_COUNT : std::stoi(args["count"]);
-        interval_ = (args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stod(args["interval"])) * 1000;
+        interval_ = args["interval"].empty() ? ECHO_DEFAULT_INTERVAL : std::stod(args["interval"]) * 1000;
         size_ = args["size"].empty() ? ECHO_DEFAULT_SIZE : std::stoi(args["size"]);
-        wait_ = args["wait"].empty() ? ECHO_DEFAULT_WAIT : std::stoi(args["wait"]);
+        wait_ = args["wait"].empty() ? ECHO_DEFAULT_WAIT : std::stoi(args["wait"])*1000;
+        timeout_ = args["timeout"].empty() ? ECHO_DEFAULT_TIMEOUT : std::stoi(args["timeout"]);
         if (!args["token"].empty())
             token = args["token"].at(0);
+        
+
+        auto speed = args["speed"].empty() ? ECHO_DEFAULT_SPEED : std::stoi(args["speed"]);
+        auto time = args["time"].empty() ? ECHO_DEFAULT_TIME : std::stoi(args["time"]);
+        if (speed > 0 && time > 0)
+        {
+            if(size_ == ECHO_DEFAULT_SIZE) size_ = 1472;
+            count_ = ceil((speed * 1024) * (time / 1000.0) / size_);
+            interval_ = 1000000/((1.0*speed*1024)/size_);
+        }
         // echo can not have zero delay
         if (interval_ <= 0)
-            interval_ = ECHO_DEFAULT_INTERVAL*1000;
+            interval_ = ECHO_DEFAULT_INTERVAL;
         return true;
     }
 
@@ -508,23 +528,25 @@ public:
     int GetInterval() { return interval_; }
     int GetSize() { return size_; }
     int GetWait() override { return wait_; }
+    int GetTimeout() { return timeout_; }
 
 private:
     int count_;
     int interval_;
     int size_;
     int wait_;
+    int timeout_;
 
     DISALLOW_COPY_AND_ASSIGN(EchoCommand);
 };
 
 #define SEND_DEFAULT_COUNT 100
-#define SEND_DEFAULT_INTERVAL 0
+#define SEND_DEFAULT_INTERVAL 0*1000 // microseconds
 #define SEND_DEFAULT_SIZE 1472
-#define SEND_DEFAULT_WAIT 500
-#define SEND_DEFAULT_TIMEOUT 100 // millseconds
+#define SEND_DEFAULT_WAIT 500*1000 // microseconds
+#define SEND_DEFAULT_TIMEOUT 100 // milliseconds
 #define SEND_DEFAULT_SPEED 0 // KByte/s
-#define SEND_DEFAULT_TIME 3000 // millseconds
+#define SEND_DEFAULT_TIME 3000 // milliseconds
 /**
  * @brief a main command, server send data only and client recv only.
  * 
@@ -540,17 +562,16 @@ public:
           timeout_(SEND_DEFAULT_TIMEOUT),
           is_finished(false), Command("send", cmd)
     {
-        static unsigned char index = 0;
-        token = VISIABLE_LATTERS[index++ % (sizeof(VISIABLE_LATTERS) - 1)];
+        UpdateToken();
     }
 
     bool ResolveArgs(CommandArgs args) override
     {
         // TODO: optimize these assign.
         count_ = args["count"].empty() ? SEND_DEFAULT_COUNT : std::stoi(args["count"]);
-        interval_ = (args["interval"].empty() ? SEND_DEFAULT_INTERVAL : std::stod(args["interval"])) * 1000;
+        interval_ = args["interval"].empty() ? SEND_DEFAULT_INTERVAL : std::stod(args["interval"]) * 1000;
         size_ = args["size"].empty() ? SEND_DEFAULT_SIZE : std::stoi(args["size"]);
-        wait_ = args["wait"].empty() ? SEND_DEFAULT_WAIT : std::stoi(args["wait"]);
+        wait_ = args["wait"].empty() ? SEND_DEFAULT_WAIT : std::stoi(args["wait"]) * 1000;
         timeout_ = args["timeout"].empty() ? SEND_DEFAULT_TIMEOUT : std::stoi(args["timeout"]);
         if (!args["token"].empty())
             token = args["token"].at(0);

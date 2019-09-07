@@ -191,9 +191,31 @@ begin:
 void StartClient()
 {
     int result;
+    std::vector<std::string> ips;
+    ips.push_back(g_option->ip_remote);
 
     while (true)
     {
+        for (int i = ips.size()-1;i>=0;i--)
+        {
+            auto ip = ips[i];
+            memset(g_option->ip_remote, 0, sizeof(g_option->ip_remote));
+            strncpy(g_option->ip_remote, ip.c_str(), sizeof(g_option->ip_remote) - 1);
+
+            NetSnoopClient client(g_option);
+            client.OnConnected = [] {
+                std::clog << "connect to " << g_option->ip_remote << ":" << g_option->port << " (" << g_option->ip_multicast << ")" << std::endl;
+            };
+            client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
+                std::cout << "peer finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+            };
+
+            LOGVP("client running...");
+            client.Run();
+            std::clog << "client stop, restarting..." << std::endl;
+            std::clog << "----------------------------" << std::endl;
+        }
+
         {
             sockaddr_in server_addr;
             Udp multicast;
@@ -222,29 +244,23 @@ void StartClient()
             
             std::clog << "finding server... " << std::endl;
             std::string server_ip(40, 0);
+            fd_set readfds;
+            FD_ZERO(&readfds);
+            timeval timeout{5};
+            result = select(multicast.GetFd()+1,&readfds,NULL,NULL,&timeout);
+            if(result==0)
+            {
+                continue;
+            }
             result = multicast.RecvFrom(server_ip, &server_addr);
-            ASSERT(result > 0);
+            ASSERT(result>=0);
             server_ip.resize(result);
             if(server_ip == "0.0.0.0")
             {
                 server_ip = inet_ntoa(server_addr.sin_addr);
             }
             std::clog << "find server: " << server_ip << std::endl;
-            memset(g_option->ip_remote, 0, sizeof(g_option->ip_remote));
-            strncpy(g_option->ip_remote, server_ip.c_str(), sizeof(g_option->ip_remote) - 1);
+            ips.push_back(server_ip);
         }
-
-        NetSnoopClient client(g_option);
-        client.OnConnected = [] {
-            std::clog << "connect to " << g_option->ip_remote << ":" << g_option->port << " (" << g_option->ip_multicast << ")" << std::endl;
-        };
-        client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
-            std::cout << "peer finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
-        };
-
-        LOGVP("client running...");
-        client.Run();
-        std::clog << "client stop, restarting in 3 seconds..." << std::endl;
-        std::clog << "----------------------------" << std::endl;
     }
 }

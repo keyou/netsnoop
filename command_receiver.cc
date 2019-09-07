@@ -201,28 +201,22 @@ int SendCommandReceiver::Recv()
         sequence_++;
     }
     
-    auto time_delay_ = end_.time_since_epoch().count() + time_gap_ - head->timestamp;
+    auto time_delay = end_.time_since_epoch().count() - head->timestamp;
     if(recv_count_ == 1)
     {
-        time_gap_ = time_delay_;
-        time_delay_ = 0;
-        head_avg_delay_ = avg_delay_ = max_delay_ = min_delay_ = time_delay_;
-        LOGDP("time_gap= %ld",time_gap_);
-    }
-    else if(recv_count_ == 2)
-    {
-        head_avg_delay_ = avg_delay_ = max_delay_ = min_delay_ = time_delay_;
+        head_avg_delay_ = avg_delay_ = max_delay_ = min_delay_ = time_delay;
+        //LOGDP("time_gap= %ld",time_delay);
     }
 
-    if(time_delay_ > command_->GetTimeout()*1000*1000)
+    if(time_delay - min_delay_ > command_->GetTimeout()*1000*1000)
     {
         timeout_packets_++;
     }
     
-    total_delay_ += time_delay_;
+    total_delay_ += time_delay;
     
-    max_delay_ = std::max(max_delay_,time_delay_);
-    min_delay_ = std::min(min_delay_,time_delay_);
+    max_delay_ = std::max(max_delay_,time_delay);
+    min_delay_ = std::min(min_delay_,time_delay);
     auto old_avg_delay_ = avg_delay_;
     avg_delay_ = total_delay_/recv_count_;
 
@@ -232,9 +226,10 @@ int SendCommandReceiver::Recv()
         head_avg_delay_ = avg_delay_;
     }
 
-    varn_delay_ = varn_delay_ + (time_delay_ - head_avg_delay_)*(time_delay_- head_avg_delay_);
+    varn_delay_ = varn_delay_ + (time_delay - head_avg_delay_)*(time_delay- head_avg_delay_);
     std_delay_ = std::sqrt(varn_delay_/recv_count_);
     
+    #define D(x) (x-min_delay_)/1000/1000
     auto seconds = duration_cast<duration<double>>(end_ - begin_).count();
     if (seconds >= 1)
     {
@@ -242,10 +237,12 @@ int SendCommandReceiver::Recv()
         min_speed_ = min_speed_ == -1 ? speed : std::min(min_speed_, speed);
         max_speed_ = std::max(max_speed_, speed);
         LOGIP("latest recv speed: recv_speed %ld recv_bytes %ld recv_time %d", speed, latest_recv_bytes_, int(seconds * 1000));
-        LOGIP("latest recv delay: recv_count %d delay %ld head_avg_delay %ld avg_delay %ld std_delay %ld max_delay %ld min_delay %ld",recv_count_,time_delay_,head_avg_delay_,avg_delay_,std_delay_,max_delay_,min_delay_);
+        LOGIP("latest recv delay: recv_count %d delay %ld head_avg_delay %ld avg_delay %ld std_delay %ld max_delay %ld",recv_count_,D(time_delay),D(head_avg_delay_),D(avg_delay_),std_delay_,D(max_delay_));
         latest_recv_bytes_ = 0;
         begin_ = high_resolution_clock::now();
     }
+    LOGDP("latest recv delay: recv_count %d delay %ld head_avg_delay %ld avg_delay %ld std_delay %ld max_delay %ld",recv_count_,D(time_delay),D(head_avg_delay_),D(avg_delay_),std_delay_,D(max_delay_));
+    #undef D
     
     return result;
 }
@@ -263,10 +260,12 @@ int SendCommandReceiver::SendPrivateCommand()
     stat->reorder_packets = reorder_packets_;
     stat->duplicate_packets = duplicate_packets_;
     stat->timeout_packets = timeout_packets_;
-    stat->delay = avg_delay_/1000/1000;
-    stat->max_delay = max_delay_/1000/1000;
-    stat->min_delay = min_delay_/1000/1000;
-    stat->jitter = stat->max_delay - stat->min_delay;
+    // use the min delay as time gap
+    stat->delay = (avg_delay_-min_delay_)/1000/1000;
+    stat->max_delay = (max_delay_-min_delay_)/1000/1000;
+    stat->min_delay = 0;
+    // use the head_avg_delay as jitter, because min_delay is always zero
+    stat->jitter = (head_avg_delay_-min_delay_)/1000/1000;
     stat->jitter_std = std_delay_/1000/1000;
     auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
     if (seconds >= 0.001)

@@ -206,6 +206,11 @@ int EchoCommandSender::RecvData()
             {
                 max_delay_ = min_delay_ = delay;
             }
+            if(delay>command_->GetTimeout()*1000*1000)
+            {
+                timeout_packets_++;
+            }
+            LOGIP("ping delay %ld",delay/1000/1000);
             max_delay_ = std::max(max_delay_, delay);
             min_delay_ = std::min(min_delay_, delay);
             auto old_delay = delay_;
@@ -258,6 +263,7 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     stat->send_packets = send_packets_;
     stat->recv_packets = recv_packets_;
     stat->illegal_packets = illegal_packets_;
+    stat->timeout_packets = timeout_packets_;
     stat->loss = 1 - 1.0 * recv_packets_ / send_packets_;
     stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
     auto seconds = duration_cast<duration<double>>(stop_ - start_).count();

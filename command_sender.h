@@ -89,7 +89,8 @@ private:
     ssize_t send_packets_;
     ssize_t recv_packets_;
     std::string data_buf_;
-    long long illegal_packets_;
+    long long illegal_packets_=0;
+    long long timeout_packets_=0;
 
     ssize_t varn_delay_ = 0;
     ssize_t std_delay_ = 0;

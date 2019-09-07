@@ -1,4 +1,4 @@
-CXX=g++
+CXX?=g++
 CXXFLAGS= -std=c++11 -I.
 LIBS=-pthread
 EXE=
