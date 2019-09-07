@@ -375,11 +375,11 @@ int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     {
         stat->send_bytes = send_bytes_;
         stat->send_packets = send_packets_;
-        stat->send_pps = send_packets_/ duration_cast<duration<double>>(stop_ - start_).count();
         stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();
         auto seconds = duration_cast<duration<double>>(stop_ - start_).count();
         if (seconds > 0.001)
         {
+            stat->send_pps = send_packets_/ seconds;
             stat->send_speed = stat->send_bytes / seconds;
         }
         stat->loss = 1 - 1.0 * (stat->recv_packets - stat->illegal_packets - stat->duplicate_packets) / send_packets_;
