@@ -28,8 +28,9 @@ int main(int argc, char *argv[])
                      "  --------\n"
                      "  command:\n"
                      "  ping count 10                       (test delay)\n"
-                     "  send count 1000                     (test thoughput)\n"
+                     "  send count 1000                     (test unicast)\n"
                      "  send count 1000 multicast true      (test multicast)\n"
+                     "  send speed 500 time 3000            (test unicast)\n"
                      "  \n"
                      "  version: "
                   << VERSION(0.1) << " (" << __DATE__ << " " << __TIME__ << ")" << std::endl;
