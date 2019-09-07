@@ -129,9 +129,9 @@ begin:
         times = 0;
         avgstat = NULL;
         if (is_multicast)
-            size = sprintf(&cmd[0], "send multicast true count 100 interval %d size 1472 wait 500", i*3);
+            size = sprintf(&cmd[0], "send multicast true count 500 interval %d size 1472 wait 500", i*3);
         else
-            size = sprintf(&cmd[0], "send unicast true count 100 interval %d size 1472 wait 500", i*3);
+            size = sprintf(&cmd[0], "send unicast true count 500 interval %d size 1472 wait 500", i*3);
         for (auto k = 0; k < MAX_TIMES; k++)
         {
             auto command = CommandFactory::New(cmd.substr(0, size));
