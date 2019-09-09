@@ -210,7 +210,7 @@ int EchoCommandSender::RecvData()
             {
                 timeout_packets_++;
             }
-            LOGIP("ping delay %ld",delay/1000/1000);
+            LOGIP("ping delay %ld",std::round(delay/1000.0/1000));
             max_delay_ = std::max(max_delay_, delay);
             min_delay_ = std::min(min_delay_, delay);
             auto old_delay = delay_;
