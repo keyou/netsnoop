@@ -34,7 +34,7 @@ int Udp::Accept()
     }
 
     inet_ntop(AF_INET, &peeraddr.sin_addr, remote_ip, peeraddr_size);
-    LOGVP("accept udp from [%s:%d]: %s", remote_ip, ntohs(peeraddr.sin_port), buf);
+    LOGDP("accept udp from [%s:%d]: %s", remote_ip, ntohs(peeraddr.sin_port), buf);
 
     int peerfd = CreateSocket(type_, protocol_);
     if (Bind(peerfd, local_ip_, local_port_) < 0)
@@ -64,7 +64,7 @@ ssize_t Udp::SendTo(const std::string &buf, sockaddr_in *peeraddr)
     {
         char *ip = inet_ntoa(peeraddr->sin_addr);
         int port = ntohs(peeraddr->sin_port);
-        LOGVP("sendto(%s:%d)(%d): %s", ip, port, result, buf.substr(0, 64).c_str());
+        LOGDP("sendto(%s:%d)(%d): %s", ip, port, result, buf.substr(0, 64).c_str());
     }
     return result;
 }
@@ -88,7 +88,7 @@ ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in *peeraddr)
     {
         char *ip = inet_ntoa(peeraddr->sin_addr);
         int port = ntohs(peeraddr->sin_port);
-        LOGVP("recvfrom(%s:%d)(%d): %s", ip, port, result, buf.substr(0, 64).c_str());
+        LOGDP("recvfrom(%s:%d)(%d): %s", ip, port, result, buf.substr(0, 64).c_str());
     }
     return result;
 }
@@ -112,7 +112,7 @@ int join_or_drop(int fd, std::string group_addr, std::string interface_addr, boo
         return -1;
     }
 
-    LOGVP("multicast group %s: %s(%s)", join ? "join" : "drop", group_addr.c_str(), interface_addr.c_str());
+    LOGDP("multicast group %s: %s(%s)", join ? "join" : "drop", group_addr.c_str(), interface_addr.c_str());
     return 0;
 }
 

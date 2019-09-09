@@ -128,7 +128,7 @@ public:
         {
             return 0;
         }
-        auto interval = std::chrono::duration_cast<milliseconds>(std::chrono::high_resolution_clock::now() - begin_).count();
+        auto interval = std::chrono::duration_cast<microseconds>(std::chrono::high_resolution_clock::now() - begin_).count();
 
         if (interval < command_->GetInterval())
         {

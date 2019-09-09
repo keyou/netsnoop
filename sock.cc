@@ -11,6 +11,8 @@
 #include <ctime>
 #include <ratio>
 #include <chrono>
+#include <iterator>
+#include <iomanip>
 
 #include <memory>
 #include <vector>
@@ -28,7 +30,7 @@
 int Sock::CreateSocket(int type, int protocol)
 {
     int sockfd;
-    LOGVP("create socket.");
+    LOGDP("create socket.");
     if ((sockfd = socket(AF_INET, type, protocol)) < 0)
     {
         LOGEP("create socket error: %s(errno: %d)", strerror(errno), errno);
@@ -61,7 +63,7 @@ int Sock::Bind(int fd_, std::string ip, int port)
         return ERR_ILLEGAL_PARAM;
     }
 
-    LOGVP("bind %s:%d", ip.c_str(), port);
+    LOGDP("bind %s:%d", ip.c_str(), port);
     if (bind(fd_, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
     {
         LOGEP("bind error: %s(errno: %d)", strerror(errno), errno);
@@ -88,7 +90,7 @@ int Sock::Connect(int fd_, std::string ip, int port)
         return ERR_ILLEGAL_PARAM;
     }
 
-    LOGVP("connect %s:%d", ip.c_str(), port);
+    LOGDP("connect %s:%d", ip.c_str(), port);
     if (connect(fd_, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
     {
         LOGEP("connect error: %s(errno: %d)", strerror(errno), errno);
@@ -110,9 +112,13 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
 
     if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
-        char tmp[64] = {};
-        strncpy(tmp, buf, sizeof(tmp) - 1);
-        LOGVP("send(%ld): %s", result, tmp);
+        std::string tmp(buf,std::min(result,64L));
+        std::ostringstream out;
+        for(char c : tmp)
+        {
+            out<< (isprint(c)?c:'.');
+        }
+        LOGVP("send(%ld): %s", result, out.str().c_str());
     }
     return result;
 }
@@ -135,9 +141,13 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
 
     if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
-        char tmp[64] = {};
-        strncpy(tmp, buf, sizeof(tmp) - 1);
-        LOGVP("recv(%ld): %s", result, tmp);
+        std::string tmp(buf,std::min(result,64L));
+        std::ostringstream out;
+        for(char c : tmp)
+        {
+            out<< (isprint(c)?c:'.');
+        }
+        LOGVP("recv(%ld): %s", result, out.str().c_str());
     }
     return result;
 }
@@ -331,7 +341,7 @@ std::vector<std::string> Sock::GetLocalIps()
                 if(ip.length()>0)
                 {
                     ips.push_back(ip);
-                    LOGVP("find local ip: %s",ip.c_str());
+                    LOGDP("find local ip: %s",ip.c_str());
                 }
             }
             temp_addr = temp_addr->ifa_next;
@@ -354,7 +364,7 @@ Sock::~Sock()
 {
     if (fd_ > 0)
     {
-        LOGVP("close socket: fd = %d", fd_);
+        LOGDP("close socket: fd = %d", fd_);
         closesocket(fd_);
         fd_ = -1;
     }

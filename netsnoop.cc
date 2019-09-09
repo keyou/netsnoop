@@ -105,7 +105,7 @@ void StartServer()
         multicast.Initialize();
         multicast.Connect("239.3.3.4", 4001);
         //sleep to wait server start
-        usleep(100*1000);
+        usleep(100 * 1000);
         while (true)
         {
             multicast.Send(g_option->ip_local, strlen(g_option->ip_local));

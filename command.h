@@ -600,9 +600,24 @@ public:
     }
 
     int GetCount() { return count_; }
+    /**
+     * @brief Get the Interval object in microseconds
+     * 
+     * @return int 
+     */
     int GetInterval() { return interval_; }
     int GetSize() { return size_; }
+    /**
+     * @brief Get the Wait object in microseconds
+     * 
+     * @return int 
+     */
     int GetWait() override { return wait_; }
+    /**
+     * @brief Get the Timeout object in milliseconds
+     * 
+     * @return int 
+     */
     int GetTimeout() { return timeout_; }
 
     bool is_finished;

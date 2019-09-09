@@ -29,7 +29,6 @@ int Tcp::Accept()
 
     int peerfd;
     int result;
-    char remote_ip[20] = {0};
     fd_set fds;
     FD_ZERO(&fds);
 
@@ -42,10 +41,7 @@ int Tcp::Accept()
         LOGEP("accept error: %s(errno: %d)", strerror(errno), errno);
         return -1;
     }
-#ifdef _DEBUG
-    inet_ntop(AF_INET, &peeraddr.sin_addr, remote_ip, peeraddr_size);
-    LOGVP("accept tcp: %s:%d", remote_ip, ntohs(peeraddr.sin_port));
-#endif
+    LOGDP("accept tcp: %s:%d", inet_ntoa(peeraddr.sin_addr), ntohs(peeraddr.sin_port));
     return peerfd;
 }
 
