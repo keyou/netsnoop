@@ -65,17 +65,17 @@ publish: all win32
 	$(eval EXE=.exe)
 	@echo $(EXES) | xargs -n1 | xargs -i cp ./{} $(PUBLISHDIR)
 	@echo publish to $(PUBLISHDIR) dir success!
-	@ls $(PUBLISHDIR)
+	@echo
 
 .PHONY: package
 package: publish
-	@rm -f netsnoop-*.zip
+	rm -f netsnoop-v$(BUILD_VERSION).zip
 	zip -r netsnoop-v$(BUILD_VERSION).zip $(PUBLISHDIR)
 	@echo pack to netsnoop-$(BUILD_VERSION).zip success!
 
 .PHONY: clean
 clean:
-	@rm -rf *.o *.obj netsnoop-*.zip
+	@rm -rf *.o *.obj
 	@echo $(EXES) | xargs -n1 rm -f
 	$(eval EXE=.exe)
 	@echo $(EXES) | xargs -n1 rm -f
