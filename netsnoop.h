@@ -14,12 +14,12 @@
 #define TAG "NETSNOOP"
 
 #ifndef BUILD_VERSION
-#define BUILD_VERSION 0
+#define BUILD_VERSION 0.0
 #endif // !BUILD_VERSION
 
 #define _str1(x) #x
 #define _str2(x) _str1(x)
-#define VERSION(x) "v" #x "." _str2(BUILD_VERSION)
+#define VERSION(x) #x _str2(BUILD_VERSION)
 
 enum LogLevel
 {

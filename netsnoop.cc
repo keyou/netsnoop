@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
                      "  send speed 500 time 3000            (test unicast)\n"
                      "  \n"
                      "  version: "
-                  << VERSION(0.1) << " (" << __DATE__ << " " << __TIME__ << ")" << std::endl;
+                  << VERSION(v) << " (" << __DATE__ << " " << __TIME__ << ")" << std::endl;
         return 0;
     }
 

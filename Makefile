@@ -24,7 +24,7 @@ else
 CXXFLAGS += -O3 -s
 endif
 
-BUILD_VERSION?=$(shell git rev-list --count HEAD)
+BUILD_VERSION?=0.1.$(shell git rev-list --count HEAD)
 CXXFLAGS += -DBUILD_VERSION=$(BUILD_VERSION)
 
 PUBLISHDIR:=./publish
@@ -64,16 +64,18 @@ publish: all win32
 	@echo $(EXES) | xargs -n1 | xargs -i cp ./{} $(PUBLISHDIR)
 	$(eval EXE=.exe)
 	@echo $(EXES) | xargs -n1 | xargs -i cp ./{} $(PUBLISHDIR)
-	@echo copy to $(PUBLISHDIR) dir success!
+	@echo publish to $(PUBLISHDIR) dir success!
 	@ls $(PUBLISHDIR)
 
 .PHONY: package
 package: publish
-	zip -r netsnoop.zip $(PUBLISHDIR)
+	@rm -f netsnoop-*.zip
+	zip -r netsnoop-v$(BUILD_VERSION).zip $(PUBLISHDIR)
+	@echo pack to netsnoop-$(BUILD_VERSION).zip success!
 
 .PHONY: clean
 clean:
-	@rm -rf *.o *.obj
+	@rm -rf *.o *.obj netsnoop-*.zip
 	@echo $(EXES) | xargs -n1 rm -f
 	$(eval EXE=.exe)
 	@echo $(EXES) | xargs -n1 rm -f
