@@ -112,7 +112,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
 
     if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
-        std::string tmp(buf,std::min(result,64L));
+        std::string tmp(buf,std::min(result,(ssize_t)64));
         std::ostringstream out;
         for(char c : tmp)
         {
@@ -141,7 +141,7 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
 
     if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
-        std::string tmp(buf,std::min(result,64L));
+        std::string tmp(buf,std::min(result,(ssize_t)64));
         std::ostringstream out;
         for(char c : tmp)
         {
