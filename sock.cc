@@ -26,13 +26,6 @@
 
 #include "sock.h"
 
-#ifdef WIN32
-#ifdef errno
-#undef errno
-#endif
-#define errno WSAGetLastError()
-#endif // WIN32
-
 //static
 int Sock::CreateSocket(int type, int protocol)
 {
@@ -40,14 +33,14 @@ int Sock::CreateSocket(int type, int protocol)
     LOGDP("create socket.");
     if ((sockfd = socket(AF_INET, type, protocol)) < 0)
     {
-        LOGEP("create socket error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("create socket error");
         return -1;
     }
 
     int opt = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
     {
-        LOGEP("setsockopt SO_REUSEADDR error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("setsockopt SO_REUSEADDR error");
         closesocket(sockfd);
         return -1;
     }
@@ -73,7 +66,7 @@ int Sock::Bind(int fd_, std::string ip, int port)
     LOGDP("bind %s:%d", ip.c_str(), port);
     if (bind(fd_, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
     {
-        LOGEP("bind error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("bind error");
         return -1;
     }
 
@@ -100,7 +93,7 @@ int Sock::Connect(int fd_, std::string ip, int port)
     LOGDP("connect %s:%d", ip.c_str(), port);
     if (connect(fd_, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
     {
-        LOGEP("connect error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("connect error");
         return -1;
     }
     return 0;
@@ -113,7 +106,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
     ssize_t result;
     if ((result = send(fd_, buf, size, 0)) < 0 || result != size)
     {
-        LOGEP("send error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("send error");
         return -1;
     }
 
@@ -139,7 +132,7 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
     {
         if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
         {
-            LOGEP("recv error: %s(errno: %d)", strerror(errno), errno);
+            PSOCKETERROR("recv error");
             return -1;
         }
         LOGEP("recv timeout.");
@@ -214,7 +207,7 @@ int Sock::GetLocalAddress(int fd_, sockaddr_in *localaddr)
     memset(localaddr, 0, localaddr_length);
     if (getsockname(fd_, (sockaddr *)localaddr, &localaddr_length) < 0)
     {
-        LOGEP("getsockname error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("getsockname error");
         return -1;
     }
     return 0;
@@ -226,7 +219,7 @@ int Sock::GetPeerAddress(int fd_, sockaddr_in *peeraddr)
     memset(peeraddr, 0, peeraddr_length);
     if (getpeername(fd_, (sockaddr *)peeraddr, &peeraddr_length) < 0)
     {
-        LOGEP("getpeername error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("getpeername error");
         return -1;
     }
     return 0;
@@ -290,7 +283,7 @@ int Sock::GetSockAddr(const std::string &ip, in_addr &addr)
     hostent *record = gethostbyname(ip.c_str());
     if (record == NULL)
     {
-        LOGEP("gethostbyname error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("gethostbyname error");
         return -1;
     }
     // TODO: in multithread(100),it crash here sometimes.
@@ -314,7 +307,7 @@ std::vector<std::string> Sock::Host2Ips(const std::string &host)
     errcode = getaddrinfo(host.c_str(), NULL, &hints, &res);
     if (errcode != 0)
     {
-        LOGEP("getaddrinfo error: %s (errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("getaddrinfo error");
         return ips;
     }
 

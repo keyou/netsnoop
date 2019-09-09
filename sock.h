@@ -5,6 +5,8 @@
 //#define _WIN32_WINNT _WIN32_WINNT_WIN7 // Windows 8.0
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#define PSOCKETERROR(prefix) {auto err=WSAGetLastError();LOGEP( prefix ": %d", err);}
+#define PSOCKETERROREX(prefix,...) {auto err=WSAGetLastError();LOGEP( prefix ": %d", __VA_ARGS__ , err);}
 #else
 #define closesocket close
 #include <sys/socket.h>
@@ -16,6 +18,8 @@
 #include <netdb.h>
 #include <sys/un.h>
 #include <ifaddrs.h>
+#define PSOCKETERROR(prefix) {auto err=errno;LOGEP( prefix ": %s (errno: %d)", strerror(err), err);}
+#define PSOCKETERROREX(prefix,...) {auto err=errno;LOGEP( prefix ": %s (errno: %d)", __VA_ARGS__ , strerror(err), err);}
 #endif
 
 #include <vector>

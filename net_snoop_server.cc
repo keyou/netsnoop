@@ -106,7 +106,7 @@ int NetSnoopServer::Run()
         if (result < 0)
         {
             // Todo: close socket
-            LOGEP("select error: %s(errno: %d)", strerror(errno), errno);
+            PSOCKETERROR("select error");
             return -1;
         }
 

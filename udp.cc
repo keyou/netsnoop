@@ -6,13 +6,6 @@
 #include "udp.h"
 #include "sock.h"
 
-#ifdef WIN32
-#ifdef errno
-#undef errno
-#endif
-#define errno WSAGetLastError()
-#endif // WIN32
-
 Udp::Udp() : Sock(SOCK_DGRAM, IPPROTO_UDP) {}
 Udp::Udp(int fd) : Sock(SOCK_DGRAM, IPPROTO_UDP, fd) {}
 int Udp::Listen(int count)
@@ -36,7 +29,7 @@ int Udp::Accept()
 
     if ((result = recvfrom(fd_, buf, sizeof(buf), 0, (struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
     {
-        LOGEP("accept error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("accept error");
         return -1;
     }
 
@@ -48,7 +41,7 @@ int Udp::Accept()
         return -1;
     if (connect(peerfd, (struct sockaddr *)&peeraddr, peeraddr_size) < 0)
     {
-        LOGEP("connect error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("connect error");
         return -1;
     }
     if ((result = Send(peerfd, buf, result)) < 0)
@@ -64,7 +57,7 @@ ssize_t Udp::SendTo(const std::string &buf, sockaddr_in *peeraddr)
 
     if ((result = sendto(fd_, buf.c_str(), buf.length(), 0, (struct sockaddr *)peeraddr, sizeof(sockaddr_in))) < 0)
     {
-        LOGEP("sendto error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("sendto error");
         return -1;
     }
     if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
@@ -87,7 +80,7 @@ ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in *peeraddr)
 
     if ((result = recvfrom(fd_, &buf[0], buf.length(), 0, (struct sockaddr *)peeraddr, &peeraddr_size)) == -1)
     {
-        LOGEP("accept error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("accept error");
         return -1;
     }
 
@@ -115,7 +108,7 @@ int join_or_drop(int fd, std::string group_addr, std::string interface_addr, boo
 
     if (setsockopt(fd, IPPROTO_IP, type, (const char *)&mreq, sizeof(mreq)) == -1)
     {
-        LOGEP("setsocketopt %s error: %s(errno: %d)", type == IP_ADD_MEMBERSHIP ? "IP_ADD_MEMBERSHIP" : "IP_DROP_MEMBERSHIP", strerror(errno), errno);
+        PSOCKETERROREX("setsocketopt %s error", type == IP_ADD_MEMBERSHIP ? "IP_ADD_MEMBERSHIP" : "IP_DROP_MEMBERSHIP");
         return -1;
     }
 

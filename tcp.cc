@@ -8,13 +8,6 @@
 #include "netsnoop.h"
 #include "sock.h"
 
-#ifdef WIN32
-#ifdef errno
-#undef errno
-#endif
-#define errno WSAGetLastError()
-#endif // WIN32
-
 Tcp::Tcp() : Sock(SOCK_STREAM, IPPROTO_TCP) {}
 Tcp::Tcp(int fd) : Sock(SOCK_STREAM, IPPROTO_TCP, fd) {}
 int Tcp::Listen(int count)
@@ -23,7 +16,7 @@ int Tcp::Listen(int count)
 
     if (listen(fd_, count) < 0)
     {
-        LOGEP("listen error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("listen error");
         return -1;
     }
 
@@ -45,7 +38,7 @@ int Tcp::Accept()
 
     if ((peerfd = accept(fd_, (struct sockaddr *)&peeraddr, &peeraddr_size)) == -1)
     {
-        LOGEP("accept error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("accept error");
         return -1;
     }
     LOGDP("accept tcp: %s:%d", inet_ntoa(peeraddr.sin_addr), ntohs(peeraddr.sin_port));
@@ -58,14 +51,14 @@ int Tcp::InitializeEx(int fd) const
 
     if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *)&opt, sizeof(opt)) < 0)
     {
-        LOGEP("setsockopt TCP_NODELAY error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("setsockopt TCP_NODELAY error");
         closesocket(fd);
         return -1;
     }
     opt = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&opt, sizeof(opt)) < 0)
     {
-        LOGEP("setsockopt TCP_NODELAY error: %s(errno: %d)", strerror(errno), errno);
+        PSOCKETERROR("setsockopt TCP_NODELAY error");
         closesocket(fd);
         return -1;
     }
@@ -77,19 +70,19 @@ int Tcp::InitializeEx(int fd) const
 
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int))<0)
     {
-        LOGEP("setsocketopt TCP_KEEPCNT error: %s(errno: %d)",strerror(errno),errno);
+        PSOCKETERROR("setsocketopt TCP_KEEPCNT error");
         closesocket(fd);
         return -1;
     }
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(int))<0)
     {
-        LOGEP("setsocketopt TCP_KEEPIDLE error: %s(errno: %d)",strerror(errno),errno);
+        PSOCKETERROR("setsocketopt TCP_KEEPIDLE error");
         closesocket(fd);
         return -1;
     }
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(int))<0)
     {
-        LOGEP("setsocketopt TCP_KEEPINTVL error: %s(errno: %d)",strerror(errno),errno);
+        PSOCKETERROR("setsocketopt TCP_KEEPINTVL error");
         closesocket(fd);
         return -1;
     }

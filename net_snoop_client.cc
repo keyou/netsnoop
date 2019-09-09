@@ -44,7 +44,7 @@ int NetSnoopClient::Run()
         ASSERT(result>0);
         if (result <= 0)
         {
-            LOGEP("select error: %d,%d", result, errno);
+            PSOCKETERROR("select error");
             return -1;
         }
         if (FD_ISSET(context->data_fd, &read_fds))
