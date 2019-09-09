@@ -138,6 +138,8 @@ int Udp::BindMulticastInterface(std::string interface_addr)
     // result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl, sizeof(ttl));
     // ASSERT_RETURN(result >= 0, -1);
 
+    LOGDP("bind multicast interface: %s",interface_addr.c_str());
+
     return 0;
 }
 
