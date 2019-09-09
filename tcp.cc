@@ -8,6 +8,13 @@
 #include "netsnoop.h"
 #include "sock.h"
 
+#ifdef WIN32
+#ifdef errno
+#undef errno
+#endif
+#define errno WSAGetLastError()
+#endif // WIN32
+
 Tcp::Tcp() : Sock(SOCK_STREAM, IPPROTO_TCP) {}
 Tcp::Tcp(int fd) : Sock(SOCK_STREAM, IPPROTO_TCP, fd) {}
 int Tcp::Listen(int count)

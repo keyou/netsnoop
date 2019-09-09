@@ -26,6 +26,13 @@
 
 #include "sock.h"
 
+#ifdef WIN32
+#ifdef errno
+#undef errno
+#endif
+#define errno WSAGetLastError()
+#endif // WIN32
+
 //static
 int Sock::CreateSocket(int type, int protocol)
 {

@@ -6,6 +6,13 @@
 #include "udp.h"
 #include "sock.h"
 
+#ifdef WIN32
+#ifdef errno
+#undef errno
+#endif
+#define errno WSAGetLastError()
+#endif // WIN32
+
 Udp::Udp() : Sock(SOCK_DGRAM, IPPROTO_UDP) {}
 Udp::Udp(int fd) : Sock(SOCK_DGRAM, IPPROTO_UDP, fd) {}
 int Udp::Listen(int count)

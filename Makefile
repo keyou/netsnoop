@@ -27,7 +27,7 @@ endif
 BUILD_VERSION?=$(shell git rev-list --count HEAD)
 CXXFLAGS += -DBUILD_VERSION=$(BUILD_VERSION)
 
-PACKDIR:=./publish
+PUBLISHDIR:=./publish
 
 DEPS = netsnoop.h command.h
 OBJS = command$(OBJ) context2$(OBJ) \
@@ -58,21 +58,24 @@ win32_debug:
 debug:
 	@make BUILD=DEBUG
 
-.PHONY: pack
-pack: all win32
-	@mkdir -p $(PACKDIR)
-	@echo $(EXES) | xargs -n1 | xargs -i cp ./{} $(PACKDIR)
-	$(eval OBJ=.obj)
+.PHONY: publish
+publish: all win32
+	@mkdir -p $(PUBLISHDIR)
+	@echo $(EXES) | xargs -n1 | xargs -i cp ./{} $(PUBLISHDIR)
 	$(eval EXE=.exe)
-	@echo $(EXES) | xargs -n1 | xargs -i cp ./{} $(PACKDIR)
-	@echo copy to $(PACKDIR) dir success!
-	@ls $(PACKDIR)
+	@echo $(EXES) | xargs -n1 | xargs -i cp ./{} $(PUBLISHDIR)
+	@echo copy to $(PUBLISHDIR) dir success!
+	@ls $(PUBLISHDIR)
+
+.PHONY: package
+package: publish
+	zip -r netsnoop.zip $(PUBLISHDIR)
 
 .PHONY: clean
 clean:
-	@echo $(OBJS) $(EXES) | xargs -n1 rm -f
-	$(eval OBJ=.obj)
+	@rm -rf *.o *.obj
+	@echo $(EXES) | xargs -n1 rm -f
 	$(eval EXE=.exe)
-	@echo $(OBJS) $(EXES) | xargs -n1 rm -f
+	@echo $(EXES) | xargs -n1 rm -f
 	@echo clean success!
 

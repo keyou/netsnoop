@@ -100,7 +100,7 @@ int NetSnoopClient::Connect()
         retry--;
         if(retry == 0)
         {
-            LOGEP("connect server error: %s:%d",option_->ip_remote,option_->port);
+            LOGEP("connect to %s:%d error.",option_->ip_remote,option_->port);
             return -1;
         }
     }
