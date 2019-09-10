@@ -160,13 +160,15 @@ private:
 
 #define EXPORT
 
+#define MAX_CLINETS 500
+
 #define ERR_ILLEGAL_PARAM -7
 #define ERR_DEFAULT -1
 #define ERR_SOCKET_CLOSED -2
 #define ERR_TIMEOUT -3
-#define MAX_CLINETS 500
-#define ERR_OTHER -99
 #define ERR_ILLEGAL_DATA -5
+#define ERR_AUTH_ERROR -6
+#define ERR_OTHER -99
 
 #define DISALLOW_COPY_AND_ASSIGN(clazz)       \
     clazz(const clazz &) = delete;            \

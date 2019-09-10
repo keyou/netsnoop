@@ -13,8 +13,9 @@ usage:
   --------
   command:
   ping count 10                       (test delay)
-  send count 1000                     (test thoughput)
+  send count 1000                     (test unicast)
   send count 1000 multicast true      (test multicast)
+  send speed 500 time 3000            (test unicast)
   
   version: v0.1.85 (Aug 28 2019 15:02:50)
 ```
@@ -49,6 +50,9 @@ ping count 10 interval 200 size 1472
 # you can add 'multicast true' to detect multicast performance.
 # you can add 'wait 500' to make client wait 500 milliseconds until stop receive data.
 send count 200 interal 10 size 1472
+
+# send in 500KB/s speed, 3000 milliseconds.
+send speed 500 time 3000
 ```
 
 ## Subcommands
@@ -62,7 +66,8 @@ ping [count <num>] [interval <milliseconds>] [size <num>] [wait <milliseconds>]
 `send` Format:
 
 ```python
-send [count <num>] [interval <milliseconds>] [size <num>] [wait <milliseconds>]
+send [count <num>] [interval <milliseconds>] [size <num>] [wait <milliseconds>] \
+     [speed <KB/s>] [time <milliseconds>] [timeout <milliseconds>]
 ```
 
 ## For developers
@@ -73,12 +78,16 @@ TODO:
 
 - Support 'recv' command which is revese of 'send'.
 - Reflector the multicast code.
+- Support NAT environment.
 
 ### Compile
 
 #### Linux
 
 In Linux alike system just run `make`.
+
+And you can run `make package` to compile and pack the binary to zip archive.
+It will compile linux and win32 binaries(mingw needed.).
 
 #### Windows
 

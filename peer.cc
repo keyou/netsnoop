@@ -67,37 +67,44 @@ int Peer::RecvData()
 int Peer::Auth()
 {
     int result;
-    std::string buf(1024, '\0');
+    std::string buf(MAX_UDP_LENGTH, '\0');
     if ((result = control_sock_->Recv(&buf[0], buf.length())) <= 0)
     {
         LOGEP("Disconnect.");
-        return -1;
+        return ERR_AUTH_ERROR;
     }
     buf.resize(result);
 
     if (buf.rfind("cookie:", 0) != 0)
     {
         LOGEP("Bad client.");
-        return -1;
+        return ERR_AUTH_ERROR;
     }
     cookie_ = buf;
-    std::string local_ip,peer_ip;
-    int local_port,peer_port;
+    std::string local_ip;
+    int local_port;
     result = control_sock_->GetLocalAddress(local_ip, local_port);
-    ASSERT(result >= 0);
+    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
 
-    data_sock_ = std::make_shared<Udp>();
-    result = data_sock_->Initialize();
-    ASSERT(result >= 0);
-    result = data_sock_->Bind(local_ip, local_port);
-    ASSERT(result >= 0);
+    std::string remote_ip,peer_ip;
+    int remote_port,peer_port;
+    result = control_sock_->GetPeerAddress(remote_ip,remote_port);
+    ASSERT_RETURN(result>=0,ERR_AUTH_ERROR);
 
     buf = buf.substr(sizeof("cookie:") - 1);
     int index = buf.find(':');
     peer_ip = buf.substr(0, index);
     peer_port = atoi(buf.substr(index + 1).c_str());
+    // TODO: support NAT environment.
+    ASSERT_RETURN(peer_ip==remote_ip,ERR_AUTH_ERROR,"support test on the same network only.");
+
+    data_sock_ = std::make_shared<Udp>();
+    result = data_sock_->Initialize();
+    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
+    result = data_sock_->Bind(local_ip, local_port);
+    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
     result = data_sock_->Connect(peer_ip, peer_port);
-    ASSERT(result >= 0);
+    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
 
     LOGDP("connect new client(fd=%d): %s:%d", data_sock_->GetFd(), peer_ip.c_str(), peer_port);
     if (OnAuthSuccess)

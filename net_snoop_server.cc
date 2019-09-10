@@ -162,7 +162,7 @@ int NetSnoopServer::Run()
                 }
                 peer->Stop();
                 it = peers_.erase(it);
-                if (OnPeerDisconnected)
+                if (result!=ERR_AUTH_ERROR&&OnPeerDisconnected)
                     OnPeerDisconnected(peer.get());
             }
             else
@@ -238,13 +238,15 @@ int NetSnoopServer::AceeptNewConnect()
         return -1;
     }
 
+    std::string ip;
+    int port;
     auto tcp = std::make_shared<Tcp>(result);
+    result = tcp->GetLocalAddress(ip, port);
+    ASSERT_RETURN(result>=0,-1);
+    LOGIP("accept new connect: %s:%d",ip.c_str(),port);
+
     if (!multicast_sock_)
     {
-        std::string ip;
-        int port;
-        result = tcp->GetLocalAddress(ip, port);
-        
         multicast_sock_ = std::make_shared<Udp>();
         result = multicast_sock_->Initialize();
         result = multicast_sock_->BindMulticastInterface(ip);
