@@ -250,7 +250,7 @@ int NetSnoopServer::AceeptNewConnect()
         multicast_sock_ = std::make_shared<Udp>();
         result = multicast_sock_->Initialize();
         result = multicast_sock_->BindMulticastInterface(ip);
-        ASSERT_RETURN(result>=0,-1,"bind multicast interface error.")
+        ASSERT_RETURN(result>=0,-1,"bind multicast interface error.");
 
         result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
         ASSERT_RETURN(result >= 0, -1, "multicast socket connect server error.");
