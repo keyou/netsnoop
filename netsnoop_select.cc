@@ -193,7 +193,7 @@ void StartClient()
     int result;
     std::vector<std::string> ips;
     ips.push_back(g_option->ip_remote);
-
+    int scale = 1;
     while (true)
     {
         for (int i = ips.size()-1;i>=0;i--)
@@ -242,18 +242,20 @@ void StartClient()
             //     }
             // }
             
-            std::clog << "finding server... " << std::endl;
+            std::clog << "finding server...(timeout="<< 5*scale <<")"<< std::endl;
             std::string server_ip(40, 0);
             fd_set readfds;
             FD_ZERO(&readfds);
-            timeval timeout{5};
+            timeval timeout{5*scale};
+            if(scale<100) scale++;
             result = select(multicast.GetFd()+1,&readfds,NULL,NULL,&timeout);
+            ASSERT_RETURN(result>=0);
             if(result==0)
             {
                 continue;
             }
             result = multicast.RecvFrom(server_ip, &server_addr);
-            ASSERT(result>=0);
+            ASSERT_RETURN(result>=0);
             server_ip.resize(result);
             if(server_ip == "0.0.0.0")
             {
