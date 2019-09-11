@@ -133,9 +133,11 @@ int NetSnoopClient::Connect()
     std::string cookie("cookie:" + ip_local + ":" + std::to_string(port_local));
     result = control_sock_->Send(cookie.c_str(), cookie.length());
     ASSERT_RETURN(result >= 0,-1);
+    // TODO: optimize this code, wait for server creating the data sock
+    usleep(500);
     // to make a hole in the firewall.
-    // result = data_sock_->Send(cookie.c_str(), cookie.length());
-    // ASSERT_RETURN(result >= 0,-1);
+    result = data_sock_->Send(cookie.c_str(), cookie.length());
+    ASSERT_RETURN(result >= 0,-1);
 
     context_->control_fd = control_sock_->GetFd();
     context_->data_fd = data_sock_->GetFd();
