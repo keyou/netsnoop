@@ -27,7 +27,7 @@ int EchoCommandReceiver::Start()
     LOGDP("EchoCommandReceiver start command.");
     ASSERT_RETURN(!running_, -1, "EchoCommandReceiver start unexpeted.");
     running_ = true;
-    context_->SetReadFd(data_sock_->GetFd());
+    //context_->SetReadFd(data_sock_->GetFd());
     return 0;
 }
 int EchoCommandReceiver::Stop()
@@ -35,7 +35,7 @@ int EchoCommandReceiver::Stop()
     LOGDP("EchoCommandReceiver stop command.");
     ASSERT_RETURN(running_, -1, "EchoCommandReceiver stop unexpeted.");
     running_ = false;
-    context_->ClrReadFd(data_sock_->GetFd());
+    //context_->ClrReadFd(data_sock_->GetFd());
     context_->ClrWriteFd(data_sock_->GetFd());
     // allow send result
     context_->SetWriteFd(control_sock_->GetFd());
@@ -78,7 +78,7 @@ int EchoCommandReceiver::Recv()
     context_->SetWriteFd(data_sock_->GetFd());
     // context_->ClrReadFd(data_sock_->GetFd());
     recv_count_++;
-    return 0;
+    return result;
 }
 
 int EchoCommandReceiver::SendPrivateCommand()
@@ -119,7 +119,7 @@ int SendCommandReceiver::Start()
     LOGDP("SendCommandReceiver start command.");
     ASSERT_RETURN(!running_, -1, "SendCommandReceiver start unexpeted.");
     running_ = true;
-    context_->SetReadFd(data_sock_->GetFd());
+    //context_->SetReadFd(data_sock_->GetFd());
     recv_count_ = 0;
     return 0;
 }
@@ -128,7 +128,7 @@ int SendCommandReceiver::Stop()
     LOGDP("SendCommandReceiver stop command.");
     ASSERT_RETURN(running_, -1, "SendCommandReceiver stop unexpeted.");
     running_ = false;
-    context_->ClrReadFd(data_sock_->GetFd());
+    //context_->ClrReadFd(data_sock_->GetFd());
     context_->ClrWriteFd(data_sock_->GetFd());
     //context_->ClrReadFd(control_sock_->GetFd());
     // allow to send stop command.

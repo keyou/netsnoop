@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <sstream>
 #include <fstream>
+#include <algorithm>
 
 #define TAG "NETSNOOP"
 
@@ -188,4 +189,19 @@ struct Option
     char ip_remote[20];
     char ip_multicast[20];
     int port;
+};
+
+class Tools
+{
+public:
+    static std::string GetDataSum(const std::string& data,size_t length=64)
+    {
+        std::string tmp(data,std::min(data.length(),length));
+        std::ostringstream out;
+        for(char c : tmp)
+        {
+            out<< (isprint(c)?c:'.');
+        }
+        return out.str();
+    }
 };

@@ -23,6 +23,8 @@ private:
     int Connect();
     int RecvCommand();
     int SendCommand();
+    int RecvData(std::shared_ptr<Sock> data_sock);
+    int SendData();
 
     std::shared_ptr<Option> option_;
     std::shared_ptr<Context> context_;

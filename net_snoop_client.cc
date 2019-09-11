@@ -17,7 +17,6 @@ int NetSnoopClient::Run()
 
     if ((result = Connect()) != 0)
         return result;
-    context->SetReadFd(context->control_fd);
 
     while (true)
     {
@@ -38,26 +37,31 @@ int NetSnoopClient::Run()
         }
 #endif
 
-        LOGVP("client[%d] selecting",context->control_fd);
+        LOGVP("client[%d] selecting",control_sock_->GetFd());
         result = select(context->max_fd + 1, &read_fds, &write_fds, NULL, NULL);
-        LOGVP("client[%d] selected",context->control_fd);
+        LOGVP("client[%d] selected",control_sock_->GetFd());
         ASSERT(result>0);
         if (result <= 0)
         {
             PSOCKETERROR("select error");
             return -1;
         }
-        if (FD_ISSET(context->data_fd, &read_fds))
+        if (FD_ISSET(data_sock_->GetFd(), &read_fds))
         {
-            result = receiver_->Recv();
-            ASSERT(result>=0);
+            result = RecvData(data_sock_);
+            ASSERT_RETURN(result>0,-1);
         }
-        if (FD_ISSET(context->data_fd, &write_fds))
+        if (FD_ISSET(data_sock_->GetFd(), &write_fds))
         {
-            result = receiver_->Send();
-            ASSERT(result>=0);
+            result = SendData();
+            ASSERT_RETURN(result>0,-1);
         }
-        if (FD_ISSET(context->control_fd, &write_fds))
+        if (FD_ISSET(multicast_sock_->GetFd(), &read_fds))
+        {
+            result = RecvData(multicast_sock_);
+            ASSERT_RETURN(result>0,-1);
+        }
+        if (FD_ISSET(control_sock_->GetFd(), &write_fds))
         {
             if ((result = SendCommand()) < 0)
             {
@@ -65,7 +69,7 @@ int NetSnoopClient::Run()
                 break;
             }
         }
-        if (FD_ISSET(context->control_fd, &read_fds))
+        if (FD_ISSET(control_sock_->GetFd(), &read_fds))
         {
             if ((result = RecvCommand()) == ERR_DEFAULT)
             {
@@ -133,6 +137,10 @@ int NetSnoopClient::Connect()
     context_->control_fd = control_sock_->GetFd();
     context_->data_fd = data_sock_->GetFd();
 
+    context_->SetReadFd(control_sock_->GetFd());
+    context_->SetReadFd(data_sock_->GetFd());
+    context_->SetReadFd(multicast_sock_->GetFd());
+
     if(OnConnected) OnConnected();
 
     return 0;
@@ -180,7 +188,6 @@ int NetSnoopClient::RecvCommand()
     result = control_sock_->Send(ack_command->GetCmd().c_str(),ack_command->GetCmd().length());
     ASSERT_RETURN(result>0,ERR_DEFAULT,"send ack command error.");
 
-    context_->data_fd = command->is_multicast?multicast_sock_->GetFd():data_sock_->GetFd();
     auto channel = std::shared_ptr<CommandChannel>(new CommandChannel{
         command,context_,control_sock_,command->is_multicast?multicast_sock_:data_sock_
     });
@@ -193,5 +200,29 @@ int NetSnoopClient::RecvCommand()
 int NetSnoopClient::SendCommand()
 {
     ASSERT(receiver_);
-    return receiver_->SendPrivateCommand();
+    int result = receiver_->SendPrivateCommand();
+    receiver_ = NULL;
+    return result;
+}
+
+int NetSnoopClient::RecvData(std::shared_ptr<Sock> data_sock)
+{
+    int result;
+    if(!receiver_)
+    {
+        std::string buf(MAX_UDP_LENGTH,'\0');
+        result = data_sock->Recv(&buf[0],buf.length());
+        ASSERT_RETURN(result>0,-1);
+        buf.resize(result);
+        LOGWP("recv out of command data: %s",Tools::GetDataSum(buf).c_str());
+        return result;
+    }
+    result = receiver_->Recv();
+    return result;
+}
+
+int NetSnoopClient::SendData()
+{
+    int result = receiver_->Send();
+    return result;
 }

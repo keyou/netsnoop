@@ -60,7 +60,16 @@ int Peer::SendData()
 
 int Peer::RecvData()
 {
-    ASSERT_RETURN(commandsender_, -1);
+    if(!commandsender_)
+    {
+        ASSERT_RETURN(data_sock_,-1);
+        std::string buf(MAX_UDP_LENGTH,'\0');
+        int result = data_sock_->Recv(&buf[0],buf.length());
+        ASSERT_RETURN(result>0,-1);
+        buf.resize(result);
+        LOGWP("recv out of command data: %s",Tools::GetDataSum(buf).c_str());
+        return 0;
+    }
     return commandsender_->RecvData();
 }
 
@@ -105,6 +114,7 @@ int Peer::Auth()
     ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
     result = data_sock_->Connect(peer_ip, peer_port);
     ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
+    context_->SetReadFd(data_sock_->GetFd());
 
     LOGDP("connect new client(fd=%d): %s:%d", data_sock_->GetFd(), peer_ip.c_str(), peer_port);
     if (OnAuthSuccess)

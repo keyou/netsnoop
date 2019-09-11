@@ -24,12 +24,10 @@ public:
     virtual int Stop() = 0;
     virtual int Send()
     {
-        ASSERT(0);
         return -1;
     }
     virtual int Recv()
     {
-        ASSERT(0);
         return -1;
     }
     virtual int RecvPrivateCommand(std::shared_ptr<Command> private_command);
