@@ -133,6 +133,9 @@ int NetSnoopClient::Connect()
     std::string cookie("cookie:" + ip_local + ":" + std::to_string(port_local));
     result = control_sock_->Send(cookie.c_str(), cookie.length());
     ASSERT_RETURN(result >= 0,-1);
+    // to make a hole in the firewall.
+    // result = data_sock_->Send(cookie.c_str(), cookie.length());
+    // ASSERT_RETURN(result >= 0,-1);
 
     context_->control_fd = control_sock_->GetFd();
     context_->data_fd = data_sock_->GetFd();
@@ -149,7 +152,7 @@ int NetSnoopClient::Connect()
 int NetSnoopClient::RecvCommand()
 {
     int result;
-    std::string cmd(64, '\0');
+    std::string cmd(MAX_UDP_LENGTH, '\0');
     if ((result = control_sock_->Recv(&cmd[0], cmd.length())) < 0)
     {
         return ERR_DEFAULT;

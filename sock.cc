@@ -30,17 +30,17 @@
 int Sock::CreateSocket(int type, int protocol)
 {
     int sockfd;
-    LOGDP("create socket.");
     if ((sockfd = socket(AF_INET, type, protocol)) < 0)
     {
-        PSOCKETERROR("create socket error");
+        PSOCKETERROREX("create socket error(%d)",sockfd);
         return -1;
     }
+    LOGDP("create %s socket(%d).",protocol==IPPROTO_TCP?"tcp":"udp",sockfd);
 
     int opt = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
     {
-        PSOCKETERROR("setsockopt SO_REUSEADDR error");
+        PSOCKETERROREX("setsockopt SO_REUSEADDR error(%d)",sockfd);
         closesocket(sockfd);
         return -1;
     }
@@ -63,12 +63,12 @@ int Sock::Bind(int fd_, std::string ip, int port)
         return ERR_ILLEGAL_PARAM;
     }
 
-    LOGDP("bind %s:%d", ip.c_str(), port);
     if (bind(fd_, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
     {
-        PSOCKETERROR("bind error");
+        PSOCKETERROREX("bind error(%d)",fd_);
         return -1;
     }
+    LOGDP("bind(%d): %s:%d", fd_, ip.c_str(), port);
 
     return 0;
 }
@@ -90,12 +90,12 @@ int Sock::Connect(int fd_, std::string ip, int port)
         return ERR_ILLEGAL_PARAM;
     }
 
-    LOGDP("connect %s:%d", ip.c_str(), port);
     if (connect(fd_, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
     {
-        PSOCKETERROR("connect error");
+        PSOCKETERROREX("connect error(%d)",fd_);
         return -1;
     }
+    LOGDP("connect(%d): %s:%d", fd_, ip.c_str(), port);
     return 0;
 }
 
@@ -106,7 +106,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
     ssize_t result;
     if ((result = send(fd_, buf, size, 0)) < 0 || result != size)
     {
-        PSOCKETERROR("send error");
+        PSOCKETERROREX("send error(%d)",fd_);
         return -1;
     }
 
@@ -118,7 +118,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
         {
             out<< (isprint(c)?c:'.');
         }
-        LOGVP("send(%ld): %s", result, out.str().c_str());
+        LOGVP("send(%d): length=%ld,%s",fd_, result, out.str().c_str());
     }
     return result;
 }
@@ -132,10 +132,10 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
     {
         if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
         {
-            PSOCKETERROR("recv error");
+            PSOCKETERROREX("recv error(%d)",fd_);
             return -1;
         }
-        LOGEP("recv timeout.");
+        PSOCKETERROREX("recv timeout(%d)",fd_);
         return ERR_TIMEOUT;
     }
 
@@ -147,7 +147,7 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
         {
             out<< (isprint(c)?c:'.');
         }
-        LOGVP("recv(%ld): %s", result, out.str().c_str());
+        LOGVP("recv(%d): length=%ld,%s",fd_, result, out.str().c_str());
     }
     return result;
 }
@@ -207,7 +207,7 @@ int Sock::GetLocalAddress(int fd_, sockaddr_in *localaddr)
     memset(localaddr, 0, localaddr_length);
     if (getsockname(fd_, (sockaddr *)localaddr, &localaddr_length) < 0)
     {
-        PSOCKETERROR("getsockname error");
+        PSOCKETERROREX("getsockname error(%d)",fd_);
         return -1;
     }
     return 0;
@@ -219,7 +219,7 @@ int Sock::GetPeerAddress(int fd_, sockaddr_in *peeraddr)
     memset(peeraddr, 0, peeraddr_length);
     if (getpeername(fd_, (sockaddr *)peeraddr, &peeraddr_length) < 0)
     {
-        PSOCKETERROR("getpeername error");
+        PSOCKETERROREX("getpeername error(%d)",fd_);
         return -1;
     }
     return 0;
@@ -307,7 +307,7 @@ std::vector<std::string> Sock::Host2Ips(const std::string &host)
     errcode = getaddrinfo(host.c_str(), NULL, &hints, &res);
     if (errcode != 0)
     {
-        PSOCKETERROR("getaddrinfo error");
+        PSOCKETERROREX("getaddrinfo error(%d)",fd_);
         return ips;
     }
 

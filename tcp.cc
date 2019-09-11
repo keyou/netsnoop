@@ -41,7 +41,7 @@ int Tcp::Accept()
         PSOCKETERROR("accept error");
         return -1;
     }
-    LOGDP("accept tcp: %s:%d", inet_ntoa(peeraddr.sin_addr), ntohs(peeraddr.sin_port));
+    LOGDP("accept tcp(%d): fd=%d, %s:%d", fd_, peerfd, inet_ntoa(peeraddr.sin_addr), ntohs(peeraddr.sin_port));
     return peerfd;
 }
 

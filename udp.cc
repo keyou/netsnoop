@@ -64,7 +64,7 @@ ssize_t Udp::SendTo(const std::string &buf, sockaddr_in *peeraddr)
     {
         char *ip = inet_ntoa(peeraddr->sin_addr);
         int port = ntohs(peeraddr->sin_port);
-        LOGDP("sendto(%s:%d)(%d): %s", ip, port, result, buf.substr(0, 64).c_str());
+        LOGDP("sendto(%d): %s:%d length=%ld, %s", fd_, ip, port, result, buf.substr(0, 64).c_str());
     }
     return result;
 }
@@ -88,7 +88,7 @@ ssize_t Udp::RecvFrom(std::string &buf, sockaddr_in *peeraddr)
     {
         char *ip = inet_ntoa(peeraddr->sin_addr);
         int port = ntohs(peeraddr->sin_port);
-        LOGDP("recvfrom(%s:%d)(%d): %s", ip, port, result, buf.substr(0, 64).c_str());
+        LOGDP("recvfrom(%d): %s:%d length=%ld, %s", fd_, ip, port, result, buf.substr(0, 64).c_str());
     }
     return result;
 }
@@ -112,7 +112,7 @@ int join_or_drop(int fd, std::string group_addr, std::string interface_addr, boo
         return -1;
     }
 
-    LOGDP("multicast group %s: %s(%s)", join ? "join" : "drop", group_addr.c_str(), interface_addr.c_str());
+    LOGDP("multicast group %s(%d): %s(%s)", join ? "join" : "drop",fd, group_addr.c_str(), interface_addr.c_str());
     return 0;
 }
 
@@ -138,7 +138,7 @@ int Udp::BindMulticastInterface(std::string interface_addr)
     // result = setsockopt(fd_, IPPROTO_IP, IP_MULTICAST_TTL, (char *)&ttl, sizeof(ttl));
     // ASSERT_RETURN(result >= 0, -1);
 
-    LOGDP("bind multicast interface: %s",interface_addr.c_str());
+    LOGDP("bind multicast interface(%d): %s", fd_, interface_addr.c_str());
 
     return 0;
 }
