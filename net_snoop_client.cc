@@ -134,7 +134,7 @@ int NetSnoopClient::Connect()
     result = control_sock_->Send(cookie.c_str(), cookie.length());
     ASSERT_RETURN(result >= 0,-1);
     // TODO: optimize this code, wait for server creating the data sock
-    usleep(500);
+    usleep(1000);
     // to make a hole in the firewall.
     result = data_sock_->Send(cookie.c_str(), cookie.length());
     ASSERT_RETURN(result >= 0,-1);
