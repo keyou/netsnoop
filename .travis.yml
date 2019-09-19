@@ -7,4 +7,4 @@ addons:
     - ubuntu-toolchain-r-test
     packages:
     - gcc-4.8
-    - i686-w64-mingw32
+    - binutils-mingw-w64
