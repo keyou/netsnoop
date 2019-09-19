@@ -1,4 +1,10 @@
 language: cpp
-compiler: gcc
+compiler: gcc-4.8
 script: make package
-dist: trusty
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - gcc-4.8
+    - i686-w64-mingw32
