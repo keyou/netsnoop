@@ -4,6 +4,7 @@
 #include <mutex>
 #include <memory>
 #include <condition_variable>
+#include <math.h>
 
 #include "netsnoop.h"
 #include "net_snoop_client.h"
@@ -193,7 +194,7 @@ void StartClient()
     int result;
     std::vector<std::string> ips;
     ips.push_back(g_option->ip_remote);
-    int scale = 1;
+    int scale = 4;
     while (true)
     {
         for (int i = ips.size()-1;i>=0;i--)
@@ -203,8 +204,9 @@ void StartClient()
             strncpy(g_option->ip_remote, ip.c_str(), sizeof(g_option->ip_remote) - 1);
 
             NetSnoopClient client(g_option);
-            client.OnConnected = [] {
+            client.OnConnected = [&] {
                 std::clog << "connect to " << g_option->ip_remote << ":" << g_option->port << " (" << g_option->ip_multicast << ")" << std::endl;
+                scale = 0;
             };
             client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
                 std::cout << "peer finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
@@ -242,20 +244,26 @@ void StartClient()
             //     }
             // }
             
-            std::clog << "finding server...(timeout="<< 5*scale <<")"<< std::endl;
             std::string server_ip(40, 0);
             fd_set readfds;
             FD_ZERO(&readfds);
-            timeval timeout{5*scale};
-            if(scale<100) scale++;
+            int wait_seconds = pow(2,scale);
+            timeval timeout{wait_seconds};
+            if(scale<10) scale++;
+            std::clog << "finding server...(timeout="<< wait_seconds <<")"<< std::endl;
             result = select(multicast.GetFd()+1,&readfds,NULL,NULL,&timeout);
-            ASSERT_RETURN(result>=0);
+            if(result<0)
+            {
+                PSOCKETERROR("select error");
+                continue;
+            }
             if(result==0)
             {
+                LOGDP("select timeout.");
                 continue;
             }
             result = multicast.RecvFrom(server_ip, &server_addr);
-            ASSERT_RETURN(result>=0);
+            if(result<=0) continue;
             server_ip.resize(result);
             if(server_ip == "0.0.0.0")
             {
