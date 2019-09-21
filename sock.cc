@@ -110,7 +110,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
         return -1;
     }
 
-    if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
+    if (Logger::GetGlobalLogLevel() <= LogLevel::LLDEBUG)
     {
         std::string tmp(buf, std::min(result, (ssize_t)64));
         std::ostringstream out;
@@ -118,7 +118,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
         {
             out << (isprint(c) ? c : '.');
         }
-        LOGVP("send(%d): length=%ld,%s", fd_, result, out.str().c_str());
+        LOGDP("send(%d): length=%ld,%s", fd_, result, out.str().c_str());
     }
     return result;
 }
@@ -139,7 +139,7 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
         return ERR_TIMEOUT;
     }
 
-    if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
+    if (Logger::GetGlobalLogLevel() <= LogLevel::LLDEBUG)
     {
         std::string tmp(buf, std::min(result, (ssize_t)64));
         std::ostringstream out;
@@ -147,7 +147,7 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
         {
             out << (isprint(c) ? c : '.');
         }
-        LOGVP("recv(%d): length=%ld,%s", fd_, result, out.str().c_str());
+        LOGDP("recv(%d): length=%ld,%s", fd_, result, out.str().c_str());
     }
     return result;
 }

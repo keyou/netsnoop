@@ -198,7 +198,7 @@ int EchoCommandSender::RecvData()
     auto head = (DataHead*)&data_buf_[0];
     if(result<sizeof(DataHead)||head->token!=command_->token)
     {
-        LOGEP("recv illegal data: length=%d",result);
+        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(data_buf_.substr(0,result>0?std::min(result,64):0)).c_str());
         illegal_packets_++;
         return result;
     }
