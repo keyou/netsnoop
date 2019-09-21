@@ -123,7 +123,7 @@ int EchoCommandReceiver::SendPrivateCommand()
 
 SendCommandReceiver::SendCommandReceiver(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<SendCommand>(channel->command_)),
-      recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0),
+      buf_(MAX_UDP_LENGTH,'\0'),recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0),
       running_(false), is_stopping_(false), latest_recv_bytes_(0), 
       illegal_packets_(0), reorder_packets_(0), duplicate_packets_(0), timeout_packets_(0), sequence_(0),
       token_(command_->token),
