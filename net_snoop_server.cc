@@ -77,11 +77,11 @@ int NetSnoopServer::Run()
 #ifdef _DEBUG
         for (int i = 0; i < context_->max_fd + 1; i++)
         {
-            if (FD_ISSET(i, &context_->read_fds))
+            if (FD_ISSET(i, &read_fdsets))
             {
                 LOGVP("want read: %d", i);
             }
-            if (FD_ISSET(i, &context_->write_fds))
+            if (FD_ISSET(i, &write_fdsets))
             {
                 LOGVP("want write: %d", i);
             }
@@ -238,12 +238,14 @@ int NetSnoopServer::AceeptNewConnect()
         return -1;
     }
 
-    std::string ip;
-    int port;
+    std::string ip,ip_remote;
+    int port,port_remote;
     auto tcp = std::make_shared<Tcp>(result);
     result = tcp->GetLocalAddress(ip, port);
     ASSERT_RETURN(result>=0,-1);
-    LOGIP("accept new connect: %s:%d",ip.c_str(),port);
+    result = tcp->GetPeerAddress(ip_remote, port_remote);
+    ASSERT_RETURN(result>=0,-1);
+    LOGIP("accept new connect: %s:%d",ip_remote.c_str(),port_remote);
 
     if (!multicast_sock_)
     {

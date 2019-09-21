@@ -187,6 +187,7 @@ int EchoCommandSender::SendData()
     head->sequence = send_packets_-1;
     head->token = command_->token;
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
+    LOGDP("send payload data: send_packets %ld seq %ld timestamp %ld token %c",send_packets_,head->sequence,head->timestamp,head->token);
     return result;
 }
 
@@ -194,40 +195,35 @@ int EchoCommandSender::RecvData()
 {
     end_ = high_resolution_clock::now();
     int result = data_sock_->Recv(&data_buf_[0], data_buf_.length());
-    if(result>=sizeof(DataHead))
+    auto head = (DataHead*)&data_buf_[0];
+    if(result<sizeof(DataHead)||head->token!=command_->token)
     {
-        auto head = (DataHead*)&data_buf_[0];
-        auto character = head->token;
-        if(character==command_->token)
-        {
-            recv_packets_++;
-            auto delay = end_.time_since_epoch().count() - head->timestamp;
-            if(recv_packets_ == 1)
-            {
-                max_delay_ = min_delay_ = delay;
-            }
-            if(delay>command_->GetTimeout()*1000*1000)
-            {
-                timeout_packets_++;
-            }
-            LOGIP("ping delay %.2f",delay/1000.0/1000);
-            max_delay_ = std::max(max_delay_, delay);
-            min_delay_ = std::min(min_delay_, delay);
-            auto old_delay = delay_;
-            delay_ = delay_ + (delay - delay_)/recv_packets_;
-            varn_delay_ = varn_delay_ + (delay - old_delay)*(delay-delay_);
-            std_delay_ = std::sqrt(varn_delay_/recv_packets_);
-        }
-        else
-        {
-            illegal_packets_++;
-            LOGWP("recv old data: %c (expect %c)",character,command_->token);
-        }
+        LOGEP("recv illegal data: length=%d",result);
+        illegal_packets_++;
+        return result;
     }
-    else
+
+    recv_packets_++;
+    auto delay = end_.time_since_epoch().count() - head->timestamp;
+    if(recv_packets_ == 1)
     {
-        ASSERT_RETURN(0,ERR_DEFAULT,"EchoCommandSender recv unexpected data.");
+        max_delay_ = min_delay_ = delay;
     }
+    if(delay>command_->GetTimeout()*1000*1000)
+    {
+        timeout_packets_++;
+    }
+
+    max_delay_ = std::max(max_delay_, delay);
+    min_delay_ = std::min(min_delay_, delay);
+    auto old_delay = delay_;
+    delay_ = delay_ + (delay - delay_)/recv_packets_;
+    varn_delay_ = varn_delay_ + (delay - old_delay)*(delay-delay_);
+    std_delay_ = std::sqrt(varn_delay_/recv_packets_);
+
+    LOGDP("recv payload data: recv_packets %ld seq %ld timestamp %ld token %c",recv_packets_,head->sequence,head->timestamp,head->token);
+    LOGIP("ping delay %.02f",delay/1000.0/1000);
+
     return result;
 }
 
@@ -337,7 +333,16 @@ int SendCommandSender::SendData()
 int SendCommandSender::RecvData()
 {
     // we don't expect recv any data
-    ASSERT_RETURN(0,-1,"SendCommandSender don't expect recv any data.");
+    std::string buf(MAX_UDP_LENGTH,'\0');
+    int result = data_sock_->Recv(&buf[0], buf.length());
+    auto head = (DataHead*)&buf[0];
+    if(result<sizeof(DataHead))
+    {
+        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf.substr(0,result>0?std::min(result,64):0)).c_str());
+        return result;
+    }
+    LOGWP("recv illegal data(%d): seq %s timestamp %ld token %c",data_sock_->GetFd(),head->sequence,head->timestamp,head->token);
+    return 0;
 }
 int SendCommandSender::OnTimeout()
 {
@@ -382,7 +387,7 @@ int SendCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
             stat->send_pps = send_packets_/ seconds;
             stat->send_speed = stat->send_bytes / seconds;
         }
-        stat->loss = 1 - 1.0 * (stat->recv_packets - stat->illegal_packets - stat->duplicate_packets) / send_packets_;
+        stat->loss = 1 - 1.0 * stat->recv_packets / send_packets_;
     }
 
     OnStopped(stat);

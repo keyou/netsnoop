@@ -18,7 +18,8 @@ int CommandReceiver::RecvPrivateCommand(std::shared_ptr<Command> command)
 
 EchoCommandReceiver::EchoCommandReceiver(std::shared_ptr<CommandChannel> channel)
     : send_count_(0), recv_count_(0), running_(false), is_stopping_(false),
-      command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)), CommandReceiver(channel)
+      command_(std::dynamic_pointer_cast<EchoCommand>(channel->command_)), CommandReceiver(channel),
+      illegal_packets_(0), token_(command_->token)
 {
 }
 
@@ -34,9 +35,8 @@ int EchoCommandReceiver::Stop()
 {
     LOGDP("EchoCommandReceiver stop command.");
     ASSERT_RETURN(running_, -1, "EchoCommandReceiver stop unexpeted.");
-    running_ = false;
     //context_->ClrReadFd(data_sock_->GetFd());
-    context_->ClrWriteFd(data_sock_->GetFd());
+    //context_->ClrWriteFd(data_sock_->GetFd());
     // allow send result
     context_->SetWriteFd(control_sock_->GetFd());
     return 0;
@@ -69,15 +69,27 @@ int EchoCommandReceiver::Recv()
     int result;
     ASSERT(running_);
     std::string buf(MAX_UDP_LENGTH, 0);
-    if ((result = data_sock_->Recv(&buf[0], buf.length())) < 0)
+    if ((result = data_sock_->Recv(&buf[0], buf.length())) < sizeof(DataHead))
     {
+        LOGEP("recv illegal data: length=%d",result);
         return -1;
     }
     buf.resize(result);
+    
+    auto head = reinterpret_cast<DataHead*>(&buf[0]);
+    if (token_ != head->token)
+    {
+        illegal_packets_++;
+        LOGWP("recv illegal data: seq=%ld, token=%c, expect %c",head->sequence, head->token, token_);
+        return result;
+    }
+
     data_queue_.push(buf);
     context_->SetWriteFd(data_sock_->GetFd());
     // context_->ClrReadFd(data_sock_->GetFd());
     recv_count_++;
+
+    LOGDP("recv payload data: recv_count %ld seq %ld timestamp %ld token %c",recv_count_,head->sequence,head->timestamp,head->token);
     return result;
 }
 
@@ -85,12 +97,15 @@ int EchoCommandReceiver::SendPrivateCommand()
 {
     LOGDP("EchoCommandReceiver send stop");
     int result;
-    context_->ClrWriteFd(control_sock_->GetFd());
-
     if (data_queue_.size() > 0)
     {
-        LOGWP("echo stop: drop %ld data.", data_queue_.size());
+        LOGWP("final send %ld data.", data_queue_.size());
+        //TODO: optimize the logic
+        Send();
     }
+    context_->ClrWriteFd(control_sock_->GetFd());
+    context_->ClrWriteFd(data_sock_->GetFd());
+    running_ = false;
 
     auto command = std::make_shared<ResultCommand>();
     auto stat = std::make_shared<NetStat>();
@@ -108,9 +123,9 @@ int EchoCommandReceiver::SendPrivateCommand()
 
 SendCommandReceiver::SendCommandReceiver(std::shared_ptr<CommandChannel> channel)
     : command_(std::dynamic_pointer_cast<SendCommand>(channel->command_)),
-      length_(0), recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0),
+      recv_count_(0), recv_bytes_(0), speed_(0), min_speed_(-1), max_speed_(0),
       running_(false), is_stopping_(false), latest_recv_bytes_(0), 
-      illegal_packets_(0), reorder_packets_(0), duplicate_packets_(0),sequence_(0),
+      illegal_packets_(0), reorder_packets_(0), duplicate_packets_(0), timeout_packets_(0), sequence_(0),
       token_(command_->token),
       CommandReceiver(channel) {}
 
@@ -120,16 +135,14 @@ int SendCommandReceiver::Start()
     ASSERT_RETURN(!running_, -1, "SendCommandReceiver start unexpeted.");
     running_ = true;
     //context_->SetReadFd(data_sock_->GetFd());
-    recv_count_ = 0;
     return 0;
 }
 int SendCommandReceiver::Stop()
 {
     LOGDP("SendCommandReceiver stop command.");
     ASSERT_RETURN(running_, -1, "SendCommandReceiver stop unexpeted.");
-    running_ = false;
     //context_->ClrReadFd(data_sock_->GetFd());
-    context_->ClrWriteFd(data_sock_->GetFd());
+    //context_->ClrWriteFd(data_sock_->GetFd());
     //context_->ClrReadFd(control_sock_->GetFd());
     // allow to send stop command.
     context_->SetWriteFd(control_sock_->GetFd());
@@ -145,13 +158,14 @@ int SendCommandReceiver::Recv()
         begin_ = high_resolution_clock::now();
     }
     int result;
-    if ((result = data_sock_->Recv(buf_, sizeof(buf_))) < sizeof(DataHead))
+    if ((result = data_sock_->Recv(&buf_[0], buf_.length())) < sizeof(DataHead))
     {
-        LOGDP("recv data error.");
-        return -1;
+        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf_.substr(0,result>0?std::min(result,64):0)).c_str());
+        illegal_packets_++;
+        return result;
     }
 
-    auto head = (DataHead*)buf_;
+    auto head = reinterpret_cast<DataHead*>(&buf_[0]);
     if (token_ != head->token)
     {
         illegal_packets_++;
@@ -168,6 +182,8 @@ int SendCommandReceiver::Recv()
 
     end_ = high_resolution_clock::now();
     stop_ = high_resolution_clock::now();
+
+    LOGDP("recv payload data: recv_count %ld seq %ld expect_seq %ld timestamp %ld token %c",recv_count_,head->sequence,sequence_,head->timestamp,head->token);
 
     recv_bytes_ += result;
     recv_count_++;
@@ -252,6 +268,7 @@ int SendCommandReceiver::SendPrivateCommand()
     LOGDP("SendCommandReceiver send stop");
     int result;
     context_->ClrWriteFd(control_sock_->GetFd());
+    running_ = false;
 
     auto stat = std::make_shared<NetStat>();
     stat->recv_bytes = recv_bytes_;

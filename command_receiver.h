@@ -62,6 +62,15 @@ private:
     bool is_stopping_;
     std::shared_ptr<EchoCommand> command_;
     std::queue<std::string> data_queue_;
+
+    ssize_t illegal_packets_;
+    //ssize_t reorder_packets_;
+    // TODO: support duplicate packets stat
+    //ssize_t duplicate_packets_;
+    //ssize_t timeout_packets_;
+    char token_;
+    //uint16_t sequence_;
+    //std::bitset<MAX_SEQ> packets_;
 };
 
 class SendCommandReceiver : public CommandReceiver
@@ -75,8 +84,7 @@ public:
     int SendPrivateCommand() override;
 
 private:
-    char buf_[MAX_UDP_LENGTH];
-    int length_;
+    std::string buf_;
     bool running_;
     bool is_stopping_;
     std::shared_ptr<SendCommand> command_;

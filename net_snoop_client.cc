@@ -26,35 +26,48 @@ int NetSnoopClient::Run()
 #ifdef _DEBUG
         for (int i = 0; i < context_->max_fd + 1; i++)
         {
-            if (FD_ISSET(i, &context_->read_fds))
+            if (FD_ISSET(i, &read_fds))
             {
                 LOGVP("want read: %d", i);
             }
-            if (FD_ISSET(i, &context_->write_fds))
+            if (FD_ISSET(i, &write_fds))
             {
                 LOGVP("want write: %d", i);
             }
         }
 #endif
-
         LOGVP("client[%d] selecting",control_sock_->GetFd());
         result = select(context->max_fd + 1, &read_fds, &write_fds, NULL, NULL);
         LOGVP("client[%d] selected",control_sock_->GetFd());
-        ASSERT(result>0);
+#ifdef _DEBUG
+        for (int i = 0; i < context_->max_fd + 1; i++)
+        {
+            if (FD_ISSET(i, &read_fds))
+            {
+                LOGVP("can read: %d", i);
+            }
+            if (FD_ISSET(i, &write_fds))
+            {
+                LOGVP("can write: %d", i);
+            }
+        }
+#endif
         if (result <= 0)
         {
             PSOCKETERROR("select error");
             return -1;
         }
-        if (FD_ISSET(data_sock_->GetFd(), &read_fds))
-        {
-            result = RecvData(data_sock_);
-            ASSERT_RETURN(result>0,-1);
-        }
         if (FD_ISSET(data_sock_->GetFd(), &write_fds))
         {
             result = SendData();
-            ASSERT_RETURN(result>0,-1);
+            ASSERT_RETURN(result>=0,-1);
+        }
+        if (FD_ISSET(data_sock_->GetFd(), &read_fds))
+        {
+            result = RecvData(data_sock_);
+            if(result<=0) LOGWP("data sock recv error.");
+            // in a long delay network(>100ms)，we may recv a port unreachable ICMP packet.
+            //ASSERT_RETURN(result>0,-1);
         }
         if (FD_ISSET(multicast_sock_->GetFd(), &read_fds))
         {
@@ -133,8 +146,8 @@ int NetSnoopClient::Connect()
     std::string cookie("cookie:" + ip_local + ":" + std::to_string(port_local));
     result = control_sock_->Send(cookie.c_str(), cookie.length());
     ASSERT_RETURN(result >= 0,-1);
-    // TODO: optimize this code, wait for server creating the data sock
-    usleep(1000);
+    // TODO: optimize this code, wait 100 millseconds for server creating the data sock
+    usleep(500*1000);
     // to make a hole in the firewall.
     result = data_sock_->Send(cookie.c_str(), cookie.length());
     ASSERT_RETURN(result >= 0,-1);
@@ -217,9 +230,13 @@ int NetSnoopClient::RecvData(std::shared_ptr<Sock> data_sock)
     {
         std::string buf(MAX_UDP_LENGTH,'\0');
         result = data_sock->Recv(&buf[0],buf.length());
-        ASSERT_RETURN(result>0,-1);
+        if(result<=0)
+        {
+            LOGWP("recv data error(%d).",data_sock->GetFd());
+            return -1;
+        }
         buf.resize(result);
-        LOGWP("recv out of command data: %s",Tools::GetDataSum(buf).c_str());
+        LOGWP("recv out of command data(%d): %s",data_sock->GetFd(),Tools::GetDataSum(buf).c_str());
         return result;
     }
     result = receiver_->Recv();
@@ -228,6 +245,12 @@ int NetSnoopClient::RecvData(std::shared_ptr<Sock> data_sock)
 
 int NetSnoopClient::SendData()
 {
+    if(!receiver_)
+    {
+        context_->ClrWriteFd(data_sock_->GetFd());
+        LOGWP("send out of command data(%d).",data_sock_->GetFd());
+        return 0;
+    }
     int result = receiver_->Send();
     return result;
 }

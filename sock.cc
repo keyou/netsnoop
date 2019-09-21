@@ -32,15 +32,15 @@ int Sock::CreateSocket(int type, int protocol)
     int sockfd;
     if ((sockfd = socket(AF_INET, type, protocol)) < 0)
     {
-        PSOCKETERROREX("create socket error(%d)",sockfd);
+        PSOCKETERROREX("create socket error(%d)", sockfd);
         return -1;
     }
-    LOGDP("create %s socket(%d).",protocol==IPPROTO_TCP?"tcp":"udp",sockfd);
+    LOGDP("create %s socket(%d).", protocol == IPPROTO_TCP ? "tcp" : "udp", sockfd);
 
     int opt = 1;
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (char *)&opt, sizeof(opt)) < 0)
     {
-        PSOCKETERROREX("setsockopt SO_REUSEADDR error(%d)",sockfd);
+        PSOCKETERROREX("setsockopt SO_REUSEADDR error(%d)", sockfd);
         closesocket(sockfd);
         return -1;
     }
@@ -65,7 +65,7 @@ int Sock::Bind(int fd_, std::string ip, int port)
 
     if (bind(fd_, (struct sockaddr *)&localaddr, sizeof(localaddr)) < 0)
     {
-        PSOCKETERROREX("bind error(%d)",fd_);
+        PSOCKETERROREX("bind error(%d)", fd_);
         return -1;
     }
     LOGDP("bind(%d): %s:%d", fd_, ip.c_str(), port);
@@ -92,7 +92,7 @@ int Sock::Connect(int fd_, std::string ip, int port)
 
     if (connect(fd_, (struct sockaddr *)&remoteaddr, sizeof(remoteaddr)) < 0)
     {
-        PSOCKETERROREX("connect error(%d)",fd_);
+        PSOCKETERROREX("connect to %s:%d error(%d)", ip.c_str(), port, fd_);
         return -1;
     }
     LOGDP("connect(%d): %s:%d", fd_, ip.c_str(), port);
@@ -106,19 +106,19 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
     ssize_t result;
     if ((result = send(fd_, buf, size, 0)) < 0 || result != size)
     {
-        PSOCKETERROREX("send error(%d)",fd_);
+        PSOCKETERROREX("send error(%d)", fd_);
         return -1;
     }
 
     if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
-        std::string tmp(buf,std::min(result,(ssize_t)64));
+        std::string tmp(buf, std::min(result, (ssize_t)64));
         std::ostringstream out;
-        for(char c : tmp)
+        for (char c : tmp)
         {
-            out<< (isprint(c)?c:'.');
+            out << (isprint(c) ? c : '.');
         }
-        LOGVP("send(%d): length=%ld,%s",fd_, result, out.str().c_str());
+        LOGVP("send(%d): length=%ld,%s", fd_, result, out.str().c_str());
     }
     return result;
 }
@@ -132,22 +132,22 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
     {
         if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
         {
-            PSOCKETERROREX("recv error(%d)",fd_);
+            PSOCKETERROREX("recv error(%d)", fd_);
             return -1;
         }
-        PSOCKETERROREX("recv timeout(%d)",fd_);
+        PSOCKETERROREX("recv timeout(%d)", fd_);
         return ERR_TIMEOUT;
     }
 
     if (Logger::GetGlobalLogLevel() == LogLevel::LLVERBOSE)
     {
-        std::string tmp(buf,std::min(result,(ssize_t)64));
+        std::string tmp(buf, std::min(result, (ssize_t)64));
         std::ostringstream out;
-        for(char c : tmp)
+        for (char c : tmp)
         {
-            out<< (isprint(c)?c:'.');
+            out << (isprint(c) ? c : '.');
         }
-        LOGVP("recv(%d): length=%ld,%s",fd_, result, out.str().c_str());
+        LOGVP("recv(%d): length=%ld,%s", fd_, result, out.str().c_str());
     }
     return result;
 }
@@ -207,7 +207,7 @@ int Sock::GetLocalAddress(int fd_, sockaddr_in *localaddr)
     memset(localaddr, 0, localaddr_length);
     if (getsockname(fd_, (sockaddr *)localaddr, &localaddr_length) < 0)
     {
-        PSOCKETERROREX("getsockname error(%d)",fd_);
+        PSOCKETERROREX("getsockname error(%d)", fd_);
         return -1;
     }
     return 0;
@@ -219,7 +219,7 @@ int Sock::GetPeerAddress(int fd_, sockaddr_in *peeraddr)
     memset(peeraddr, 0, peeraddr_length);
     if (getpeername(fd_, (sockaddr *)peeraddr, &peeraddr_length) < 0)
     {
-        PSOCKETERROREX("getpeername error(%d)",fd_);
+        PSOCKETERROREX("getpeername error(%d)", fd_);
         return -1;
     }
     return 0;
@@ -307,7 +307,7 @@ std::vector<std::string> Sock::Host2Ips(const std::string &host)
     errcode = getaddrinfo(host.c_str(), NULL, &hints, &res);
     if (errcode != 0)
     {
-        PSOCKETERROREX("getaddrinfo error(%d)",fd_);
+        PSOCKETERROREX("getaddrinfo error(%d)", fd_);
         return ips;
     }
 
@@ -331,17 +331,20 @@ std::vector<std::string> Sock::GetLocalIps()
     std::string ip;
     struct ifaddrs *interfaces = NULL;
     struct ifaddrs *temp_addr = NULL;
-    
+
     int result = getifaddrs(&interfaces);
-    if (result == 0) {
+    if (result == 0)
+    {
         temp_addr = interfaces;
-        while(temp_addr != NULL) {
-            if(temp_addr->ifa_addr->sa_family == AF_INET) {
-                ip=inet_ntoa(((struct sockaddr_in*)temp_addr->ifa_addr)->sin_addr);
-                if(ip.length()>0)
+        while (temp_addr != NULL)
+        {
+            if (temp_addr->ifa_addr->sa_family == AF_INET)
+            {
+                ip = inet_ntoa(((struct sockaddr_in *)temp_addr->ifa_addr)->sin_addr);
+                if (ip.length() > 0)
                 {
                     ips.push_back(ip);
-                    LOGDP("find local ip: %s",ip.c_str());
+                    LOGDP("find local ip: %s", ip.c_str());
                 }
             }
             temp_addr = temp_addr->ifa_next;
@@ -353,7 +356,6 @@ std::vector<std::string> Sock::GetLocalIps()
 #endif // WIN32
     return ips;
 }
-
 
 Sock::Sock(int type, int protocol)
     : fd_(0), type_(type), protocol_(protocol) {}

@@ -500,7 +500,6 @@ public:
         if (!args["token"].empty())
             token = args["token"].at(0);
         
-
         auto speed = args["speed"].empty() ? ECHO_DEFAULT_SPEED : std::stoi(args["speed"]);
         auto time = args["time"].empty() ? ECHO_DEFAULT_TIME : std::stoi(args["time"]);
         if (speed > 0 && time > 0)
@@ -508,6 +507,10 @@ public:
             if(size_ == ECHO_DEFAULT_SIZE) size_ = 1472;
             count_ = ceil((speed * 1024) * (time / 1000.0) / size_);
             interval_ = 1000000/((1.0*speed*1024)/size_);
+        }
+        else if(interval_ > 0 && time > 0)
+        {
+            count_ = time * 1000.0 / interval_;
         }
         // echo can not have zero delay
         if (interval_ <= 0)
@@ -586,6 +589,10 @@ public:
         {
             count_ = ceil((speed * 1024) * (time / 1000.0) / size_);
             interval_ = 1000000/((1.0*speed*1024)/size_);
+        }
+        else if(interval_ > 0 && time > 0)
+        {
+            count_ = time * 1000.0 / interval_;
         }
         return true;
     }
