@@ -218,8 +218,10 @@ int NetSnoopClient::RecvCommand()
 int NetSnoopClient::SendCommand()
 {
     ASSERT(receiver_);
+    receiver_->out_of_command_packets_ = illegal_packets_;
     int result = receiver_->SendPrivateCommand();
     receiver_ = NULL;
+    illegal_packets_ = 0;
     return result;
 }
 
@@ -233,9 +235,10 @@ int NetSnoopClient::RecvData(std::shared_ptr<Sock> data_sock)
         if(result<=0)
         {
             LOGWP("recv data error(%d).",data_sock->GetFd());
-            return -1;
+            return result;
         }
         buf.resize(result);
+        illegal_packets_++;
         LOGWP("recv out of command data(%d): %s",data_sock->GetFd(),Tools::GetDataSum(buf).c_str());
         return result;
     }

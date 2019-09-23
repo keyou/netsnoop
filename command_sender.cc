@@ -255,7 +255,7 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     if (!OnStopped)
         return 0;
     
-    auto stat = std::make_shared<NetStat>();
+    auto stat = netstat;//std::make_shared<NetStat>();
     stat->delay = delay_/(1000*1000);
     stat->max_delay = max_delay_/(1000*1000);
     stat->min_delay = min_delay_/(1000*1000);
@@ -265,7 +265,7 @@ int EchoCommandSender::OnStop(std::shared_ptr<NetStat> netstat)
     stat->recv_bytes = recv_packets_ * data_buf_.size();
     stat->send_packets = send_packets_;
     stat->recv_packets = recv_packets_;
-    stat->illegal_packets = illegal_packets_;
+    stat->illegal_packets += illegal_packets_;
     stat->timeout_packets = timeout_packets_;
     stat->loss = 1 - 1.0 * recv_packets_ / send_packets_;
     stat->send_time = duration_cast<milliseconds>(stop_ - start_).count();

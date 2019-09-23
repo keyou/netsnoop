@@ -105,18 +105,18 @@ void StartServer()
     std::mutex mtx;
     std::condition_variable cv;
 
-    auto command = CommandFactory::New("ping count 20 wait 2000");
-    command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat){
-        std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
-        cv.notify_all();
-    });
-    server->PushCommand(command);
+    // ping first
     {
+        auto command = CommandFactory::New("ping count 20 wait 2000");
+        command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat){
+            std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+            cv.notify_all();
+        });
+        server->PushCommand(command);
         std::unique_lock<std::mutex> lock(mtx);
         cv.wait(lock);
     }
-    // recv count 100 interval 0 size 1024
-    //std::string cmd(MAX_CMD_LENGTH, 0);
+    
     std::shared_ptr<NetStat> maxstat;
     std::shared_ptr<NetStat> avgstat;
     std::string maxcommand;
@@ -197,6 +197,18 @@ begin:
         }
     }
     
+    // ping last
+    {
+        auto command = CommandFactory::New("ping count 20 wait 2000");
+        command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat){
+            std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+            cv.notify_all();
+        });
+        server->PushCommand(command);
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock);
+    }
+
     std::cout << "finished." << std::endl;
 }
 

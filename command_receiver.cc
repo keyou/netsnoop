@@ -111,7 +111,9 @@ int EchoCommandReceiver::SendPrivateCommand()
     auto stat = std::make_shared<NetStat>();
     stat->recv_packets = recv_count_;
     stat->send_packets = send_count_;
+    stat->illegal_packets = illegal_packets_ + out_of_command_packets_;
     auto cmd = command->Serialize(*stat);
+    LOGDP("command finish: %s || %s", command_->GetCmd().c_str(),cmd.c_str());
     if (OnStopped)
         OnStopped(command_, stat);
     if ((result = control_sock_->Send(cmd.c_str(), cmd.length())) < 0)
@@ -246,7 +248,6 @@ int SendCommandReceiver::Recv()
     varn_delay_ = varn_delay_ + (time_delay - head_avg_delay_)*(time_delay- head_avg_delay_);
     std_delay_ = std::sqrt(varn_delay_/recv_count_);
     
-    #define D(x) (x-min_delay_)/1000/1000
     auto seconds = duration_cast<duration<double>>(end_ - begin_).count();
     if (seconds >= 1)
     {
@@ -254,10 +255,10 @@ int SendCommandReceiver::Recv()
         min_speed_ = min_speed_ == -1 ? speed : std::min(min_speed_, speed);
         max_speed_ = std::max(max_speed_, speed);
         LOGIP("latest recv speed: recv_speed %ld recv_bytes %ld recv_time %d", speed, latest_recv_bytes_, int(seconds * 1000));
-        LOGIP("latest recv delay: recv_count %d delay %ld head_avg_delay %ld avg_delay %ld std_delay %ld max_delay %ld",recv_count_,D(time_delay),D(head_avg_delay_),D(avg_delay_),std_delay_,D(max_delay_));
         latest_recv_bytes_ = 0;
         begin_ = high_resolution_clock::now();
     }
+    #define D(x) (x-min_delay_)/1000/1000
     LOGDP("latest recv delay: recv_count %d delay %ld head_avg_delay %ld avg_delay %ld std_delay %ld max_delay %ld",recv_count_,D(time_delay),D(head_avg_delay_),D(avg_delay_),std_delay_,D(max_delay_));
     #undef D
     
@@ -274,7 +275,7 @@ int SendCommandReceiver::SendPrivateCommand()
     auto stat = std::make_shared<NetStat>();
     stat->recv_bytes = recv_bytes_;
     stat->recv_packets = recv_count_;
-    stat->illegal_packets = illegal_packets_;
+    stat->illegal_packets = illegal_packets_ + out_of_command_packets_;
     stat->reorder_packets = reorder_packets_;
     stat->duplicate_packets = duplicate_packets_;
     stat->timeout_packets = timeout_packets_;
@@ -298,6 +299,7 @@ int SendCommandReceiver::SendPrivateCommand()
 
     auto command = std::make_shared<ResultCommand>();
     auto cmd = command->Serialize(*stat);
+    LOGDP("command finish: %s || %s", command_->GetCmd().c_str(),cmd.c_str());
     if (OnStopped)
         OnStopped(command_, stat);
     if ((result = control_sock_->Send(cmd.c_str(), cmd.length())) < 0)

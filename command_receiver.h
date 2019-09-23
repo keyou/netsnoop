@@ -37,6 +37,8 @@ public:
 
     int GetDataFd() { return data_sock_ ? data_sock_->GetFd() : -1; }
 
+    // TODO: optimize
+    ssize_t out_of_command_packets_ = 0;
 protected:
     std::string argv_;
     std::shared_ptr<Context> context_;

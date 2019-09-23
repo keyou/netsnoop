@@ -33,5 +33,7 @@ private:
     std::shared_ptr<Udp> multicast_sock_;
     std::shared_ptr<CommandReceiver> receiver_;
 
+    ssize_t illegal_packets_ = 0;
+
     DISALLOW_COPY_AND_ASSIGN(NetSnoopClient);
 };
