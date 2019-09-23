@@ -228,7 +228,7 @@ int NetSnoopClient::SendCommand()
 int NetSnoopClient::RecvData(std::shared_ptr<Sock> data_sock)
 {
     int result;
-    if(!receiver_)
+    if(!receiver_ || receiver_->GetDataFd() != data_sock->GetFd())
     {
         std::string buf(MAX_UDP_LENGTH,'\0');
         result = data_sock->Recv(&buf[0],buf.length());
