@@ -66,21 +66,21 @@ int EchoCommandReceiver::Recv()
 {
     LOGVP("EchoCommandReceiver recv payload.");
     ASSERT_RETURN(running_, -1, "EchoCommandReceiver recv unexpeted.");
-    int result;
-    ASSERT(running_);
     std::string buf(MAX_UDP_LENGTH, 0);
-    if ((result = data_sock_->Recv(&buf[0], buf.length())) < sizeof(DataHead))
+    int result = data_sock_->Recv(&buf[0], buf.length());
+    buf.resize(std::max(result,0));
+    if (result < sizeof(DataHead))
     {
-        LOGEP("recv illegal data: length=%d",result);
-        return -1;
+        illegal_packets_++;
+        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf).c_str());
+        return result;
     }
-    buf.resize(result);
     
     auto head = reinterpret_cast<DataHead*>(&buf[0]);
     if (token_ != head->token)
     {
         illegal_packets_++;
-        LOGWP("recv illegal data: seq=%ld, token=%c, expect %c",head->sequence, head->token, token_);
+        LOGWP("recv illegal data(%d): length=%d, seq=%ld, token=%c, expect %c",data_sock_->GetFd(),result,head->sequence, head->token, token_);
         return result;
     }
 
@@ -157,11 +157,12 @@ int SendCommandReceiver::Recv()
         start_ = high_resolution_clock::now();
         begin_ = high_resolution_clock::now();
     }
-    int result;
-    if ((result = data_sock_->Recv(&buf_[0], buf_.length())) < sizeof(DataHead))
+    int result = data_sock_->Recv(&buf_[0], buf_.length());
+    buf_.resize(std::max(result,0));
+    if (result < sizeof(DataHead))
     {
-        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf_.substr(0,result>0?std::min(result,64):0)).c_str());
         illegal_packets_++;
+        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf_).c_str());
         return result;
     }
 
@@ -169,7 +170,7 @@ int SendCommandReceiver::Recv()
     if (token_ != head->token)
     {
         illegal_packets_++;
-        LOGWP("recv illegal data: seq=%ld, token=%c, expect %c",head->sequence, head->token, token_);
+        LOGWP("recv illegal data(%d): length=%d, seq=%ld, token=%c, expect %c",data_sock_->GetFd(),result,head->sequence, head->token, token_);
         return result;
     }
 

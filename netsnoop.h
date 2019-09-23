@@ -194,11 +194,11 @@ struct Option
 class Tools
 {
 public:
-    static std::string GetDataSum(std::string data,size_t length=64)
+    static std::string GetDataSum(const std::string& data,size_t length=64)
     {
         std::ostringstream out;
         auto count = std::min(data.length(),length);
-        for(int i = 0;i<count;i++)
+        for(size_t i = 0;i<count;i++)
         {
             out<< (isprint(data[i])?data[i]:'.');
         }

@@ -9,6 +9,8 @@ GTAGS
 *.dll
 *.obj
 *.zip
+*.core
+*.dmp
 netsnoop
 netsnoop_test
 netsnoop_select
