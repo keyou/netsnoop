@@ -108,7 +108,7 @@ void StartServer()
     // ping first
     {
         auto command = CommandFactory::New("ping count 20 wait 2000");
-        command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat){
+        command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
             std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
             cv.notify_all();
         });
@@ -116,7 +116,7 @@ void StartServer()
         std::unique_lock<std::mutex> lock(mtx);
         cv.wait(lock);
     }
-    
+
     std::shared_ptr<NetStat> maxstat;
     std::shared_ptr<NetStat> avgstat;
     std::string maxcommand;
@@ -146,18 +146,18 @@ begin:
     {
         times = 0;
         avgstat = NULL;
-        if(i==CMD_COUNT/2)
+        if (i == CMD_COUNT / 2)
         {
             maxstat = NULL;
         }
         for (auto k = 0; k < MAX_TIMES; k++)
         {
             auto command = CommandFactory::New(cmds[i]);
-            command->RegisterCallback([&,i,k](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
+            command->RegisterCallback([&, i, k](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
                 std::cout << "command value: " << oldcommand->ToString() << std::endl;
                 std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
-                std::cout << "progress: " <<i*MAX_TIMES+k+1<<"/"<< CMD_COUNT*MAX_TIMES << std::endl;
-                if(stat)
+                std::cout << "progress: " << i * MAX_TIMES + k + 1 << "/" << CMD_COUNT * MAX_TIMES << std::endl;
+                if (stat)
                 {
                     if (!avgstat)
                     {
@@ -196,11 +196,11 @@ begin:
             cv.wait(lock);
         }
     }
-    
+
     // ping last
     {
         auto command = CommandFactory::New("ping count 20 wait 2000");
-        command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat){
+        command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
             std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
             cv.notify_all();
         });
@@ -215,30 +215,39 @@ begin:
 void StartClient()
 {
     int result;
-    std::vector<std::string> ips;
-    ips.push_back(g_option->ip_remote);
+    std::vector<std::string> ips{g_option->ip_remote};
+    std::vector<int> ip_try_times{0};
+    const int MAX_TRY_TIMES = 20;
     int scale = 4;
     while (true)
     {
-        for (auto it = ips.rbegin();it!=ips.rend();it++)
+        //for (auto it = ips.rbegin();it!=ips.rend();it++)
+        for (int i = ips.size() - 1; i >= 0; i--)
         {
-            auto ip = *it;
+            auto ip = ips[i];
+            if (ip_try_times[i] >= MAX_TRY_TIMES)
+            {
+                LOGD << "block ip: " << ip;
+                continue;
+            }
+            ip_try_times[i]++;
             memset(g_option->ip_remote, 0, sizeof(g_option->ip_remote));
             strncpy(g_option->ip_remote, ip.c_str(), sizeof(g_option->ip_remote) - 1);
 
             NetSnoopClient client(g_option);
-            client.OnConnected = [&] {
+            client.OnConnected = [&,i] {
                 std::clog << "connect to " << g_option->ip_remote << ":" << g_option->port << " (" << g_option->ip_multicast << ")" << std::endl;
                 scale = 0;
+                ip_try_times[i] = 0;
             };
             client.OnStopped = [](std::shared_ptr<Command> oldcommand, std::shared_ptr<NetStat> stat) {
                 std::cout << "peer finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
             };
 
-            LOGVP("client running...");
+            LOGD << "try connect to " << ip << " (" << ip_try_times[i] << ")";
             client.Run();
-            std::clog << "client stop, restarting..." << std::endl;
-            std::clog << "----------------------------" << std::endl;
+            LOGD << "client stop, restarting...";
+            LOGD << "----------------------------";
         }
 
         {
@@ -248,9 +257,11 @@ void StartClient()
             result = multicast.Bind("0.0.0.0", 4001);
             // the IGMP package will send from default route.
             result = multicast.JoinMUlticastGroup("239.3.3.4");
-            if(result<0)
+            if (result < 0)
             {
-                std::clog << "join multicast group 239.3.3.4("<<"0.0.0.0"<<") error, retry in 3 seconds..." << std::endl;
+                LOGE << "join multicast group 239.3.3.4("
+                          << "0.0.0.0"
+                          << ") error, retry in 3 seconds..." << std::endl;
                 //TODO: fix this,in chromeos,it's too quick to start before if up.
                 sleep(3);
                 continue;
@@ -266,35 +277,44 @@ void StartClient()
             //         continue;
             //     }
             // }
-            
+
             std::string server_ip(40, 0);
             fd_set readfds;
             FD_ZERO(&readfds);
-            FD_SET(multicast.GetFd(),&readfds);
-            int wait_seconds = std::pow(2,scale);
+            FD_SET(multicast.GetFd(), &readfds);
+            int wait_seconds = std::pow(2, scale);
             timeval timeout{wait_seconds};
-            if(scale<10) scale++;
-            std::clog << "finding server...(timeout="<< wait_seconds <<")"<< std::endl;
-            result = select(multicast.GetFd()+1,&readfds,NULL,NULL,&timeout);
-            if(result<0)
+            if (scale < 10)
+                scale++;
+            LOGD << "finding server...(timeout=" << wait_seconds << ")";
+            result = select(multicast.GetFd() + 1, &readfds, NULL, NULL, &timeout);
+            if (result < 0)
             {
                 PSOCKETERROR("select error");
                 continue;
             }
-            if(result==0)
+            if (result == 0)
             {
                 LOGDP("select timeout.");
                 continue;
             }
             result = multicast.RecvFrom(server_ip, &server_addr);
-            if(result<=0) continue;
+            if (result <= 0)
+                continue;
             server_ip.resize(result);
-            if(server_ip == "0.0.0.0")
+            if (server_ip == "0.0.0.0")
             {
                 server_ip = inet_ntoa(server_addr.sin_addr);
             }
-            std::clog << "find server: " << server_ip << std::endl;
-            ips.push_back(server_ip);
+            if (!std::any_of(ips.begin(), ips.end(), [&](std::string ip) { return ip == server_ip; }))
+            {
+                ips.push_back(server_ip);
+                LOGD << "find new server: " << server_ip << std::endl;
+            }
+            else
+            {
+                LOGD << "find old server: " << server_ip << std::endl;
+            }
         }
     }
 }
