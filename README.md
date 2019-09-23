@@ -10,7 +10,7 @@ A network snoop tool, support detect multi-client (which is not supported by ipe
 ```sh
 $ ./netsnoop -h
 usage:
-  netsnoop -s 0.0.0.0 4000            (start server)
+  netsnoop -s <local ip> 4000         (start server)
   netsnoop -c <server ip> 4000        (start client)
   --------
   command:
@@ -72,6 +72,28 @@ send [count <num>] [interval <milliseconds>] [size <num>] [wait <milliseconds>] 
      [speed <KB/s>] [time <milliseconds>] [timeout <milliseconds>]
 ```
 
+## Advanced Usage
+
+You can use script file with netsnoop to run multiple commands automatically:
+
+```sh
+# check script.snoop file contents.
+$ cat script.snoop
+peers 2
+ping count 10
+send count 100 interval 10 wait 500
+sleep 5
+send multicast true speed 100 time 3000
+
+# run netsnoop as a server with a script file
+$ netsnoop -s < script.snoop
+```
+
+The `script.snoop` file is a text file:
+
+- `peers 2`: wait until 2 peers connect;
+- `sleep 5`: wait 5 seconds;
+
 ## For developers
 
 Welcome to expand more subcommands. This tool is not fully complete, although the code is friendly with unicast, it is not friendly with multicast now. Welcome to reflector the multicast code.
@@ -79,8 +101,10 @@ Welcome to expand more subcommands. This tool is not fully complete, although th
 TODO:
 
 - Support 'recv' command which is revese of 'send'.
-- Reflector the multicast code.
 - Support NAT environment.
+- Optimize multicast code.
+- Optimize command line arguements resolve code.
+- Refine documents about netsnoop_select, netsnoop_multicast.
 
 ### Compile
 

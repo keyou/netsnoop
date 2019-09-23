@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
     if (argc < 2 || !strcmp(argv[1], "-h"))
     {
         std::cout << "usage: \n"
-                     "  netsnoop -s 0.0.0.0 4000            (start server)\n"
+                     "  netsnoop -s <local ip> 4000         (start server)\n"
                      "  netsnoop -c <server ip> 4000        (start client)\n"
                      "  --------\n"
                      "  command:\n"
@@ -114,7 +114,7 @@ void StartServer()
     });
     notify_thread.detach();
 
-    static int count = 0;
+    int count = 0;
     NetSnoopServer server(g_option);
     server.OnPeerConnected = [&](const Peer *peer) {
         count++;
@@ -137,13 +137,52 @@ void StartServer()
     std::mutex mtx;
     std::condition_variable cv;
 
+    std::stringstream ss;
+    std::string key;
+    int value = 0;
     std::string cmd;
     while (true)
     {
         std::cout << "command:" << std::flush;
         std::getline(std::cin, cmd);
+        if(std::cin.eof())
+            break;
         if (cmd.empty())
             continue;
+#pragma region resolve script command
+        if(cmd.rfind("peers ",0)==0)
+        {
+            ss.str(cmd);
+            ss.seekg(0);
+            ss >> key >> value;
+            if(value<=0)
+            {
+                std::clog << "command format error: " << ss.str() << std::endl;
+                continue;
+            }
+            std::clog << "wait "<< value <<" peers." << std::endl;
+            while(count<value)
+            {
+                sleep(1);
+            }
+            std::clog << "connect "<< value <<" peers." << std::endl;
+            continue;
+        }
+        if(cmd.rfind("sleep ",0)==0)
+        {
+            ss.str(cmd);
+            ss.seekg(0);
+            ss >> key >> value;
+            if(value<=0)
+            {
+                std::clog << "command format error: " << ss.str() << std::endl;
+                continue;
+            }
+            std::clog << "sleep "<< value <<" seconds." << std::endl;
+            sleep(value);
+            continue;
+        }
+#pragma endregion
         auto command = CommandFactory::New(cmd);
         if (!command)
         {
