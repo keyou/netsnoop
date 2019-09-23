@@ -187,7 +187,14 @@ int EchoCommandSender::SendData()
     head->sequence = send_packets_-1;
     head->token = command_->token;
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
-    LOGDP("send payload data: send_packets %ld seq %ld timestamp %ld token %c",send_packets_,head->sequence,head->timestamp,head->token);
+    if(result<0)
+    {
+        LOGEP("send payload error(%d).",data_sock_->GetFd());
+    }
+    else
+    {
+        LOGDP("send payload data: send_packets %ld seq %ld timestamp %ld token %c",send_packets_,head->sequence,head->timestamp,head->token);
+    }
     return result;
 }
 
@@ -321,8 +328,11 @@ int SendCommandSender::SendData()
     head->token = command_->token;
 
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
-    ASSERT_RETURN(result>=0,-1);
-    if(result>0)
+    if(result<0)
+    {
+        LOGEP("send payload error(%d).",data_sock_->GetFd());
+    }
+    else if(result>0)
     {
         send_packets_++;
         send_bytes_+=result;
@@ -335,13 +345,14 @@ int SendCommandSender::RecvData()
     // we don't expect recv any data
     std::string buf(MAX_UDP_LENGTH,'\0');
     int result = data_sock_->Recv(&buf[0], buf.length());
+    buf.resize(std::max(result,0));
     auto head = (DataHead*)&buf[0];
-    if(result<sizeof(DataHead))
+    if(result < sizeof(DataHead))
     {
-        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf.substr(0,result>0?std::min(result,64):0)).c_str());
+        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf).c_str());
         return result;
     }
-    LOGWP("recv illegal data(%d): seq %s timestamp %ld token %c",data_sock_->GetFd(),head->sequence,head->timestamp,head->token);
+    LOGWP("recv illegal data(%d): length=%d, seq %s timestamp %ld token %c result %d",data_sock_->GetFd(),result,head->sequence,head->timestamp,head->token);
     return 0;
 }
 int SendCommandSender::OnTimeout()

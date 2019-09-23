@@ -11,6 +11,7 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <iomanip>
 
 #define TAG "NETSNOOP"
 
@@ -53,7 +54,7 @@ public:
         char buf[1024]={0};
         // %T is not supported by mingw-w64, why?
         if (std::strftime(buf, sizeof(buf), "%m/%d %H:%M:%S", std::localtime(&tm))) {
-            *out_ << "[" << buf <<"."<< ms <<"]";
+            *out_ << "[" << buf << "." << std::setw(3) << std::setfill('0') << ms <<"]";
         }
 
         *out_<<"["<<std::this_thread::get_id()<<"]";

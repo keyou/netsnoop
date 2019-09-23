@@ -106,7 +106,7 @@ ssize_t Sock::Send(int fd_, const char *buf, size_t size)
     ssize_t result;
     if ((result = send(fd_, buf, size, 0)) < 0 || result != size)
     {
-        PSOCKETERROREX("send error(%d)", fd_);
+        PSOCKETERROREX("send error(%d,result=%d)", fd_,result);
         return -1;
     }
 
@@ -128,14 +128,14 @@ ssize_t Sock::Recv(int fd_, char *buf, size_t size)
 {
     ASSERT(fd_ > 0);
     ssize_t result = 0;
-    if ((result = recv(fd_, buf, size, 0)) == -1)
+    if ((result = recv(fd_, buf, size, 0)) < 0)
     {
         if ((errno != EAGAIN) && (errno != EWOULDBLOCK))
         {
-            PSOCKETERROREX("recv error(%d)", fd_);
+            PSOCKETERROREX("recv error(%d,result=%d)", fd_,result);
             return -1;
         }
-        PSOCKETERROREX("recv timeout(%d)", fd_);
+        PSOCKETERROREX("recv timeout(%d,result=%d)", fd_,result);
         return ERR_TIMEOUT;
     }
 

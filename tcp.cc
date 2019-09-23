@@ -64,16 +64,11 @@ int Tcp::InitializeEx(int fd) const
     }
 
 #ifndef WIN32
-    int keepcnt = 4;
-    int keepidle = 5;
+    srand(time(NULL));
+    int keepidle = 5+rand()%5;
     int keepintvl = 5;
+    int keepcnt = 10;
 
-    if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int))<0)
-    {
-        PSOCKETERROR("setsocketopt TCP_KEEPCNT error");
-        closesocket(fd);
-        return -1;
-    }
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(int))<0)
     {
         PSOCKETERROR("setsocketopt TCP_KEEPIDLE error");
@@ -83,6 +78,12 @@ int Tcp::InitializeEx(int fd) const
     if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(int))<0)
     {
         PSOCKETERROR("setsocketopt TCP_KEEPINTVL error");
+        closesocket(fd);
+        return -1;
+    }
+    if(setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(int))<0)
+    {
+        PSOCKETERROR("setsocketopt TCP_KEEPCNT error");
         closesocket(fd);
         return -1;
     }

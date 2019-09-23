@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 2)
     {
-        std::cout << "usage: \n"
+        std::clog << "usage: \n"
                      "   netsnoop_select -s 0.0.0.0 4000 -vvv\n";
         return 0;
     }
@@ -69,11 +69,11 @@ void StartServer()
     auto server = std::make_shared<NetSnoopServer>(g_option);
     server->OnPeerConnected = [&](const Peer *peer) {
         count++;
-        std::clog << "peer connect(" << count << "): " << peer->GetCookie() << std::endl;
+        std::cout << "peer connect(" << count << "): " << peer->GetCookie() << std::endl;
     };
     server->OnPeerDisconnected = [&](const Peer *peer) {
         count--;
-        std::clog << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
+        std::cout << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
     };
     server->OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
         std::cout << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->GetCmd().c_str()
@@ -98,19 +98,23 @@ void StartServer()
     });
     notify_thread.detach();
 
-    std::clog << "After all clients connected, press any key to start..." << std::endl;
+    std::cout << "After all clients connected, press any key to start..." << std::endl;
     getchar();
-    std::clog << "Let's go..." << std::endl;
-
-    auto command = CommandFactory::New("ping count 20 wait 2000");
-    command->RegisterCallback([](const Command *oldcommand, std::shared_ptr<NetStat> stat){
-        std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
-    });
-    server->PushCommand(command);
+    std::cout << "Let's go..." << std::endl;
 
     std::mutex mtx;
     std::condition_variable cv;
 
+    auto command = CommandFactory::New("ping count 20 wait 2000");
+    command->RegisterCallback([&](const Command *oldcommand, std::shared_ptr<NetStat> stat){
+        std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
+        cv.notify_all();
+    });
+    server->PushCommand(command);
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock);
+    }
     // recv count 100 interval 0 size 1024
     //std::string cmd(MAX_CMD_LENGTH, 0);
     std::shared_ptr<NetStat> maxstat;
@@ -120,22 +124,22 @@ void StartServer()
     int CMD_COUNT = 0;
     int MAX_TIMES = 3;
     int times = 0;
-    bool finish = false;
-    bool is_multicast = true;
 begin:
     maxstat = NULL;
     std::vector<std::string> cmds = {
-        "send unicast true speed 50 time 10000 size 1472 timeout 100 wait 2000",
-        "send unicast true speed 100 time 10000 size 1472 timeout 100 wait 2000",
-        "send unicast true speed 500 time 10000 size 1472 timeout 100 wait 2000",
-        "send unicast true speed 2000 time 10000 size 1472 timeout 100 wait 5000",
-        "send unicast true count 5000 interval 0 size 1472 timeout 100 wait 5000",
+        "send unicast true speed 50 time 10000 size 1472 timeout 300 wait 2000",
+        "send unicast true speed 100 time 10000 size 1472 timeout 300 wait 2000",
+        "send unicast true speed 500 time 10000 size 1472 timeout 300 wait 5000",
+        "send unicast true speed 1000 time 10000 size 1472 timeout 300 wait 5000",
+        "send unicast true speed 2000 time 10000 size 1472 timeout 300 wait 5000",
+        "send unicast true count 5000 interval 0 size 1472 timeout 300 wait 5000",
 
-        "send multicast true speed 50 time 10000 size 1472 timeout 100 wait 2000",
-        "send multicast true speed 100 time 10000 size 1472 timeout 100 wait 2000",
-        "send multicast true speed 500 time 10000 size 1472 timeout 100 wait 2000",
-        "send multicast true speed 2000 time 10000 size 1472 timeout 100 wait 5000",
-        "send multicast true count 5000 interval 0 size 1472 timeout 100 wait 5000",
+        "send multicast true speed 50 time 10000 size 1472 timeout 300 wait 2000",
+        "send multicast true speed 100 time 10000 size 1472 timeout 300 wait 2000",
+        "send multicast true speed 500 time 10000 size 1472 timeout 300 wait 5000",
+        "send multicast true speed 1000 time 10000 size 1472 timeout 300 wait 5000",
+        "send multicast true speed 2000 time 10000 size 1472 timeout 300 wait 5000",
+        "send multicast true count 5000 interval 0 size 1472 timeout 300 wait 5000",
     };
     CMD_COUNT = cmds.size();
     for (auto i = 0; i < CMD_COUNT; i++)
@@ -150,15 +154,19 @@ begin:
         {
             auto command = CommandFactory::New(cmds[i]);
             command->RegisterCallback([&,i,k](const Command *oldcommand, std::shared_ptr<NetStat> stat) {
+                std::cout << "command value: " << oldcommand->ToString() << std::endl;
                 std::cout << "command finish: " << oldcommand->GetCmd() << " || " << (stat ? stat->ToString() : "NULL") << std::endl;
-                std::clog << "progress: " <<(CMD_COUNT-i)*MAX_TIMES+k+1<<"/"<< (CMD_COUNT+1)*MAX_TIMES << std::endl;
-                if (!avgstat)
+                std::cout << "progress: " <<i*MAX_TIMES+k+1<<"/"<< CMD_COUNT*MAX_TIMES << std::endl;
+                if(stat)
                 {
-                    avgstat = stat;
-                }
-                else
-                {
-                    *avgstat += *stat;
+                    if (!avgstat)
+                    {
+                        avgstat = stat;
+                    }
+                    else
+                    {
+                        *avgstat += *stat;
+                    }
                 }
                 times++;
                 if (times >= MAX_TIMES)
@@ -176,24 +184,20 @@ begin:
                             maxstat = avgstat;
                             maxcommand = oldcommand->GetCmd();
                         }
-                        else
-                        {
-                            //finish = true;
-                        }
                         std::cout << "avg recv_speed: " << oldcommand->GetCmd() << " || " << (avgstat ? avgstat->ToString() : "NULL") << std::endl;
                         std::cout << "max recv_speed: " << maxcommand << " || " << (maxstat ? maxstat->ToString() : "NULL") << std::endl;
-                        std::cout << "----------------------------" << std::endl;
                     }
-                    cv.notify_all();
+                    std::cout << "----------------------------" << std::endl;
                 }
+                cv.notify_all();
             });
             server->PushCommand(command);
+            std::unique_lock<std::mutex> lock(mtx);
+            cv.wait(lock);
         }
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&] { return times >= MAX_TIMES; });
     }
     
-    std::clog << "finished." << std::endl;
+    std::cout << "finished." << std::endl;
 }
 
 void StartClient()

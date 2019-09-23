@@ -434,6 +434,11 @@ public:
         return (cmd.find(" token") != std::string::npos || token == '$') ? cmd : cmd + " token " + token;
     }
 
+    virtual std::string ToString() const 
+    {
+        return GetCmd();
+    };
+
     std::string name;
     bool is_private;
     bool is_multicast;
@@ -527,6 +532,13 @@ public:
         return std::make_shared<EchoCommandReceiver>(channel);
     }
 
+    std::string ToString() const override
+    {
+        std::stringstream out;
+        out << name << " count " << count_ << " interval " << interval_/1000.0 << " size " << size_ << " wait " << wait_/1000.0 << " timeout " << timeout_;
+        return out.str();
+    }
+
     int GetCount() { return count_; }
     int GetInterval() { return interval_; }
     int GetSize() { return size_; }
@@ -604,6 +616,13 @@ public:
     std::shared_ptr<CommandReceiver> CreateCommandReceiver(std::shared_ptr<CommandChannel> channel) override
     {
         return std::make_shared<SendCommandReceiver>(channel);
+    }
+
+    std::string ToString() const override
+    {
+        std::stringstream out;
+        out << name << " count " << count_ << " interval " << interval_/1000.0 << " size " << size_ << " wait " << wait_/1000.0 << " timeout " << timeout_;
+        return out.str();
     }
 
     int GetCount() { return count_; }
