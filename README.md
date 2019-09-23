@@ -1,6 +1,8 @@
 
 # netsnoop
 
+[![Build Status](https://travis-ci.com/keyou/netsnoop.svg?token=wDoYyAQNx1yEgEQp2UUi&branch=master)](https://travis-ci.com/keyou/netsnoop)
+
 A network snoop tool, support detect multi-client (which is not supported by iperf3 now) network (unicast/multicast) bandwith,delay,jitter,loss.
 
 ## Usage
