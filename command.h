@@ -90,10 +90,9 @@ public:
         command->is_private = is_private_;
         if (command->ResolveArgs(args))
         {
-            LOGVP("new command: %s", cmd.c_str());
+            LOGDP("create new command: %s (%s)", command->GetCmd().c_str(),command->ToString().c_str());
             return command;
         }
-        LOGVP("new command error: %s", cmd.c_str());
         return NULL;
     }
 
@@ -475,7 +474,7 @@ struct DataHead
 #define ECHO_DEFAULT_WAIT 500*1000
 #define ECHO_DEFAULT_TIMEOUT 100 // milliseconds
 #define ECHO_DEFAULT_SPEED 0 // KByte/s
-#define ECHO_DEFAULT_TIME 3000 // milliseconds
+#define ECHO_DEFAULT_TIME 0*1000 // milliseconds
 /**
  * @brief a main command, server send to client and client should echo
  * 
