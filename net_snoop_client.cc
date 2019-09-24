@@ -107,12 +107,26 @@ int NetSnoopClient::Connect()
     result = control_sock_->Initialize();
     ASSERT(result > 0);
 
+#ifndef WIN32
+    struct timeval timeout;
+    // wait up to 10 senconds for connect()
+    timeout.tv_sec  = 10;
+    timeout.tv_usec = 0;
+    result = setsockopt(control_sock_->GetFd(), SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+    ASSERT(result>=0);
+#endif // WIN32
     result = control_sock_->Connect(option_->ip_remote, option_->port);
     if(result<0)
     {
         LOGEP("connect to %s:%d error.",option_->ip_remote,option_->port);  
         return -1;
     }
+#ifndef WIN32
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+    result = setsockopt(control_sock_->GetFd(), SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+    ASSERT(result>=0);
+#endif // WIN32
     
     data_sock_ = std::make_shared<Udp>();
     result = data_sock_->Initialize();
