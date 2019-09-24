@@ -103,23 +103,15 @@ int NetSnoopClient::Run()
 int NetSnoopClient::Connect()
 {
     int result;
-    int retry = 3;
     control_sock_ = std::make_shared<Tcp>();
     result = control_sock_->Initialize();
     ASSERT(result > 0);
 
-    while(retry>0)
+    result = control_sock_->Connect(option_->ip_remote, option_->port);
+    if(result<0)
     {
-        result = control_sock_->Connect(option_->ip_remote, option_->port);
-        if(result>=0) break;
-        LOGWP("connect server error,retrying...");
-        sleep(1);
-        retry--;
-        if(retry == 0)
-        {
-            LOGEP("connect to %s:%d error.",option_->ip_remote,option_->port);
-            return -1;
-        }
+        LOGEP("connect to %s:%d error.",option_->ip_remote,option_->port);  
+        return -1;
     }
     
     data_sock_ = std::make_shared<Udp>();
