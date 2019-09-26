@@ -464,6 +464,8 @@ struct DataHead
     int64_t timestamp : 64;
     // sequence number
     uint16_t sequence : 16;
+    // data length
+    uint16_t length : 16;
     // token used for data validation
     char token;
 };

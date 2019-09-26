@@ -77,10 +77,10 @@ int EchoCommandReceiver::Recv()
     }
     
     auto head = reinterpret_cast<DataHead*>(&buf[0]);
-    if (token_ != head->token)
+    if (token_ != head->token||result!=head->length)
     {
         illegal_packets_++;
-        LOGWP("recv illegal data(%d): length=%d, seq=%ld, token=%c, expect %c",data_sock_->GetFd(),result,head->sequence, head->token, token_);
+        LOGWP("recv illegal data(%d): length=%d, seq=%d, token=%c, expect %c",data_sock_->GetFd(),result,head->sequence, head->token, token_);
         return result;
     }
 
@@ -89,7 +89,7 @@ int EchoCommandReceiver::Recv()
     // context_->ClrReadFd(data_sock_->GetFd());
     recv_count_++;
 
-    LOGDP("recv payload data: recv_count %ld seq %ld timestamp %ld token %c",recv_count_,head->sequence,head->timestamp,head->token);
+    LOGDP("recv payload data: recv_count %ld seq %d timestamp %ld token %c",recv_count_,head->sequence,head->timestamp,head->token);
     return result;
 }
 
@@ -169,24 +169,24 @@ int SendCommandReceiver::Recv()
     }
 
     auto head = reinterpret_cast<DataHead*>(&buf_[0]);
-    if (token_ != head->token)
+    if (token_ != head->token||result!=head->length)
     {
         illegal_packets_++;
-        LOGWP("recv illegal data(%d): length=%d, seq=%ld, token=%c, expect %c",data_sock_->GetFd(),result,head->sequence, head->token, token_);
+        LOGWP("recv illegal data(%d): length=%d, seq=%d, token=%c, expect %c",data_sock_->GetFd(),result,head->sequence, head->token, token_);
         return result;
     }
 
     if(packets_.test(head->sequence))
     {
         duplicate_packets_++;
-        LOGWP("recv duplicate data: seq=%ld",head->sequence,head->token);
+        LOGWP("recv duplicate data: seq=%d token %c",head->sequence,head->token);
         return result;
     }
 
     end_ = high_resolution_clock::now();
     stop_ = high_resolution_clock::now();
 
-    LOGDP("recv payload data: recv_count %ld seq %ld expect_seq %ld timestamp %ld token %c",recv_count_,head->sequence,sequence_,head->timestamp,head->token);
+    LOGDP("recv payload data: recv_count %ld seq %d expect_seq %d timestamp %ld token %c",recv_count_,head->sequence,sequence_,head->timestamp,head->token);
 
     recv_bytes_ += result;
     recv_count_++;
@@ -195,7 +195,7 @@ int SendCommandReceiver::Recv()
     if(head->sequence!=sequence_)
     {
         reorder_packets_++;
-        LOGWP("recv reorder data: seq=%ld, expect %ld",head->sequence,sequence_);
+        LOGWP("recv reorder data: seq=%d, expect %d",head->sequence,sequence_);
     }
     
     auto jump_count = int(head->sequence) - sequence_;

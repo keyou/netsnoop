@@ -185,6 +185,7 @@ int EchoCommandSender::SendData()
     // write timestamp to data
     head->timestamp = timestamp;
     head->sequence = send_packets_-1;
+    head->length = data_buf_.length();
     head->token = command_->token;
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
     if(result<0)
@@ -203,7 +204,7 @@ int EchoCommandSender::RecvData()
     end_ = high_resolution_clock::now();
     int result = data_sock_->Recv(&data_buf_[0], data_buf_.length());
     auto head = (DataHead*)&data_buf_[0];
-    if(result<sizeof(DataHead)||head->token!=command_->token)
+    if(result<sizeof(DataHead)||head->token!=command_->token||result!=head->length)
     {
         LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(data_buf_.substr(0,result>0?std::min(result,64):0)).c_str());
         illegal_packets_++;
@@ -325,8 +326,8 @@ int SendCommandSender::SendData()
     DataHead* head = (DataHead*)&data_buf_[0];
     head->timestamp = high_resolution_clock::now().time_since_epoch().count();
     head->sequence = send_packets_;
+    head->length = data_buf_.length();
     head->token = command_->token;
-
     int result = data_sock_->Send(data_buf_.c_str(), data_buf_.length());
     if(result<0)
     {
@@ -346,14 +347,8 @@ int SendCommandSender::RecvData()
     std::string buf(MAX_UDP_LENGTH,'\0');
     int result = data_sock_->Recv(&buf[0], buf.length());
     buf.resize(std::max(result,0));
-    auto head = (DataHead*)&buf[0];
-    if(result < sizeof(DataHead))
-    {
-        LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf).c_str());
-        return result;
-    }
-    LOGWP("recv illegal data(%d): length=%d, seq %s timestamp %ld token %c result %d",data_sock_->GetFd(),result,head->sequence,head->timestamp,head->token);
-    return 0;
+    LOGWP("recv illegal data(%d): length=%d, %s",data_sock_->GetFd(),result,Tools::GetDataSum(buf).c_str());
+    return result;
 }
 int SendCommandSender::OnTimeout()
 {

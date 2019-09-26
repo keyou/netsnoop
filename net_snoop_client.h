@@ -34,6 +34,7 @@ private:
     std::shared_ptr<CommandReceiver> receiver_;
 
     ssize_t illegal_packets_ = 0;
+    std::string cookie_;
 
     DISALLOW_COPY_AND_ASSIGN(NetSnoopClient);
 };
