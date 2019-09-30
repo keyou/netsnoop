@@ -382,6 +382,7 @@ int NetSnoopServer::ProcessNextCommand()
                 netstat_->loss /= *peers_active;
                 netstat_->recv_avg_speed /= success_count;
                 netstat_->recv_time /= success_count;
+                netstat_->delay /= *peers_active;
                 if (command->is_multicast)
                 {
                     netstat_->loss = 1 - 1.0 * netstat_->recv_bytes / (netstat_->send_bytes * success_count);
