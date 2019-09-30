@@ -348,6 +348,9 @@ int NetSnoopServer::ProcessNextCommand()
                 netstat->max_recv_time = netstat->recv_time;
                 netstat->min_send_time = netstat->send_time;
                 netstat->min_recv_time = netstat->recv_time;
+                netstat->max_send_speed = netstat->send_speed;
+                netstat->min_send_speed = netstat->send_speed;
+                netstat->send_avg_speed = netstat->send_speed;
                 netstat->recv_avg_speed = netstat->recv_speed;
                 if (!netstat_)
                 {
@@ -380,6 +383,7 @@ int NetSnoopServer::ProcessNextCommand()
                 ASSERT(*peers_active > 0);
                 netstat_->send_time /= *peers_active;
                 netstat_->loss /= *peers_active;
+                netstat_->send_avg_speed /= *peers_active;
                 netstat_->recv_avg_speed /= success_count;
                 netstat_->recv_time /= success_count;
                 netstat_->delay /= *peers_active;

@@ -196,6 +196,7 @@ struct NetStat
      * 
      */
     long long recv_avg_speed;
+    long long send_avg_speed;
     int max_send_time;
     int min_send_time;
     int max_recv_time;
@@ -222,6 +223,7 @@ struct NetStat
         W(loss);
         W(send_speed);
         W(recv_speed);
+        W(send_avg_speed);
         W(recv_avg_speed);
         W(max_send_speed);
         W(max_recv_speed);
@@ -263,6 +265,7 @@ struct NetStat
         RF(loss);
         RLL(send_speed);
         RLL(recv_speed);
+        RLL(send_avg_speed);
         RLL(recv_avg_speed);
         RLL(max_send_speed);
         RLL(max_recv_speed);
@@ -306,6 +309,7 @@ struct NetStat
         DOU(loss);
         INT(send_speed);
         INT(recv_speed);
+        INT(send_avg_speed);
         INT(recv_avg_speed);
         MAX(max_send_speed);
         MAX(max_recv_speed);
@@ -349,6 +353,7 @@ struct NetStat
         DOU(loss);
         INT(send_speed);
         INT(recv_speed);
+        INT(send_avg_speed);
         INT(recv_avg_speed);
         MAX(max_send_speed);
         MAX(max_recv_speed);
