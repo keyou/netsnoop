@@ -186,11 +186,12 @@ int SendCommandReceiver::Recv()
     end_ = high_resolution_clock::now();
     stop_ = high_resolution_clock::now();
 
-    LOGDP("recv payload data: recv_count %ld seq %d expect_seq %d timestamp %ld token %c",recv_count_,head->sequence,sequence_,head->timestamp,head->token);
-
     recv_bytes_ += result;
     recv_count_++;
     latest_recv_bytes_ += result;
+    auto time_delay = end_.time_since_epoch().count() - head->timestamp;
+
+    LOGDP("recv payload data: recv_count %ld seq %d expect_seq %d timestamp %ld token %c delay %ld",recv_count_,head->sequence,sequence_,head->timestamp,head->token,time_delay);
     
     if(head->sequence!=sequence_)
     {
@@ -220,7 +221,6 @@ int SendCommandReceiver::Recv()
         sequence_++;
     }
     
-    auto time_delay = end_.time_since_epoch().count() - head->timestamp;
     if(recv_count_ == 1)
     {
         head_avg_delay_ = avg_delay_ = max_delay_ = min_delay_ = time_delay;
@@ -236,7 +236,6 @@ int SendCommandReceiver::Recv()
     
     max_delay_ = std::max(max_delay_,time_delay);
     min_delay_ = std::min(min_delay_,time_delay);
-    auto old_avg_delay_ = avg_delay_;
     avg_delay_ = total_delay_/recv_count_;
 
     // The first 100 packets' delay may be more pure than all packets'.
@@ -259,7 +258,7 @@ int SendCommandReceiver::Recv()
         begin_ = high_resolution_clock::now();
     }
     #define D(x) (x-min_delay_)/1000/1000
-    LOGDP("latest recv delay: recv_count %d delay %ld head_avg_delay %ld avg_delay %ld std_delay %ld max_delay %ld",recv_count_,D(time_delay),D(head_avg_delay_),D(avg_delay_),std_delay_,D(max_delay_));
+    LOGDP("latest recv delay: recv_count %ld delay %ld head_avg_delay %ld avg_delay %ld std_delay %ld max_delay %ld baseline %ld",recv_count_,D(time_delay),D(head_avg_delay_),D(avg_delay_),std_delay_,D(max_delay_),-D(0));
     #undef D
     
     return result;
