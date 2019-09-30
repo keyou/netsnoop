@@ -89,6 +89,7 @@ void StartServer()
         LOGVP("notify running...");
         Udp multicast;
         multicast.Initialize();
+        multicast.BindMulticastInterface(g_option->ip_local);
         multicast.Connect("239.3.3.4", 4001);
         while (true)
         {
