@@ -140,7 +140,7 @@ begin:
         "send multicast true speed 500 time 10000 size 1472 timeout 300 wait 5000",
         "send multicast true speed 1000 time 10000 size 1472 timeout 300 wait 5000",
         "send multicast true speed 2000 time 10000 size 1472 timeout 300 wait 5000",
-        "send multicast true count 5000 interval 0 size 1472 timeout 300 wait 5000",
+        "send multicast true count 100000 interval 0 size 1472 timeout 300 wait 5000",
     };
     CMD_COUNT = cmds.size();
     for (auto i = 0; i < CMD_COUNT; i++)
