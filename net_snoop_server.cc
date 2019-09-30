@@ -390,6 +390,8 @@ int NetSnoopServer::ProcessNextCommand()
                 if (command->is_multicast)
                 {
                     netstat_->loss = 1 - 1.0 * netstat_->recv_bytes / (netstat_->send_bytes * success_count);
+                    netstat_->max_send_speed = netstat_->send_speed;
+                    netstat_->min_send_speed = netstat_->send_speed;
                 }
 
                 netstat_->peers_count = *peers_count;
