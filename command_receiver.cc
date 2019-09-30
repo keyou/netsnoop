@@ -232,11 +232,9 @@ int SendCommandReceiver::Recv()
         timeout_packets_++;
     }
     
-    total_delay_ += time_delay;
-    
     max_delay_ = std::max(max_delay_,time_delay);
     min_delay_ = std::min(min_delay_,time_delay);
-    avg_delay_ = total_delay_/recv_count_;
+    avg_delay_ += (time_delay - avg_delay_)/recv_count_;
 
     // The first 100 packets' delay may be more pure than all packets'.
     if(recv_count_<=100)

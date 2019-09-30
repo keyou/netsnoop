@@ -111,7 +111,6 @@ private:
     uint16_t sequence_;
     std::bitset<MAX_SEQ> packets_;
 
-    int64_t total_delay_ = 0;
     int64_t avg_delay_ = 0;
     int64_t max_delay_ = 0;
     int64_t min_delay_ = 0;
