@@ -36,7 +36,7 @@ public:
     std::shared_ptr<Command> GetCommand() const{return command_;};
     const std::string &GetCookie() const { return cookie_; }
     int GetTimeout() const{ return commandsender_?commandsender_->GetTimeout():-1; }
-    bool IsReady() const{return !!data_sock_;}
+    bool IsReady() const{return !!data_sock_tcp_;}
     bool IsPayloadStarted() const {return commandsender_&&commandsender_->is_started_;}
 
     std::function<void(const Peer*,std::shared_ptr<NetStat>)> OnStopped;
@@ -49,16 +49,14 @@ public:
 
     // TODO: optimize multicast logic
     std::shared_ptr<Sock> multicast_sock_;
+    std::shared_ptr<Sock> data_sock_;
+    std::shared_ptr<Sock> data_sock_tcp_;
+    std::string cookie_;
 
 private:
-
-    int Auth();
-
     std::shared_ptr<Option> option_;
     std::shared_ptr<Sock> control_sock_;
-    std::shared_ptr<Sock> data_sock_;
     std::shared_ptr<Sock> current_sock_;
-    std::string cookie_;
     std::shared_ptr<Command> command_;
     std::shared_ptr<CommandSender> commandsender_; 
     char buf_[MAX_UDP_LENGTH];

@@ -45,6 +45,7 @@ private:
     int AceeptNewConnect();
     int AcceptNewCommand();
     int ProcessNextCommand();
+    int Auth(std::shared_ptr<Sock> sock);
 
     std::shared_ptr<Option> option_;
     std::shared_ptr<Context> context_;
@@ -74,6 +75,7 @@ private:
      * 
      */
     std::list<std::shared_ptr<Peer>> peers_;
+    std::list<std::shared_ptr<Sock>> peer_socks_;
     /**
      * @brief The authed peers.
      * 

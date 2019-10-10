@@ -30,6 +30,7 @@ private:
     std::shared_ptr<Context> context_;
     std::shared_ptr<Sock> control_sock_;
     std::shared_ptr<Sock> data_sock_;
+    std::shared_ptr<Sock> data_sock_tcp_;
     std::shared_ptr<Udp> multicast_sock_;
     std::shared_ptr<CommandReceiver> receiver_;
 

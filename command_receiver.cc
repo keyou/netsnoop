@@ -67,7 +67,7 @@ int EchoCommandReceiver::Recv()
     LOGVP("EchoCommandReceiver recv payload.");
     ASSERT_RETURN(running_, -1, "EchoCommandReceiver recv unexpeted.");
     std::string buf(MAX_UDP_LENGTH, 0);
-    int result = data_sock_->Recv(&buf[0], buf.length());
+    int result = data_sock_->Recv(&buf[0], command_->GetSize());
     buf.resize(std::max(result,0));
     if (result < sizeof(DataHead))
     {
@@ -159,7 +159,7 @@ int SendCommandReceiver::Recv()
         start_ = high_resolution_clock::now();
         begin_ = high_resolution_clock::now();
     }
-    int result = data_sock_->Recv(&buf_[0], buf_.length());
+    int result = data_sock_->Recv(&buf_[0], command_->GetSize());
     buf_.resize(std::max(result,0));
     if (result < sizeof(DataHead))
     {

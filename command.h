@@ -410,7 +410,7 @@ public:
     // TODO: optimize command structure to simplify sub command.
     Command(std::string name, std::string cmd)
         : name(name), cmd(cmd), token('$'),
-          is_private(false), is_multicast(false)
+          is_private(false), is_multicast(false),is_tcp(false)
     {
     }
     void RegisterCallback(CommandCallback callback)
@@ -446,6 +446,7 @@ public:
     std::string name;
     bool is_private;
     bool is_multicast;
+    bool is_tcp;
 
     char token;
 
@@ -511,6 +512,7 @@ public:
         if (!args["token"].empty())
             token = args["token"].at(0);
         
+        is_tcp = !args["tcp"].empty();
         auto speed = args["speed"].empty() ? ECHO_DEFAULT_SPEED : std::stoi(args["speed"]);
         auto time = args["time"].empty() ? ECHO_DEFAULT_TIME : std::stoi(args["time"]);
         if (speed > 0 && time > 0)
@@ -597,8 +599,11 @@ public:
         if (!args["token"].empty())
             token = args["token"].at(0);
         is_multicast = !args["multicast"].empty();
+        is_tcp = !args["tcp"].empty();
         if (is_multicast)
             LOGDP("enable multicast.");
+        if (is_tcp)
+            LOGDP("enable tcp.");
         ASSERT(size_>=sizeof(DataHead));
         
         auto speed = args["speed"].empty() ? SEND_DEFAULT_SPEED : std::stoi(args["speed"]);

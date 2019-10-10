@@ -126,7 +126,7 @@ void StartServer()
         std::clog << "peer disconnect(" << count << "): " << peer->GetCookie() << std::endl;
     };
     server.OnPeerStopped = [&](const Peer *peer, std::shared_ptr<NetStat> netstat) {
-        std::clog << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->GetCmd().c_str()
+        std::cout << "peer stoped: (" << peer->GetCookie() << ") " << peer->GetCommand()->GetCmd().c_str()
                   << " || " << (netstat ? netstat->ToString() : "NULL") << std::endl;
     };
     auto t = std::thread([&]() {

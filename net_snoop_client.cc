@@ -69,6 +69,11 @@ int NetSnoopClient::Run()
             // in a long delay network(>100ms)，we may recv a port unreachable ICMP packet.
             //ASSERT_RETURN(result>0,-1);
         }
+        if (FD_ISSET(data_sock_tcp_->GetFd(), &read_fds))
+        {
+            result = RecvData(data_sock_tcp_);
+            ASSERT_RETURN(result>=0,-1);
+        }
         if (FD_ISSET(multicast_sock_->GetFd(), &read_fds))
         {
             result = RecvData(multicast_sock_);
@@ -138,6 +143,11 @@ int NetSnoopClient::Connect()
     result = data_sock_->GetLocalAddress(ip_local, port_local);
     ASSERT(result >= 0);
 
+    data_sock_tcp_ = std::make_shared<Tcp>();
+    result = data_sock_tcp_->Initialize();
+    result = data_sock_tcp_->Connect(option_->ip_remote, option_->port);
+    ASSERT_RETURN(result >= 0,-1,"data tcp socket connect server error.");
+
     multicast_sock_ = std::make_shared<Udp>();
     result = multicast_sock_->Initialize();
     result = multicast_sock_->Bind("0.0.0.0",option_->port);
@@ -152,10 +162,13 @@ int NetSnoopClient::Connect()
     cookie_ = "cookie:" + ip_local + ":" + std::to_string(port_local);
     result = control_sock_->Send(cookie_.c_str(), cookie_.length());
     ASSERT_RETURN(result >= 0,-1);
-    // TODO: optimize this code, wait 100 millseconds for server creating the data sock
+    // TODO: optimize this code, wait 500 millseconds for server creating the data sock
     usleep(500*1000);
     // to make a hole in the firewall.
     result = data_sock_->Send(cookie_.c_str(), cookie_.length());
+    ASSERT_RETURN(result >= 0,-1);
+
+    result = data_sock_tcp_->Send(cookie_.c_str(), cookie_.length());
     ASSERT_RETURN(result >= 0,-1);
 
     context_->control_fd = control_sock_->GetFd();
@@ -163,6 +176,7 @@ int NetSnoopClient::Connect()
 
     context_->SetReadFd(control_sock_->GetFd());
     context_->SetReadFd(data_sock_->GetFd());
+    context_->SetReadFd(data_sock_tcp_->GetFd());
     context_->SetReadFd(multicast_sock_->GetFd());
 
     if(OnConnected) OnConnected();
@@ -207,19 +221,19 @@ int NetSnoopClient::RecvCommand()
     //     LOGDP("illegal data recved(%d).",result);
     // }
 #endif // !WIN32
-    if(!command->is_multicast)
+    if(!command->is_multicast&&!command->is_tcp)
     {
         // to make a hole in the firewall.
         result = data_sock_->Send(cookie_.c_str(), cookie_.length());
         ASSERT_RETURN(result >= 0,ERR_DEFAULT,"send cookie error.");
     }
-    
+
     auto ack_command = std::make_shared<AckCommand>();
     result = control_sock_->Send(ack_command->GetCmd().c_str(),ack_command->GetCmd().length());
     ASSERT_RETURN(result>0,ERR_DEFAULT,"send ack command error.");
 
     auto channel = std::shared_ptr<CommandChannel>(new CommandChannel{
-        command,context_,control_sock_,command->is_multicast?multicast_sock_:data_sock_
+        command,context_,control_sock_,command->is_multicast?multicast_sock_:(command->is_tcp?data_sock_tcp_:data_sock_)
     });
     receiver_ = command->CreateCommandReceiver(channel);
     ASSERT(receiver_);

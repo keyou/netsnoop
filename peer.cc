@@ -42,7 +42,7 @@ int Peer::RecvCommand()
 {
     if (cookie_.empty())
     {
-        return Auth();
+        return -1;
     }
     // client closed or error.
     if(!commandsender_)
@@ -87,56 +87,6 @@ int Peer::RecvData()
         return 0;
     }
     return commandsender_->RecvData();
-}
-
-int Peer::Auth()
-{
-    int result;
-    std::string buf(MAX_UDP_LENGTH, '\0');
-    if ((result = control_sock_->Recv(&buf[0], buf.length())) <= 0)
-    {
-        LOGEP("Disconnect.");
-        return ERR_AUTH_ERROR;
-    }
-    buf.resize(result);
-
-    if (buf.rfind("cookie:", 0) != 0)
-    {
-        LOGEP("Bad client.");
-        return ERR_AUTH_ERROR;
-    }
-    cookie_ = buf;
-    std::string local_ip;
-    int local_port;
-    result = control_sock_->GetLocalAddress(local_ip, local_port);
-    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
-
-    std::string remote_ip,peer_ip;
-    int remote_port,peer_port;
-    result = control_sock_->GetPeerAddress(remote_ip,remote_port);
-    ASSERT_RETURN(result>=0,ERR_AUTH_ERROR);
-
-    buf = buf.substr(sizeof("cookie:") - 1);
-    int index = buf.find(':');
-    peer_ip = buf.substr(0, index);
-    peer_port = atoi(buf.substr(index + 1).c_str());
-    // TODO: support NAT environment.
-    ASSERT_RETURN(peer_ip==remote_ip,ERR_AUTH_ERROR,"support test on the same network only.");
-
-    data_sock_ = std::make_shared<Udp>();
-    result = data_sock_->Initialize();
-    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
-    result = data_sock_->Bind(local_ip, local_port);
-    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
-    result = data_sock_->Connect(peer_ip, peer_port);
-    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
-    context_->SetReadFd(data_sock_->GetFd());
-
-    LOGDP("connect new client(fd=%d): %s:%d", data_sock_->GetFd(), peer_ip.c_str(), peer_port);
-    if (OnAuthSuccess)
-        OnAuthSuccess(this);
-
-    return 0;
 }
 
 int Peer::Timeout(int timeout)
@@ -198,6 +148,7 @@ std::chrono::high_resolution_clock::time_point MultiCastSock::begin_;
 
 int Peer::GetDataFd() const
 {
+    if(commandsender_&&command_&&command_->is_tcp) return data_sock_tcp_ ? data_sock_tcp_->GetFd() : -1;
     return data_sock_ ? data_sock_->GetFd() : -1;
 }
 
@@ -211,6 +162,10 @@ int Peer::SetCommand(std::shared_ptr<Command> command)
         MultiCastSock::Start();
         current_sock_ = std::make_shared<MultiCastSock>(multicast_sock_, data_sock_, command);
     }
+    else if(command->is_tcp)
+    {
+        current_sock_ = data_sock_tcp_;
+    }
 
     command_ = command;
     std::shared_ptr<CommandChannel> channel(new CommandChannel{
@@ -222,6 +177,7 @@ int Peer::SetCommand(std::shared_ptr<Command> command)
             OnStopped(this, netstat);
         //commandsender_ is not reusable.
         commandsender_ = NULL;
+        //command_ = NULL;
     };
     return 0;
 }

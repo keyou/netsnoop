@@ -125,6 +125,7 @@ int NetSnoopServer::Run()
             result = AceeptNewConnect();
             ASSERT_RETURN(result >= 0, -1, "accept new connect error.");
         }
+        
         bool is_multicast_ready = true;
         // process clients
         for (auto it = peers_.begin(); it != peers_.end();)
@@ -155,14 +156,19 @@ int NetSnoopServer::Run()
                 LOGWP("client removed: %s", peer->GetCookie().c_str());
                 context_->ClrReadFd(peer->GetControlFd());
                 context_->ClrWriteFd(peer->GetControlFd());
-                if (peer->GetDataFd() > 0)
+                if (peer->data_sock_&&peer->data_sock_->GetFd()>0)
                 {
-                    context_->ClrReadFd(peer->GetDataFd());
-                    context_->ClrWriteFd(peer->GetDataFd());
+                    context_->ClrReadFd(peer->data_sock_->GetFd());
+                    context_->ClrWriteFd(peer->data_sock_->GetFd());
+                }
+                if (peer->data_sock_tcp_&&peer->data_sock_tcp_->GetFd()>0)
+                {
+                    context_->ClrReadFd(peer->data_sock_tcp_->GetFd());
+                    context_->ClrWriteFd(peer->data_sock_tcp_->GetFd());
                 }
                 peer->Stop();
                 it = peers_.erase(it);
-                if (result!=ERR_AUTH_ERROR&&OnPeerDisconnected)
+                if (OnPeerDisconnected)
                     OnPeerDisconnected(peer.get());
             }
             else
@@ -182,6 +188,22 @@ int NetSnoopServer::Run()
                     context_->SetWriteFd(peer->GetDataFd());
                 }
             }
+        }
+
+        for (auto it = peer_socks_.begin(); it != peer_socks_.end();)
+        {
+            auto sock = *it;
+            if (FD_ISSET(sock->GetFd(), &read_fdsets))
+            {
+                it = peer_socks_.erase(it);
+                result = Auth(sock);
+                if(result<0)
+                {
+                    context_->ClrReadFd(sock->GetFd());
+                    context_->ClrWriteFd(sock->GetFd());
+                }
+            }
+            else it++;
         }
     }
 
@@ -232,36 +254,97 @@ int NetSnoopServer::StartListen()
 int NetSnoopServer::AceeptNewConnect()
 {
     int result;
-
     if ((result = listen_peers_sock_->Accept()) <= 0)
     {
         return -1;
     }
 
-    std::string ip,ip_remote;
-    int port,port_remote;
+    std::string ip_remote;
+    int port_remote;
     auto tcp = std::make_shared<Tcp>(result);
-    result = tcp->GetLocalAddress(ip, port);
-    ASSERT_RETURN(result>=0,-1);
     result = tcp->GetPeerAddress(ip_remote, port_remote);
     ASSERT_RETURN(result>=0,-1);
-    LOGIP("accept new connect: %s:%d",ip_remote.c_str(),port_remote);
+    context_->SetReadFd(tcp->GetFd());
+    LOGIP("accept new connect(fd=%d): %s:%d",tcp->GetFd(),ip_remote.c_str(),port_remote);
+
+    peer_socks_.push_back(tcp);
+
+    return 0;
+}
+
+int NetSnoopServer::Auth(std::shared_ptr<Sock> sock)
+{
+    int result;
+    std::string buf(MAX_UDP_LENGTH, '\0');
+    if ((result = sock->Recv(&buf[0], buf.length())) <= 0)
+    {
+        LOGEP("Disconnect.");
+        return ERR_AUTH_ERROR;
+    }
+    buf.resize(result);
+
+    if (buf.rfind("cookie:", 0) != 0)
+    {
+        LOGEP("Bad client.");
+        return ERR_AUTH_ERROR;
+    }
+    auto it = std::find_if(peers_.begin(),peers_.end(),[&](std::shared_ptr<Peer> p){
+        return p->GetCookie() == buf;
+    });
+    if(it != peers_.end())
+    {
+        (*it)->data_sock_tcp_ = sock;
+        return 0;
+    }
+    
+    std::string local_ip;
+    int local_port;
+    result = sock->GetLocalAddress(local_ip, local_port);
+    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
+
+    std::string remote_ip,peer_ip;
+    int remote_port,peer_port;
+    result = sock->GetPeerAddress(remote_ip,remote_port);
+    ASSERT_RETURN(result>=0,ERR_AUTH_ERROR);
+
+    auto tmp = buf.substr(sizeof("cookie:") - 1);
+    int index = tmp.find(':');
+    peer_ip = tmp.substr(0, index);
+    peer_port = atoi(tmp.substr(index + 1).c_str());
+    // TODO: support NAT environment.
+    ASSERT_RETURN(peer_ip==remote_ip,ERR_AUTH_ERROR,"support test on the same network only.");
+
+    auto data_sock = std::make_shared<Udp>();
+    result = data_sock->Initialize();
+    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
+    result = data_sock->Bind(local_ip, local_port);
+    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
+    result = data_sock->Connect(peer_ip, peer_port);
+    ASSERT_RETURN(result >= 0,ERR_AUTH_ERROR);
+    context_->SetReadFd(data_sock->GetFd());
+
+    LOGDP("connect new client(fd=%d): %s:%d", data_sock->GetFd(), peer_ip.c_str(), peer_port);
 
     if (!multicast_sock_)
     {
         multicast_sock_ = std::make_shared<Udp>();
         result = multicast_sock_->Initialize();
-        result = multicast_sock_->BindMulticastInterface(ip);
+        result = multicast_sock_->BindMulticastInterface(local_ip);
         ASSERT_RETURN(result>=0,-1,"bind multicast interface error.");
 
         result = multicast_sock_->Connect(option_->ip_multicast, option_->port);
         ASSERT_RETURN(result >= 0, -1, "multicast socket connect server error.");
     }
 
-    auto peer = std::make_shared<Peer>(tcp, option_, context_);
-    peer->OnAuthSuccess = OnPeerConnected;
+    auto peer = std::make_shared<Peer>(sock, option_, context_);
+    peer->cookie_ = buf;
+    peer->data_sock_ = data_sock;
     peer->multicast_sock_ = multicast_sock_;
     peers_.push_back(peer);
+
+    if (OnPeerConnected)
+        OnPeerConnected(peer.get());
+
     return 0;
 }
 

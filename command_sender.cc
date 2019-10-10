@@ -202,7 +202,7 @@ int EchoCommandSender::SendData()
 int EchoCommandSender::RecvData()
 {
     end_ = high_resolution_clock::now();
-    int result = data_sock_->Recv(&data_buf_[0], data_buf_.length());
+    int result = data_sock_->Recv(&data_buf_[0], command_->GetSize());
     auto head = (DataHead*)&data_buf_[0];
     if(result<sizeof(DataHead)||head->token!=command_->token||result!=head->length)
     {
