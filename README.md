@@ -94,6 +94,30 @@ The `script.snoop` file is a text file:
 - `peers 2`: wait until 2 peers connect;
 - `sleep 5`: wait 5 seconds;
 
+## Features
+
+Currently, `netsnoop` support these 32 features:
+
+Property Name | Explain | Notes
+---------|----------|---------
+ loss | Loss Rate |  
+ (send/recv)_speed | Send/Recv Speed |  
+ (send/recv)_avg_speed | Average Send/Recv Speed |  
+ (max/min)_(send/recv)_speed | Max/Min Send/Recv Speed |  
+ (send/recv)_packets | Send/Recv Packets Count |  
+ illegal_packets | Illegal Packets Count |  
+ reorder_packets | Reorder Packets Count |  
+ duplicate_packets | Duplicate Packets Count |  
+ timeout_packets | Timeout Packets Count |  
+ (send/recv)_pps | Send/Recv pps |  
+ (send/recv)_bytes | Send/Recv Bytes |  
+ \[(min/max)_\](send/recv)_time | Send/Recv Average/Min/Max Time |  
+ \[(min/max)_\]delay | Packets Average/Min/Max Delay |  
+ jitter | Packets Delay Jitter |  
+ jitter_std | Jitter Standard Deviation |  
+ peers_count | Connect Clients Count (when test start) |  
+ peers_failed | Disconnect Clients Count |  
+
 ## For developers
 
 Welcome to expand more subcommands. This tool is not fully complete, although the code is friendly with unicast, it is not friendly with multicast now. Welcome to reflector the multicast code.
