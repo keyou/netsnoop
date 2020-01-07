@@ -111,7 +111,7 @@ Property Name | Explain | Notes
  timeout_packets | Timeout Packets Count |  
  (send/recv)_pps | Send/Recv pps |  
  (send/recv)_bytes | Send/Recv Bytes |  
- \[(min/max)_\](send/recv)_time | Send/Recv Average/Min/Max Time |  
+ \[(min/max)_\]\(send/recv\)_time | Send/Recv Average/Min/Max Time |  
  \[(min/max)_\]delay | Packets Average/Min/Max Delay |  
  jitter | Packets Delay Jitter |  
  jitter_std | Jitter Standard Deviation |  
